@@ -1,7 +1,12 @@
-# Linux CI (AudioSmith's): the Go side (views in ui.Tester, the store,
-# settings, the helper supervisor against the fake helper, the protocol
-# fixtures, i18n key parity) and MyGo's vet. The Swift helper and the Mac
-# checks need a Mac; they are not run here (README: Tests).
+# CI (AudioSmith's), two jobs:
+# - go (Linux): the Go side (views in ui.Tester, the store, settings, the
+#   helper supervisor against the fake helper, the protocol fixtures, i18n
+#   key parity) and MyGo's vet.
+# - helper (macOS): the Swift helper's tests (swift test, against
+#   helper/Fixtures), its release build, and the Go tests that decode the
+#   same fixtures, so both sides of the helper protocol are checked on a Mac.
+# What needs permissions or a GUI (the event tap, Accessibility, the
+# microphone) is checked by hand: docs/manual-test.md.
 name: CI
 
 on:
@@ -71,3 +76,29 @@ jobs:
           name: snapshots
           path: ${{ runner.temp }}/shots
           retention-days: 7
+
+  helper:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Swift tests
+        working-directory: helper
+        run: swift test
+
+      - name: Release build (ad hoc signed)
+        run: scripts/build-helper.sh --out "$RUNNER_TEMP/helper"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Go protocol fixtures and supervisor
+        run: CGO_ENABLED=0 go test ./internal/helper/...
