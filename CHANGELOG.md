@@ -17,7 +17,9 @@ The first version: voice input for macOS on remote models.
 - **Home**: what is still missing (a service, a permission, the shortcut) with the way to fix it, a try of the whole chain on the page, today's results and characters, the last five results.
 - **Setup guide** on the first start (and from Settings → General): privacy, permissions, services, then a real try of Transcribe, Translate and Rewrite, and App enhancement and the dictionary.
 - **History**: by feature, searchable, with the texts, where the result went, the services, the rule that matched and each stage's time; recordings kept on request.
-- The recording overlay (non-activating, so the app you type into keeps its focus) and the answer card; the menu bar icon; Settings: General, Permissions, Audio, Overlay, Shortcuts, Appearance, Network (proxy), Privacy, Storage, Diagnostics and about; English and Simplified Chinese.
+- The recording overlay (non-activating, so the app you type into keeps its focus) and the answer card, with start and stop sounds.
+- The menu bar icon: start or stop transcribing, paste the last result, the last three results to copy; it changes while recording. Closing the window keeps Auralink there, and it can open at login.
+- Settings: General (languages, the menu bar, login, the setup guide), Permissions, Audio (the microphones in your order of preference, sounds), Overlay style (place, opacity, corners, with a preview), Shortcuts (every feature's keys and their conflicts), Appearance (the sidebar shrinks to icons in a narrow window), Network (proxy), Privacy, Storage, Diagnostics and about; English and Simplified Chinese.
 
 ### Known limitations
 
