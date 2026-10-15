@@ -197,6 +197,9 @@ func (c *Client) post(ctx context.Context, body []byte, ctype string) (asr.Resul
 		if msg == "" {
 			msg = resp.Status
 		}
+		if resp.StatusCode/100 == 4 && asr.NoSpeech(code, msg) {
+			return asr.Result{}, nil // silence: nothing was said (StepFun's 400 "no speech found")
+		}
 		return asr.Result{}, asr.HTTPError(ID, resp.StatusCode, code, msg)
 	}
 	return parse(raw)

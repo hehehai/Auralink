@@ -427,6 +427,8 @@ func (r *run) listen() (string, bool) {
 	}
 	asrTime := r.now().Sub(asrStart)
 	if err != nil {
+		// The error itself follows in endFailed's line.
+		r.logf("warning", "speech service %s (model %s) failed after %v", r.svc.ASRInfo.ID, r.svc.ASRInfo.Model, asrTime.Round(time.Millisecond))
 		r.endFailed(r.asrProblem(err), nil, func(s *Snapshot) { s.Timings.ASR = asrTime })
 		return "", false
 	}
@@ -457,7 +459,7 @@ func (r *run) transcribe(raw string) {
 		}
 		r.m.update(r, func(s *Snapshot) { s.Profile, s.Timings.LLM = profile, llmTime })
 		if err != nil {
-			r.logf("warning", "language model failed after %v, the text goes on as recognised: %v", llmTime.Round(time.Millisecond), err)
+			r.logf("warning", "language model %s (model %s) failed after %v, the text goes on as recognised: %v", r.svc.LLMInfo.ID, r.svc.LLMInfo.Model, llmTime.Round(time.Millisecond), err)
 			problem = &Problem{Code: ProblemLLM, Err: err, Degraded: true}
 		} else {
 			r.logf("info", "composed %s in %v", r.logText(text), llmTime.Round(time.Millisecond))

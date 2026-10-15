@@ -259,3 +259,17 @@ func TestE2EDeepSeek(t *testing.T) {
 		t.Logf("probe %v", d.Round(time.Millisecond))
 	}
 }
+
+func TestTestLog(t *testing.T) {
+	p := settings.Provider{ID: "stepfun", Enabled: true}
+	level, msg := TestLog(ASR, p, TestResult{Latency: 904 * time.Millisecond, Text: "secret words"}, "sk-123456")
+	if level != "info" || msg != "connection test of speech stepfun (model step-asr): ok in 904ms" {
+		t.Errorf("%s %q", level, msg)
+	}
+	err := &asr.Error{Kind: asr.KindAuth, Provider: "openai", Status: 401, Detail: "Incorrect API key provided: sk-123456"}
+	level, msg = TestLog(ASR, settings.Provider{ID: "openai", Model: "whisper-1"}, TestResult{Latency: 120 * time.Millisecond, Err: err}, "sk-123456")
+	if level != "warning" || strings.Contains(msg, "sk-123456") ||
+		msg != "connection test of speech openai (model whisper-1): failed in 120ms: asr openai: auth (status 401): Incorrect API key provided: [key]" {
+		t.Errorf("%s %q", level, msg)
+	}
+}

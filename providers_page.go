@@ -14,15 +14,18 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/asr"
+	"github.com/hehehai/Auralink/internal/core"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/llm"
+	"github.com/hehehai/Auralink/internal/logs"
 	"github.com/hehehai/Auralink/internal/providers"
 	"github.com/hehehai/Auralink/internal/secrets"
 	"github.com/hehehai/Auralink/internal/settings"
@@ -447,19 +450,10 @@ func (a *app) providerCard(c *ui.Context, kind providers.Kind, pr providers.Pres
 }
 
 // testMark is a ready card's test state: a spinner while it runs, its
-// result once done.
+// result once done (as the dialog's, shorter).
 func (a *app) testMark(c *ui.Context, acc string) {
-	t := c.Theme()
-	k := tok(t)
-	tr, ok := a.provTests[acc]
-	switch {
-	case ok && tr.running:
-		ui.Spinner(c).Size(px(t, 14), px(t, 14))
-	case ok && tr.res.Err == nil:
-		statusMark(c, icons.CheckCircle, k.Success, i18n.T("%d ms", tr.res.Latency.Milliseconds())).Shrink(0)
-	case ok:
-		msg, more := providerErrorText(tr.res.Err)
-		statusMark(c, icons.CloseCircle, k.Danger, i18n.T("Failed")).Shrink(0).Tooltip(msg + "\n" + more)
+	if tr, ok := a.provTests[acc]; ok {
+		testStatus(c, tr, false)
 	}
 }
 
@@ -467,15 +461,26 @@ func (a *app) testMark(c *ui.Context, acc string) {
 func (a *app) testProvider(kind providers.Kind, p settings.Provider) {
 	acc := providers.Account(kind, p.ID)
 	a.provTests[acc] = providerTest{running: true}
-	kr, proxy := a.keys, a.prefs.Network.Proxy
+	kr, proxy, logs := a.keys, a.prefs.Network.Proxy, a.logs
 	a.async(func() {
 		key, err := kr.Get(acc)
-		res := providers.TestResult{Err: err}
+		res := providers.TestResult{Err: err, At: time.Now()}
 		if err == nil {
 			res = runProviderTest(context.Background(), kind, p, providers.Env{Key: key, Proxy: proxy})
 		}
+		logTest(logs, kind, p, res, key)
 		a.post(func() { a.provTests[acc] = providerTest{res: res} })
 	})
+}
+
+// logTest writes a connection test's outcome to the app log (any
+// goroutine): the service, model, time and error, never the key.
+func logTest(r *logs.Ring, kind providers.Kind, p settings.Provider, res providers.TestResult, key string) {
+	if r == nil {
+		return
+	}
+	level, msg := providers.TestLog(kind, p, res, key)
+	r.Append(core.LogEntry{Time: time.Now(), Level: core.Severity(level), Source: "app", Message: msg})
 }
 
 // runProviderTest is providers.Test; tests swap it for a fake.
@@ -607,32 +612,58 @@ func (a *app) providerDialogView(c *ui.Context) {
 				ui.TextArea(c.Key("prov-prompt"), &d.prompt).Placeholder(i18n.T("Optional")).Label(i18n.T("Recognition prompt")).MinHeight(px(t, 64))
 			})
 		}
-		switch {
-		case d.err != "":
+		if d.err != "" {
 			notice(c, "prov-dlg-err", noticeError, d.err, d.errMore, nil, func() { d.err, d.errMore = "", "" })
-		case d.test.running:
-			ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
-				ui.Spinner(c).Size(px(t, 14), px(t, 14))
-				caption(c, i18n.T("Testing…"))
-			})
-		case !d.test.res.At.IsZero() && d.test.res.Err == nil:
-			notice(c, "prov-dlg-ok", noticeOK, i18n.T("It works (%d ms).", d.test.res.Latency.Milliseconds()), "", nil, func() { d.test = providerTest{} })
-		case !d.test.res.At.IsZero():
-			msg, more := providerErrorText(d.test.res.Err)
-			notice(c, "prov-dlg-fail", noticeError, msg, more, nil, func() { d.test = providerTest{} })
 		}
 	}, func() {
-		if ui.Button(c.Key("prov-dlg-test"), i18n.T("Test connection")).Disabled(d.test.running || d.saving).Clicked() {
+		if ui.Button(c.Key("prov-dlg-test"), i18n.T("Test connection")).Disabled(d.test.running || d.saving).Shrink(0).Clicked() {
 			a.testDialog()
 		}
-		ui.Spacer(c)
-		if ghostButton(c.Key("prov-dlg-cancel"), i18n.T("Cancel")).Clicked() {
+		// The test's state, beside its button; a long reason is cut, its
+		// ⓘ tells the whole of it.
+		ui.Row(c.Key("prov-dlg-status")).Gap(px(t, sp1)).AlignItems(ui.Center).Grow(1).Shrink(1).Basis(0).MinWidth(0).Children(func() {
+			testStatus(c, d.test, true)
+		})
+		if ghostButton(c.Key("prov-dlg-cancel"), i18n.T("Cancel")).Shrink(0).Clicked() {
 			d.open = false
 		}
-		if primaryButton(c.Key("prov-dlg-save"), i18n.T("Save")).Disabled(d.saving).Clicked() {
+		if primaryButton(c.Key("prov-dlg-save"), i18n.T("Save")).Disabled(d.saving).Shrink(0).Clicked() {
 			a.saveProviderDialog()
 		}
 	})
+}
+
+// testStatus is a connection test's state: a spinner while it runs, a
+// green tick and its time once it works, a red mark and a short reason
+// when it failed, with the long one and what the service said in a
+// tooltip (and an ⓘ, when long is set: the dialog's).
+func testStatus(c *ui.Context, tr providerTest, long bool) {
+	t := c.Theme()
+	k := tok(t)
+	switch {
+	case tr.running:
+		ui.Spinner(c).Size(px(t, 14), px(t, 14)).Shrink(0)
+		if long {
+			caption(c, i18n.T("Testing…")).SingleLine().Ellipsis("…").MinWidth(0)
+		}
+	case tr.res.At.IsZero() && tr.res.Err == nil && tr.res.Latency == 0:
+	case tr.res.Err == nil:
+		text := i18n.T("%d ms", tr.res.Latency.Milliseconds())
+		if long {
+			text = i18n.T("Connection OK · %d ms", tr.res.Latency.Milliseconds())
+		}
+		statusMark(c, icons.CheckCircle, k.Success, text).Shrink(1).Tooltip(text)
+	default:
+		short := providerErrorShort(tr.res.Err)
+		msg, _ := providerErrorText(tr.res.Err)
+		tip := msg + "\n\n" + providerErrorDetail(tr.res.Err)
+		if !long {
+			statusMark(c, icons.CloseCircle, k.Danger, i18n.T("Failed")).Shrink(0).Tooltip(short + "\n" + tip)
+			return
+		}
+		statusMark(c, icons.CloseCircle, k.Danger, short).Shrink(1).Tooltip(tip)
+		infoTip(c, tip).Shrink(0)
+	}
 }
 
 // dialogKey is the key the dialog's test uses: the one typed, else the
@@ -656,17 +687,18 @@ func (a *app) testDialog() {
 	kind, p := d.kind, d.setup()
 	p.Enabled = true
 	if err := providers.CheckEndpoint(kind, p); err != nil {
-		d.err, d.errMore = providerErrorText(err)
+		d.err, d.test = "", providerTest{res: providers.TestResult{Err: err, At: time.Now()}}
 		return
 	}
 	d.err, d.test = "", providerTest{running: true}
-	key, proxy, id := a.dialogKey(providers.Account(kind, p.ID)), a.prefs.Network.Proxy, d.id
+	key, proxy, id, logs := a.dialogKey(providers.Account(kind, p.ID)), a.prefs.Network.Proxy, d.id, a.logs
 	a.async(func() {
 		k, err := key()
 		res := providers.TestResult{Err: err, At: time.Now()}
 		if err == nil {
 			res = runProviderTest(context.Background(), kind, p, providers.Env{Key: k, Proxy: proxy})
 		}
+		logTest(logs, kind, p, res, k)
 		a.post(func() {
 			if a.provDlg.open && a.provDlg.id == id && a.provDlg.kind == kind {
 				a.provDlg.test = providerTest{res: res}
@@ -775,6 +807,101 @@ func providerErrorText(err error) (msg, more string) {
 		return i18n.T("The service answered something Auralink does not understand. Check the endpoint and the model."), more
 	}
 	return i18n.T("Could not reach the service. Check the network, the proxy and the endpoint."), more
+}
+
+// providerErrorShort is a failed test's reason beside its button: a few
+// words, and what to change.
+func providerErrorShort(err error) string {
+	var ae *asr.Error
+	if errors.As(err, &ae) {
+		switch ae.Kind {
+		case asr.KindAuth:
+			if ae.Provider == "doubao" {
+				return i18n.T("Key refused: check the key and App ID")
+			}
+			return i18n.T("Key refused: check the key")
+		case asr.KindQuota:
+			return i18n.T("Refused: quota, rate limit or model not enabled")
+		case asr.KindNetwork:
+			return i18n.T("Unreachable: check the network, proxy and endpoint")
+		case asr.KindServer:
+			return i18n.T("The service failed: try again later")
+		case asr.KindAudio:
+			return i18n.T("The service refused the audio")
+		case asr.KindCancelled:
+			return i18n.T("Cancelled.")
+		case asr.KindConfig:
+			return i18n.T("Check the key, endpoint and model")
+		}
+		return i18n.T("Unexpected answer: check the endpoint and model")
+	}
+	var le *llm.Error
+	if errors.As(err, &le) {
+		switch le.Code {
+		case llm.CodeNoKey:
+			return i18n.T("No key: paste the key")
+		case llm.CodeAuth:
+			return i18n.T("Key refused: check the key")
+		case llm.CodeRateLimited, llm.CodeOverloaded:
+			return i18n.T("Refused: quota, rate limit or busy")
+		case llm.CodeModelNotFound:
+			return i18n.T("Unknown model: check the model")
+		case llm.CodeTimeout:
+			return i18n.T("No answer in time: check the network and proxy")
+		case llm.CodeNetwork:
+			return i18n.T("Unreachable: check the network, proxy and endpoint")
+		case llm.CodeServer:
+			return i18n.T("The service failed: try again later")
+		case llm.CodeConfig:
+			return i18n.T("Check the endpoint (https://) and model")
+		case llm.CodeBadRequest, llm.CodeContextLength, llm.CodeFiltered:
+			return i18n.T("Request refused: check the model")
+		case llm.CodeCancelled:
+			return i18n.T("Cancelled.")
+		}
+		return i18n.T("Unexpected answer: check the endpoint and model")
+	}
+	return i18n.T("Unreachable: check the network, proxy and endpoint")
+}
+
+// providerErrorDetail is what the service said, for a failure's ⓘ: its
+// HTTP status, code and message (never a key: errors carry none).
+func providerErrorDetail(err error) string {
+	var ae *asr.Error
+	if errors.As(err, &ae) {
+		var parts []string
+		if ae.Status != 0 {
+			parts = append(parts, fmt.Sprintf("HTTP %d", ae.Status))
+		}
+		if ae.Code != "" {
+			parts = append(parts, ae.Code)
+		}
+		if ae.Detail != "" {
+			parts = append(parts, ae.Detail)
+		} else if ae.Err != nil {
+			parts = append(parts, asr.Clip(ae.Err.Error(), 300))
+		}
+		if len(parts) > 0 {
+			return strings.Join(parts, " · ")
+		}
+	}
+	var le *llm.Error
+	if errors.As(err, &le) {
+		var parts []string
+		if st := le.Params["status"]; st != "" {
+			parts = append(parts, "HTTP "+st)
+		} else if le.Status != 0 {
+			parts = append(parts, fmt.Sprintf("HTTP %d", le.Status))
+		}
+		parts = append(parts, le.Code)
+		if d := le.Params["detail"]; d != "" {
+			parts = append(parts, d)
+		} else if le.Err != nil {
+			parts = append(parts, asr.Clip(le.Err.Error(), 300))
+		}
+		return strings.Join(parts, " · ")
+	}
+	return asr.Clip(err.Error(), 300)
 }
 
 // providerSummary is the status bar's: what Transcribe uses.

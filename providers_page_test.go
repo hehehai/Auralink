@@ -86,7 +86,7 @@ func TestProvidersPageSetUp(t *testing.T) {
 	a.provDlg.key = "tok-1234567890abcd"
 	// Test what the form says, before saving.
 	click(t, tt, "Test connection")
-	if len(*seen) != 1 || (*seen)[0] != "asr.doubao=tok-1234567890abcd" || !has(tt, "It works (321 ms).") {
+	if len(*seen) != 1 || (*seen)[0] != "asr.doubao=tok-1234567890abcd" || !has(tt, "Connection OK · 321 ms") {
 		t.Fatalf("test: %v %+v", *seen, a.provDlg.test)
 	}
 	click(t, tt, "Save")
@@ -115,6 +115,21 @@ func TestProvidersPageSetUp(t *testing.T) {
 	click(t, tt, "Test Doubao (Volcengine)")
 	if tr := a.provTests["asr.doubao"]; asr.KindOf(tr.res.Err) != asr.KindAuth || !has(tt, "Failed") {
 		t.Errorf("card test %+v", tr)
+	}
+	// Both tests are in the log, without the key.
+	var lines []string
+	for _, e := range a.logs.Tail(50, "app") {
+		lines = append(lines, e.Message)
+	}
+	all := strings.Join(lines, "\n")
+	if !strings.Contains(all, "connection test of speech doubao (model ") || !strings.Contains(all, "failed in 321ms: asr doubao: auth (status 401)") || strings.Contains(all, "tok-1234567890abcd") {
+		t.Errorf("log: %s", all)
+	}
+	// A failure in the dialog shows beside its button.
+	click(t, tt, "Doubao (Volcengine)")
+	click(t, tt, "Test connection")
+	if !has(tt, "Key refused: check the key and App ID") {
+		t.Errorf("dialog failure: %q", firstTexts(tt))
 	}
 }
 
@@ -241,6 +256,15 @@ func TestSnapshotsProviders(t *testing.T) {
 		a.provDlg.prompt = "Auralink, DeepSeek, MyGo"
 		a.provDlg.test = providerTest{res: providers.TestResult{Err: &asr.Error{Kind: asr.KindAuth, Provider: "openai", Status: 401, Detail: "Incorrect API key provided"}, At: time.Now()}}
 		save("providers-dialog-openai")
+		a.provDlg = providerDialog{}
+		// The test's three states beside its button.
+		a.openProviderDialog(providers.ASR, "stepfun")
+		a.provDlg.test = providerTest{running: true}
+		save("providers-dialog-test-running")
+		a.provDlg.test = providerTest{res: providers.TestResult{Latency: 904 * time.Millisecond, At: time.Now()}}
+		save("providers-dialog-test-ok")
+		a.provDlg.test = providerTest{res: providers.TestResult{Err: &asr.Error{Kind: asr.KindQuota, Provider: "stepfun", Status: 429, Code: "rate_limit_exceeded", Detail: "Rate limit reached for step-asr in organization org-xxx on requests per min: limit 10, used 10"}, At: time.Now()}}
+		save("providers-dialog-test-fail")
 		a.provDlg = providerDialog{}
 		a.provTab = 1
 		a.openProviderDialog(providers.LLM, "custom")

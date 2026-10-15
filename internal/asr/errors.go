@@ -150,6 +150,21 @@ func HTTPError(provider string, status int, code, detail string) *Error {
 	return e
 }
 
+// NoSpeech reports an error answer that only means nothing was said:
+// StepFun's 400 "no speech found" for silence, Alibaba's NO_VALID_AUDIO.
+// Providers turn it into an empty result, not an error, so silence reads
+// as "nothing heard" and a connection test of silence passes.
+func NoSpeech(code, detail string) bool {
+	low := strings.ToLower(code + " " + detail)
+	low = strings.NewReplacer("_", " ", "-", " ").Replace(low)
+	for _, w := range []string{"no speech", "no valid audio", "no valid fragment", "speech not detected", "no speech detected", "no voice detected", "speech not found"} {
+		if strings.Contains(low, w) {
+			return true
+		}
+	}
+	return false
+}
+
 func quotaWords(low string) bool {
 	for _, w := range []string{"quota", "arrearage", "balance", "insufficient", "not activated", "not open", "access denied for model", "free tier"} {
 		if strings.Contains(low, w) {

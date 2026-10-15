@@ -112,7 +112,7 @@ func (r *run) write(raw, selection string) {
 	}
 	r.m.update(r, func(s *Snapshot) { s.Profile, s.Timings.LLM = profile, llmTime })
 	if err != nil {
-		r.logf("warning", "language model failed after %v: %v", llmTime.Round(time.Millisecond), err)
+		r.logf("warning", "language model %s (model %s) failed after %v: %v", r.svc.LLMInfo.ID, r.svc.LLMInfo.Model, llmTime.Round(time.Millisecond), err)
 		r.endWriteFailed(&Problem{Code: ProblemLLM, Err: err}, true)
 		return
 	}

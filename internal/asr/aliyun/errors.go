@@ -61,7 +61,5 @@ func serviceError(code, msg string) *asr.Error {
 // noSpeech reports a failure that only means nothing was said: the
 // stream then ends with an empty (or partial) final text, not an error.
 func noSpeech(code, msg string) bool {
-	low := strings.ToLower(code + " " + msg)
-	return strings.Contains(low, "no_valid_audio") || strings.Contains(low, "no_valid_fragment") ||
-		strings.Contains(low, "no valid audio")
+	return asr.NoSpeech(code, msg)
 }

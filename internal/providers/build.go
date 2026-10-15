@@ -3,7 +3,9 @@ package providers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/hehehai/Auralink/internal/asr"
@@ -142,4 +144,37 @@ func Test(ctx context.Context, kind Kind, p settings.Provider, env Env) TestResu
 	}
 	res.Latency = time.Since(start)
 	return res
+}
+
+// TestLog is the log line of a connection test: the service, its model,
+// the outcome, how long it took and, for a failure, the error (its kind
+// or code, HTTP status and the service's message, clipped). Never the key
+// (removed should an error quote it) nor the text recognised.
+func TestLog(kind Kind, p settings.Provider, res TestResult, key string) (level, msg string) {
+	what := "speech"
+	if kind == LLM {
+		what = "language model"
+	}
+	head := fmt.Sprintf("connection test of %s %s (%s, model %s)", what, p.ID, p.Preset, Model(kind, p))
+	if p.Preset == "" || p.Preset == p.ID {
+		head = fmt.Sprintf("connection test of %s %s (model %s)", what, p.ID, Model(kind, p))
+	}
+	took := res.Latency.Round(time.Millisecond)
+	if res.Err == nil {
+		return "info", fmt.Sprintf("%s: ok in %v", head, took)
+	}
+	return "warning", fmt.Sprintf("%s: failed in %v: %s", head, took, ErrorLog(res.Err, key))
+}
+
+// ErrorLog is err for the log: clipped to about 300 bytes, with key (when
+// not empty) blanked out.
+func ErrorLog(err error, key string) string {
+	if err == nil {
+		return ""
+	}
+	s := err.Error()
+	if key = strings.TrimSpace(key); len(key) >= 4 {
+		s = strings.ReplaceAll(s, key, "[key]")
+	}
+	return asr.Clip(s, 400)
 }

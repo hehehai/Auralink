@@ -244,3 +244,17 @@ func TestE2E(t *testing.T) {
 	}
 	t.Logf("%s (%s, %v): %s", ID, res.Model, res.Latency.Round(time.Millisecond), res.Text)
 }
+
+// TestNoSpeech: StepFun answers silence with a 400 "no speech found";
+// that is an empty text, not an error, and is not retried.
+func TestNoSpeech(t *testing.T) {
+	r := &recorder{status: []int{400}, answers: []string{"error-400-no-speech-stepfun.json"}}
+	c := newClient(t, serve(t, r), asr.Config{Model: "step-asr"})
+	res, err := c.Transcribe(context.Background(), asr.FileRequest{Audio: asr.Silence(time.Second), Format: "pcm"})
+	if err != nil {
+		t.Fatalf("silence is an error: %v", err)
+	}
+	if res.Text != "" || res.Model != "step-asr" || r.calls != 1 {
+		t.Errorf("result %+v after %d calls", res, r.calls)
+	}
+}

@@ -195,3 +195,23 @@ func TestStreamAll(t *testing.T) {
 		t.Errorf("open error %v", err)
 	}
 }
+
+func TestNoSpeech(t *testing.T) {
+	for _, tc := range []struct {
+		code, detail string
+		want         bool
+	}{
+		{"", "no speech found", true},
+		{"request_params_invalid", "No speech found", true},
+		{"NO_VALID_AUDIO_ERROR", "", true},
+		{"", "no valid audio", true},
+		{"", "Speech not detected in the audio", true},
+		{"", "invalid model", false},
+		{"", "audio too long", false},
+		{"InternalError", "", false},
+	} {
+		if got := asr.NoSpeech(tc.code, tc.detail); got != tc.want {
+			t.Errorf("NoSpeech(%q, %q) = %v", tc.code, tc.detail, got)
+		}
+	}
+}

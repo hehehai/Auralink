@@ -50,6 +50,7 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | 3.14 | 阿里 `task-failed` / `error` 变成通用 NSError | 按 DashScope 错误码分类；`NO_VALID_AUDIO`（什么都没说）当作空的 final | 测试连接发的是静音，不能算失败 | ✅ |
 | 3.15 | LLM 默认关闭思考（`LLMGenerationSettings.defaultSettings`），DeepSeek 等按 provider 写在代码分支里 | 关闭思考写在预设数据里（`presets.json` 的 `extraBody`：DeepSeek、方舟、Kimi、GLM、MiMo 用 `thinking: disabled`，千问、硅基流动用 `enable_thinking: false`，Gemini 用 `reasoning_effort: none`）；服务端拒绝这些字段时去掉后重发一次 | 语音输入的回复都很短，思考会先占满预算和时间（Voxt 踩过的坑）；改成数据后，加 provider 不用改代码 | ✅ |
 | 3.16 | LLM 连接测试：关闭思考、最多 1 token，400/422 算失败 | `llm.Probe`：非流式、不重试、`max_tokens` 8；被截断（哪怕是空文本）算成功，400/422 带服务端说明算失败 | 同样的判断 | ✅ |
+| 3.17 | OpenAI 兼容转写的 4xx 一律报错；连接测试的结果只在对话框里显示，不写日志 | `asr.NoSpeech`：错误信息或错误码表示“没有语音”（阶跃对静音回 `400 no speech found`、阿里的 `NO_VALID_AUDIO`）时当作空文本；连接测试和会话里 ASR、LLM 的失败写进 app 日志（服务、模型、Kind 或 Code、HTTP 状态、服务端原文截断、耗时，不写 Key 和正文）；测试状态显示在“测试连接”按钮右侧，ⓘ 里有服务端原文 | 测试发的是静音，“没有语音”不能算失败；出错时用户要能在日志页看到原因 | ✅ |
 | 3.17 | LLM 预设含 Ollama、LM Studio、oMLX 等本地服务 | 不提供本地预设；`custom`（OpenAI 兼容）可以指向本机地址 | 产品范围不做本地模型（RULES） | ✅ |
 | 3.18 | MiniMax 用原生 `chatcompletion_v2` 接口 | 用它的 OpenAI 兼容接口 `api.minimaxi.com/v1`，输出里的 `<think>` 由 Client 去掉 | 和其他 provider 共用一个 transport | ◐ 等真实 Key 验证 |
 | 3.19 | 每个 provider 的配置页各不相同 | 模型服务页：ASR / LLM 两个 tab，“各功能使用”选择器，服务卡片（状态点、默认模型、Key 掩码、测试），点卡片打开同一种配置对话框（Key、Endpoint、模型下拉 + 自定义、ASR 提示词） | 一种界面覆盖所有 provider | ✅ |
