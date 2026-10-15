@@ -15,6 +15,7 @@ import (
 	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/core"
 	"github.com/hehehai/Auralink/internal/deliver"
+	"github.com/hehehai/Auralink/internal/dict"
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/llm"
 	"github.com/hehehai/Auralink/internal/settings"
@@ -483,18 +484,13 @@ func (r *run) streamer() (asr.Streamer, bool) {
 	return st, ok && r.svc.ASR.Caps().Stream
 }
 
-// hints are the dictionary's terms for the speech service.
+// hints are the dictionary's terms for the speech service (dict.Hints:
+// the enabled ones, the most recently changed first).
 func (r *run) hints() []string {
 	if !r.settings.Dictionary.Enabled || !r.settings.Dictionary.ASRHints {
 		return nil
 	}
-	var out []string
-	for _, t := range r.terms {
-		if t.Enabled && strings.TrimSpace(t.Term) != "" {
-			out = append(out, t.Term)
-		}
-	}
-	return out
+	return dict.Hints(r.terms)
 }
 
 // onAudio handles the recording's events (on the helper's reader

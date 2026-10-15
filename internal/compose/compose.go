@@ -191,10 +191,14 @@ func TemplateSet(mainLanguage string) string {
 	return English
 }
 
-// Limits of the glossary.
+// Limits of the glossary. A dictionary of up to GlossaryAllUpTo terms
+// goes in whole (those found in the text first); a larger one only with
+// the terms found in the text: unrelated terms would only cost tokens and
+// distract the model.
 const (
 	MaxGlossaryTerms = 60
 	MaxGlossaryChars = 2000
+	GlossaryAllUpTo  = 30
 )
 
 // Messages is the request's messages, in order: System, History, User.
@@ -415,8 +419,9 @@ func Render(tpl string, vars, extra map[string]string) string {
 
 // Glossary lists the terms that fit the limits, one per line ("- Term
 // (heard as: alias, alias)"): terms found in text first (their spelling
-// or an alias, ignoring case and spaces), then the others in their order.
-// "" when there are none.
+// or an alias, ignoring case and spaces), then, for a dictionary of at
+// most GlossaryAllUpTo terms, the others in their order. "" when there
+// are none.
 func Glossary(terms []Term, text, set string) string {
 	norm := func(s string) string {
 		return strings.Map(func(r rune) rune {
@@ -456,6 +461,9 @@ func Glossary(terms []Term, text, set string) string {
 	sep := ", "
 	if set == Chinese {
 		heard, sep = "可能被听成", "、"
+	}
+	if len(first)+len(rest) > GlossaryAllUpTo {
+		rest = nil
 	}
 	var lines []string
 	size := 0

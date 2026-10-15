@@ -454,12 +454,25 @@ func TestGlossary(t *testing.T) {
 	if Glossary(nil, "x", English) != "" {
 		t.Error("empty glossary")
 	}
-	var many []Term
+	var all []string
+	var manyTerms []Term
 	for i := range 100 {
-		many = append(many, Term{Term: fmt.Sprintf("term%03d", i)})
+		manyTerms = append(manyTerms, Term{Term: fmt.Sprintf("term%03d", i)})
+		all = append(all, fmt.Sprintf("term%03d", i))
 	}
-	if n := len(strings.Split(Glossary(many, "", English), "\n")); n != MaxGlossaryTerms {
+	if n := len(strings.Split(Glossary(manyTerms, strings.Join(all, " "), English), "\n")); n != MaxGlossaryTerms {
 		t.Errorf("%d lines", n)
+	}
+	// A large dictionary: only the terms found in the text.
+	if g := Glossary(manyTerms, "about term042 and TERM 007", English); g != "- term007\n- term042" {
+		t.Errorf("large dictionary %q", g)
+	}
+	if g := Glossary(manyTerms, "nothing", English); g != "" {
+		t.Errorf("large dictionary, no match %q", g)
+	}
+	// A small one: all of it, the found ones first.
+	if g := Glossary(manyTerms[:GlossaryAllUpTo], "term029", English); !strings.HasPrefix(g, "- term029\n- term000") || len(strings.Split(g, "\n")) != GlossaryAllUpTo {
+		t.Errorf("small dictionary %q", g)
 	}
 	long := []Term{{Term: strings.Repeat("a", 1500)}, {Term: strings.Repeat("b", 1500)}}
 	if g := Glossary(long, "", English); strings.Contains(g, "b") {
