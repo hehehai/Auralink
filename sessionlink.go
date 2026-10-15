@@ -292,7 +292,7 @@ func (a *app) noticeAction(action string) {
 		a.navigate("/providers")
 	case actionPermissions:
 		a.showMainWindow()
-		a.openSettings("permissions")
+		a.navigate("/settings/permissions")
 	case actionHelper:
 		a.restartHelper()
 	}
