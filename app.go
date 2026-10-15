@@ -33,6 +33,7 @@ type app struct {
 	trayState
 	permissionsState
 	providersState
+	try tryState // devtry.go: AURALINK_TRY=1, checking the helper by hand
 }
 
 func newApp(lib *library, h *helperHost) *app {
@@ -41,6 +42,7 @@ func newApp(lib *library, h *helperHost) *app {
 	a.openShell(lib)
 	a.openPermissions()
 	a.openProviders()
+	a.try.on = tryMode()
 	return a
 }
 

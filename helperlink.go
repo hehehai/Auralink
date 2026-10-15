@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -90,6 +91,9 @@ func (a *app) helperChanged(st helper.Status) {
 	if st.State == helper.Ready && was != helper.Ready {
 		a.recheckPermissions() // permissions.go
 		a.probeAutomation()
+		if a.try.on {
+			a.tryConfigure() // devtry.go
+		}
 	}
 }
 
@@ -105,7 +109,12 @@ func (a *app) helperNotified(m proto.Message) {
 		if e.Front != nil {
 			msg += " in " + e.Front.BundleID
 		}
-		a.logs.Append(core.LogEntry{Time: time.Now(), Level: core.SeverityDebug, Source: helper.LogSource, Message: msg})
+		level := core.SeverityDebug
+		if a.try.on {
+			level = core.SeverityInfo
+			a.tryHotkey(e)
+		}
+		a.logs.Append(core.LogEntry{Time: time.Now(), Level: level, Source: helper.LogSource, Message: msg})
 	case proto.MethodHotkeyState:
 		var st proto.HotkeyStatus
 		m.DecodeParams(&st)
@@ -113,8 +122,14 @@ func (a *app) helperNotified(m proto.Message) {
 			a.recheckPermissions() // Accessibility was granted or taken away
 		}
 		a.hotkeys = st
+		if a.try.on {
+			a.tryLog(fmt.Sprintf("hotkey.state: installed %v, accessibility %v %s", st.Installed, st.Accessibility, st.Error))
+		}
 	case proto.MethodAppActivated:
 		m.DecodeParams(&a.front)
+		if a.try.on {
+			a.tryLog("app.activated " + a.front.BundleID)
+		}
 	}
 }
 

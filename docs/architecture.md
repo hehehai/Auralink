@@ -109,6 +109,7 @@ There is no job queue (plan §5): a session (M3) lives in memory, owned by one s
 | `a.helperStatus()`, `helperCall[T](a, method, params, timeout, then)`, `a.helperNotified(m)`, `a.restartHelper()`, `a.hotkeys` (hotkey.state), `a.front` (app.activated) | helperlink.go | status bar, permissions, Diagnostics; sessions (M3) |
 | `a.permSys` (`permission.System`), `a.recheckPermissions()`, `a.askPermission(which)`, `a.probeAutomation()`, `a.requestAutomation(id)`, `a.browsers()` | permissions.go | Permissions page, Diagnostics, onboarding (M6) |
 | `floatingWindowOptions(…)`, `showFloating(w, x, y)` (non-activating windows, mygo patch 0003), `activateTarget(pid)` (`macx.Activate`) | floating.go | the recording pill and the answer card (M3, M4) |
+| `a.try` (`AURALINK_TRY=1`): try shortcuts, a test panel that pastes through the helper | devtry.go | checking the helper by hand until M3; M3 replaces it |
 | `a.toast(msg)`, `a.notify(…)`, `a.post(fn)`, `a.async(fn)` | app.go, shell_status.go | everyone |
 | `a.keys` (`keyring`: the Keychain; memory in tests), `a.keyMasks`, `a.hasKey(account)`, `a.providerSummary()`, `providerName(kind, p)`, `providerErrorText(err)` | providers_page.go | Model services page, status bar; sessions (M3) read keys through `a.keys` off the main thread |
 | `hotkeyGlyphs(keys)` | shell_commands.go | ? sheet, menu bar, feature pages |

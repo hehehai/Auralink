@@ -60,4 +60,8 @@ printf '%s\n' '{"id":"1","method":"helper.hello","params":{"protocol":1,"app":"c
   | helper/.build/debug/auralink-helper
 ```
 
-What only a person at the Mac can check (real keys, prompts, pasting into other apps) is in the project's handoff of the helper thread.
+In the app, before sessions exist (M3), `AURALINK_TRY=1` binds a fixed set of shortcuts (the defaults, and right ⌘ as tap, double tap and long press) and logs each one that fires with the app in front (logs panel, source helper); fn shows a non-activating test panel whose button pastes a line into that app through the helper (`devtry.go`):
+
+```sh
+open --env AURALINK_TRY=1 build/darwin-arm64/Auralink.app
+```
