@@ -125,7 +125,7 @@ func cardCheckSteps(lang string) []ovCheckStep {
 	return []ovCheckStep{
 		{"card-streaming", func(a *app) {
 			a.answer, a.followUp = answerCard{}, ""
-			a.sess = tr(lang+"-t1", session.Composing, "", short[:len(short)/2], lang)
+			a.sess = tr(lang+"-t1", session.Composing, "", string([]rune(short)[:len([]rune(short))/2]), lang)
 		}, true},
 		{"card-short", end(tr(lang+"-t1", session.Done, short, short, lang)), true},
 		{"card-redo", func(a *app) {
@@ -329,7 +329,10 @@ func cardInkWant(w ovInkWant, v cardView) ovInkWant {
 	if !v.conversation {
 		w.gap = 22
 	} else {
-		w.gap = ovBubblePadY + 8 // a bubble's fill is not ink
+		// A bubble's fill is not ink: its padding, and the room under its
+		// last line's glyphs (more with Core Text's lines: 35.5 on the
+		// Mac, 10-15, for Latin text without descenders).
+		w.gap = ovBubblePadY + 12
 	}
 	if v.msg != "" {
 		w.gap += ovCardMsgGap + ovCardMsgH
