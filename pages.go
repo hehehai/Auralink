@@ -1,11 +1,12 @@
 package main
 
-// The pages of the sidebar (plan §3.1). In M1 each is its header and an
-// empty state that says what the page will hold; the milestones replace
-// them one by one (Home and History M3, the features M3–M4, App
-// enhancement and Dictionary M5). Logs (shell_logs.go) and Model
-// services (providers_page.go) work already; Permissions is a section of
-// the settings dialog (permissions.go).
+// The pages of the sidebar (plan §3.1). A page not built yet is its
+// header and an empty state that says what it will hold; the milestones
+// replace them one by one (Translate and Rewrite M4, App enhancement and
+// Dictionary M5, Home M6). Logs (shell_logs.go), Model services
+// (providers_page.go), Transcribe (transcribe_page.go) and History
+// (history_page.go) work; Permissions is a section of the settings dialog
+// (permissions.go).
 
 import (
 	"github.com/egoist/mygo/ui"
@@ -41,6 +42,12 @@ func (a *app) page(c *ui.Context, p navPage) {
 	case "/providers":
 		a.providersPage(c)
 		return
+	case "/transcribe":
+		a.transcribePage(c) // transcribe_page.go
+		return
+	case "/history":
+		a.historyPage(c) // history_page.go
+		return
 	}
 	pageHeader(c, pageTitle(p.path), nil)
 	title, body := placeholderText(p.path)
@@ -53,12 +60,6 @@ func placeholderText(path string) (title, body string) {
 	case "/home":
 		return i18n.T("Speak anywhere, get text where your cursor is"),
 			i18n.T("Home will list what is still missing (a service, a permission), let you try each feature without leaving the page, and show today's results.")
-	case "/history":
-		return i18n.T("Nothing here yet"),
-			i18n.T("Every transcription, translation and rewrite will be listed here: search them, see the source text, the result, the rule that matched and the timings, copy or redo them.")
-	case "/transcribe":
-		return i18n.T("Speech to text, typed where you are"),
-			i18n.T("Here you will choose the shortcuts, the speech and language services, and how the text is cleaned up, then try it out.")
 	case "/translate":
 		return i18n.T("Translate what you say or select"),
 			i18n.T("Here you will choose the shortcut, the services and the target language, and whether the translation is typed or shown in a card.")
@@ -85,7 +86,7 @@ func (a *app) placeholderActions(c *ui.Context, path string) {
 		if ghostButton(c.Key("home-permissions"), i18n.T("Check permissions")).Clicked() {
 			a.navigate("/settings/permissions")
 		}
-	case "/transcribe", "/translate", "/rewrite":
+	case "/translate", "/rewrite":
 		if ghostButton(c.Key("feature-shortcuts"), i18n.T("Keyboard shortcuts")).Clicked() {
 			a.sheetOpen = true
 		}

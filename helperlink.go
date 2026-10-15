@@ -5,12 +5,12 @@ package main
 // status bar, Settings → Permissions and Diagnostics read the snapshot of
 // its status kept here from helper.StatusChanged. Requests go from a
 // goroutine (helperCall); notifications that belong to no request
-// (hotkey.event) arrive in helperNotified.
+// (hotkey.event) arrive in helperNotified and start sessions
+// (sessionlink.go).
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"time"
 
@@ -37,8 +37,9 @@ func newHelperHost(resources, logDir string) *helperHost {
 type helperLink struct {
 	host    *helperHost
 	hstatus helper.Status // as StatusChanged last said
-	// hotkeys is the event tap's state as hotkey.state last said; front
-	// the app in front as app.activated last said (sessions, M3).
+	// hotkeys is the event tap's state as hotkey.state (or the last
+	// hotkey.configure) said; front the app in front as app.activated
+	// last said: the target of a session started from the menu bar.
 	hotkeys proto.HotkeyStatus
 	front   proto.App
 }
@@ -59,6 +60,7 @@ func (a *app) connectHelper() {
 		})
 	}
 	a.hstatus = h.sup.Status()
+	a.openSessions() // sessionlink.go
 }
 
 // startHelper starts the helper; it runs when the window opens.
@@ -90,15 +92,18 @@ func (a *app) helperChanged(st helper.Status) {
 	a.hstatus = st
 	if st.State == helper.Ready && was != helper.Ready {
 		a.recheckPermissions() // permissions.go
-		if a.try.on {
-			a.tryConfigure() // devtry.go
-		}
+		a.hotkeysSent = ""     // a new helper has no shortcuts yet
+		a.syncHotkeys()        // sessionlink.go
+		a.loadLast()
+	}
+	if st.State != helper.Ready && was == helper.Ready {
+		a.hotkeys = proto.HotkeyStatus{} // its tap went with it
+		a.syncHotkeys()
 	}
 }
 
-// helperNotified handles a notification of no request. Until sessions
-// (M3) start from hotkey.event, it logs the shortcuts the helper reports
-// and keeps the tap's state and the app in front.
+// helperNotified handles a notification of no request: a shortcut
+// (sessionlink.go), the event tap's state and the app in front.
 func (a *app) helperNotified(m proto.Message) {
 	switch m.Method {
 	case proto.MethodHotkeyEvent:
@@ -108,12 +113,8 @@ func (a *app) helperNotified(m proto.Message) {
 		if e.Front != nil {
 			msg += " in " + e.Front.BundleID
 		}
-		level := core.SeverityDebug
-		if a.try.on {
-			level = core.SeverityInfo
-			a.tryHotkey(e)
-		}
-		a.logs.Append(core.LogEntry{Time: time.Now(), Level: level, Source: helper.LogSource, Message: msg})
+		a.logs.Append(core.LogEntry{Time: time.Now(), Level: core.SeverityDebug, Source: helper.LogSource, Message: msg})
+		a.hotkeyFired(e)
 	case proto.MethodHotkeyState:
 		var st proto.HotkeyStatus
 		m.DecodeParams(&st)
@@ -121,13 +122,11 @@ func (a *app) helperNotified(m proto.Message) {
 			a.recheckPermissions() // Accessibility was granted or taken away
 		}
 		a.hotkeys = st
-		if a.try.on {
-			a.tryLog(fmt.Sprintf("hotkey.state: installed %v, accessibility %v %s", st.Installed, st.Accessibility, st.Error))
-		}
+		a.syncCarbon(a.hotkeyPlan()) // the Carbon fallback while the tap is missing
 	case proto.MethodAppActivated:
-		m.DecodeParams(&a.front)
-		if a.try.on {
-			a.tryLog("app.activated " + a.front.BundleID)
+		var front proto.App
+		if m.DecodeParams(&front) == nil {
+			a.front = front
 		}
 	}
 }

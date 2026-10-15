@@ -17,6 +17,10 @@ import (
 //	trayState         tray.go         the menu bar icon
 //	permissionsState  permissions.go  Settings → Permissions
 //	providersState    providers_page.go  the Model services page
+//	sessionState      sessionlink.go  sessions, shortcuts, the answer card
+//	overlayState      overlay.go      the recording overlay
+//	transcribeState   transcribe_page.go  the Transcribe page
+//	historyState      history_page.go the History page
 //
 // Add fields to your area's struct, not here.
 type app struct {
@@ -33,7 +37,10 @@ type app struct {
 	trayState
 	permissionsState
 	providersState
-	try tryState // devtry.go: AURALINK_TRY=1, checking the helper by hand
+	sessionState
+	overlayState
+	transcribeState
+	historyState
 }
 
 func newApp(lib *library, h *helperHost) *app {
@@ -42,7 +49,6 @@ func newApp(lib *library, h *helperHost) *app {
 	a.openShell(lib)
 	a.openPermissions()
 	a.openProviders()
-	a.try.on = tryMode()
 	return a
 }
 
@@ -77,6 +83,8 @@ func (a *app) toast(msg string) {
 // quit releases what the app holds; it runs in App.OnQuit, before the
 // library closes.
 func (a *app) quit() {
+	a.closeSessions() // sessionlink.go
+	a.closeOverlay()  // overlay.go
 	a.closeTray()
 	a.stopHelper()
 	a.closeShell()

@@ -4,8 +4,9 @@ package main
 // Auralink): Start transcribing, Paste the last result, Open Auralink,
 // Settings, Quit. With Settings → General → "Keep running when the window
 // closes", closing the window hides it, so the shortcuts keep working;
-// the Dock icon or the menu brings it back. The feature items are there
-// from M1 and work from M3, when sessions exist.
+// the Dock icon or the menu brings it back. Start transcribing records
+// for the app in front (as the shortcut does) and turns into Stop while a
+// session runs.
 
 import (
 	"bytes"
@@ -101,12 +102,15 @@ func (a *app) buildTrayMenu() {
 	}
 	f := a.prefs.Features
 	start := i18n.T("Start transcribing")
+	if a.sess.State.Live() {
+		start = i18n.T("Stop transcribing")
+	}
 	if len(f.Transcribe.Hotkeys) > 0 {
 		start += "    " + hotkeyGlyphs(f.Transcribe.Hotkeys[0].Keys)
 	}
 	a.tray.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
-		{Label: start, Disabled: true},
-		{Label: i18n.T("Paste the last result") + "    " + hotkeyGlyphs(f.PasteLast.Keys), Disabled: true},
+		{Label: start, Click: act(a.toggleTranscribe)},
+		{Label: i18n.T("Paste the last result") + "    " + hotkeyGlyphs(f.PasteLast.Keys), Click: act(func() { a.pasteLast(a.front) })},
 		mygo.Separator(),
 		{Label: i18n.T("Open Auralink"), Click: act(a.showMainWindow)},
 		{Label: i18n.T("Settings…"), Click: act(func() { a.showMainWindow(); a.navigate("/settings") })},

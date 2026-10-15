@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -101,6 +102,10 @@ func (a *app) settingsChanged(old, new settings.Settings) {
 	}
 	if old.General.MenuBar != new.General.MenuBar {
 		a.applyTray() // tray.go
+	}
+	if !reflect.DeepEqual(old.Features, new.Features) {
+		a.syncHotkeys()   // sessionlink.go
+		a.buildTrayMenu() // the shortcuts it shows
 	}
 	if old.General.LaunchAtLogin != new.General.LaunchAtLogin && a.hasMenu {
 		on := new.General.LaunchAtLogin
