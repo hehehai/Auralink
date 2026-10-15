@@ -338,7 +338,11 @@ func (a *app) overlayInkWant() ovInkWant {
 	if a.ov.mode != ovRecording && a.ov.mode != ovWorking {
 		return w
 	}
-	w.row = true
+	// The loader's dots spend most of their time dim (Voxt's: 15 % for
+	// 40 % of a turn): caught there, the row is the icon alone. On the Mac
+	// (it moves) a working pill's size is checked; TestOverlayInk checks
+	// its row still.
+	w.row = a.ov.mode == ovRecording
 	w.even = a.ov.mode == ovRecording && !a.prefs.Overlay.ShowTime && sceneShort(a.sess) == ""
 	if text := liveLineText(a.sess); text != "" {
 		tw, _ := a.ovTextWidth(liveTextKey(text))
