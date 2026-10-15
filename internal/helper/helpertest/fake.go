@@ -19,7 +19,8 @@
 // time as capture.pcm frames and capture.level; hotkey.configure installs
 // a pretend tap and can play a script of notifications (events=, press=);
 // textio.* read a scripted selection and log what they paste (paste-log=);
-// browser.url answers from Browsers, app.list from Apps and Installed;
+// browser.url answers from Browsers, app.list from Apps and Installed,
+// app.icons with Icon for those and Browsers;
 // app.configure keeps its list (no-tree=).
 // (From AudioSmith's engine/enginetest, with the helper's methods.)
 package helpertest
@@ -399,6 +400,22 @@ func (f *fake) serve(m proto.Message) {
 		}
 		slices.SortFunc(apps, func(x, y proto.AppInfo) int { return strings.Compare(strings.ToLower(x.Name), strings.ToLower(y.Name)) })
 		f.result(m.ID, proto.AppListResult{Apps: apps})
+	case proto.MethodAppIcons:
+		var p proto.AppIconsParams
+		m.DecodeParams(&p)
+		if len(p.Apps) > proto.MaxIcons {
+			f.fail(m.ID, proto.CodeBadRequest, "At most %d apps a request", proto.MaxIcons)
+			return
+		}
+		res := proto.AppIconsResult{Icons: []proto.AppIcon{}}
+		for _, ref := range p.Apps {
+			icon := proto.AppIcon{BundleID: ref.BundleID}
+			if known(ref.BundleID) {
+				icon.PNG = Icon(ref.BundleID, min(p.Size, proto.MaxIconSize))
+			}
+			res.Icons = append(res.Icons, icon)
+		}
+		f.result(m.ID, res)
 	default:
 		f.fail(m.ID, proto.CodeMethodNotFound, "Unknown method %s", m.Method)
 	}

@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -117,6 +118,11 @@ func TestHandshakeAndControl(t *testing.T) {
 	all, err := request[proto.AppListResult](t, h, proto.MethodAppList, proto.AppListParams{Installed: true})
 	if err != nil || len(all.Apps) != 8 {
 		t.Errorf("app.list installed %+v %v", all, err)
+	}
+	icons, err := request[proto.AppIconsResult](t, h, proto.MethodAppIcons, proto.AppIconsParams{
+		Apps: []proto.AppRef{{BundleID: "com.apple.Notes", Path: "/System/Applications/Notes.app"}, {BundleID: "com.example.gone"}}, Size: 32})
+	if err != nil || len(icons.Icons) != 2 || !bytes.HasPrefix(icons.Icons[0].PNG, []byte("\x89PNG")) || icons.Icons[1].PNG != nil {
+		t.Errorf("app.icons %+v %v", icons, err)
 	}
 	front, err := request[proto.App](t, h, proto.MethodAppFrontmost, nil)
 	if err != nil || front.BundleID != "com.tinyspeck.slackmacgap" || front.PID != 812 {

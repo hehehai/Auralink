@@ -36,6 +36,7 @@ public enum Method {
     public static let textPaste = "textio.paste"
     public static let appList = "app.list"
     public static let appConfigure = "app.configure"
+    public static let appIcons = "app.icons"
     public static let browserURL = "browser.url"
     // Notifications, helper → app.
     public static let captureStarted = "capture.started"
@@ -51,7 +52,7 @@ public enum Method {
     public static let requests = [
         hello, shutdown, jobCancel, permissionsStatus, permissionsRequest,
         captureDevices, captureStart, captureStop, hotkeyConfigure, hotkeyStatus,
-        appFrontmost, appList, appConfigure, textFocus, textSelection, textPaste,
+        appFrontmost, appList, appConfigure, appIcons, textFocus, textSelection, textPaste,
         browserURL,
     ]
     public static let notifications = [

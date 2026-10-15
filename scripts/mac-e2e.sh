@@ -41,7 +41,7 @@ step "swift test"
 (cd helper && nice -n 10 swift test -j 2 2>&1 | grep -E "error:|failed|Executed .* tests" | tail -5)
 
 step "the helper, read-only and the file input"
-nice -n 10 go test -count=1 -run 'TestMacHelperReadOnly|TestMacHelperCaptureFile' -v . | grep -vE '^\s*$'
+nice -n 10 go test -count=1 -run 'TestMacHelperReadOnly|TestMacHelperIcons|TestMacHelperCaptureFile' -v . | grep -vE '^\s*$'
 
 step "text fit (Core Text)"
 AURALINK_TEXTFIT_PROBE=1 AURALINK_TEXTFIT_AUDIT=strict nice -n 10 go test -count=1 -run 'TestTextFitsItsOwnWidth|TestTranslationsFit' -v . |

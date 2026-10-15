@@ -14,8 +14,10 @@ package main
 //     once app.configure lists the app's Chromium browsers, one without a
 //     page tree gets AXManualAccessibility, as in the app (an attribute,
 //     no change of the app in front).
+//   - app.icons draws icons: no window, no focus.
 //
-// TestMacHelperReadOnly and TestMacHelperCaptureFile reach no service;
+// TestMacHelperReadOnly, TestMacHelperIcons and TestMacHelperCaptureFile
+// reach no service;
 // TestMacE2ESessionReal (StepFun's step-asr and DeepSeek: one call each)
 // and TestMacE2EWriteReal (DeepSeek: two or three calls) need
 // STEPFUN_API_KEY and DEEPSEEK_API_KEY in the environment or
@@ -23,15 +25,18 @@ package main
 // tests (headless)", says how to run them.
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"image/png"
 	"math"
 	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -142,6 +147,59 @@ func macCall[T any](t *testing.T, h helper.Supervisor, method string, params any
 		t.Fatalf("%s: %v", method, err)
 	}
 	return out
+}
+
+// TestMacHelperIcons asks the real helper for apps' icons (app.icons):
+// the Finder's and Safari's by bundle id, WeChat's and Arc's when they
+// are installed, the first installed apps by path, and a removed app's
+// (none). With AURALINK_E2E_ICONS=<dir> it
+// saves them there to look at. Read-only: no window, no focus.
+func TestMacHelperIcons(t *testing.T) {
+	h := startMacHelper(t, macE2E(t))
+	installed := macCall[proto.AppListResult](t, h, proto.MethodAppList, proto.AppListParams{Installed: true})
+	optional := map[string]bool{"com.tencent.xinWeChat": true, "company.thebrowser.Browser": true}
+	refs := []proto.AppRef{{BundleID: "com.apple.finder"}, {BundleID: "com.apple.Safari"}, {BundleID: "com.tencent.xinWeChat"},
+		{BundleID: "company.thebrowser.Browser"}, {BundleID: "com.example.not-installed"}}
+	for _, a := range installed.Apps {
+		if len(refs) >= 10 {
+			break
+		}
+		if a.Path != "" && !slices.ContainsFunc(refs, func(r proto.AppRef) bool { return strings.EqualFold(r.BundleID, a.BundleID) }) {
+			refs = append(refs, proto.AppRef{BundleID: a.BundleID, Path: a.Path})
+		}
+	}
+	t0 := time.Now()
+	icons := macCall[proto.AppIconsResult](t, h, proto.MethodAppIcons, proto.AppIconsParams{Apps: refs, Size: proto.IconSize})
+	t.Logf("app.icons: %d icons in %v", len(icons.Icons), time.Since(t0).Round(time.Millisecond))
+	if len(icons.Icons) != len(refs) {
+		t.Fatalf("app.icons: %d icons for %d apps", len(icons.Icons), len(refs))
+	}
+	iconDir := os.Getenv("AURALINK_E2E_ICONS")
+	for i, ic := range icons.Icons {
+		if ic.BundleID != refs[i].BundleID {
+			t.Errorf("app.icons %d: %s, asked for %s", i, ic.BundleID, refs[i].BundleID)
+		}
+		if refs[i].BundleID == "com.example.not-installed" {
+			if ic.PNG != nil {
+				t.Errorf("app.icons: an icon for a removed app")
+			}
+			continue
+		}
+		if ic.PNG == nil && optional[ic.BundleID] {
+			t.Logf("  %s: not installed", ic.BundleID)
+			continue
+		}
+		img, err := png.Decode(bytes.NewReader(ic.PNG))
+		if err != nil || img.Bounds().Dx() != proto.IconSize || img.Bounds().Dy() != proto.IconSize {
+			t.Errorf("app.icons %s: %d bytes, %v", ic.BundleID, len(ic.PNG), err)
+			continue
+		}
+		t.Logf("  %s: %d bytes", ic.BundleID, len(ic.PNG))
+		if iconDir != "" {
+			os.MkdirAll(iconDir, 0o755)
+			os.WriteFile(filepath.Join(iconDir, ic.BundleID+".png"), ic.PNG, 0o644)
+		}
+	}
 }
 
 // TestMacHelperReadOnly runs the helper's read-only methods from wherever

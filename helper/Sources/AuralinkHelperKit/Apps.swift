@@ -25,3 +25,17 @@ public func mergeApps(running: [AppInfo], installed: [AppInfo]) -> [AppInfo] {
 public func outermost(_ roles: [String], role: String) -> Int? {
     roles.lastIndex(of: role)
 }
+
+/// app.icons' sizes (Go: proto.IconSize, MaxIconSize, MaxIcons): the
+/// default and the largest side of an icon in pixels, and the most apps a
+/// request may name.
+public let iconSize = 64
+public let maxIconSize = 256
+public let maxIcons = 48
+
+/// The side app.icons draws for a request's size: the default when it is
+/// absent or not positive, else at most maxIconSize.
+public func iconSide(_ size: Int?) -> Int {
+    guard let s = size, s > 0 else { return iconSize }
+    return min(s, maxIconSize)
+}

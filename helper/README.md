@@ -6,7 +6,7 @@ The small Swift process Auralink runs beside its window, for what MyGo cannot do
 - **hotkeys**: watch the keyboard with a CGEventTap, so that `fn`, a single modifier, chords, double taps and long presses can be shortcuts, deciding on the tap's thread whether to swallow each key (`hotkey.*`);
 - **text in and out**: what is focused in the app in front, its selected text (Accessibility, else ⌘C when the app allows), and pasting through the clipboard with keys after it and the clipboard put back (`textio.*`);
 - **the app in front**: kept from NSWorkspace and told to the app (`app.frontmost`, `app.activated`, and `front` in each `hotkey.event`);
-- **browser URLs**: the front tab's URL from the Accessibility tree only, with no Automation consent to ask (`browser.url`), and the apps to pick from for app enhancement (`app.list`);
+- **browser URLs**: the front tab's URL from the Accessibility tree only, with no Automation consent to ask (`browser.url`), and the apps to pick from for app enhancement (`app.list`) with their icons (`app.icons`);
 - **permissions**: the Microphone and Accessibility as the helper sees them, and macOS's prompts (`permissions.*`).
 
 It speaks [helper protocol 1](../docs/helper-protocol.md) over stdin and stdout; `internal/helper` supervises it (handshake, restarts, stderr to `~/Library/Logs/Auralink/helper.log`, call timings). The helper keeps no settings: Go decides (which device, when ⌘C may run, the delays, the keys) and passes it in the params. Its shapes come from the M0 spikes on a Mac (the project's `research/spikes.md`).
@@ -23,7 +23,7 @@ helper/
     HotkeyRecognizer.swift        chords, taps, double taps, long presses, swallowing
     PCMFramer.swift               PCM16 frames and levels
     CaptureSource.swift           downmix and resampling; the test-only file input
-    Apps.swift                    app.list's merge; the web area around the focus
+    Apps.swift                    app.list's merge; app.icons' sizes; the web area around the focus
     ManualAccessibility.swift     which apps get AXManualAccessibility, once per process
   Sources/AuralinkHelper/    the executable:
     main.swift, Server.swift      stdin/stdout, hello, routing, the capture job, slow-request lines
@@ -32,6 +32,7 @@ helper/
     FrontApps.swift               the app in front, AXManualAccessibility (Electron apps, app.configure's browsers)
     TextIO.swift                  focus, selection, paste
     Browser.swift                 browser URLs (AX), app.list
+    AppIcons.swift                app.icons: apps' icons as PNGs
     Permissions.swift             Microphone, Accessibility
   Tests/AuralinkHelperKitTests/  FixtureTests (helper/Fixtures), the recognizer, the framer, the file input, ManualAccessibility
   Fixtures/                  golden transcripts, shared with Go; audio/ for the file input's tests

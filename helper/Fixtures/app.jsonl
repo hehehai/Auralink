@@ -12,3 +12,5 @@
 {"to":"app","msg":{"id":"c7","result":{}}}
 {"to":"helper","msg":{"id":"c8","method":"app.configure","params":{}}}
 {"to":"app","msg":{"id":"c8","result":{}}}
+{"to":"helper","msg":{"id":"c9","method":"app.icons","params":{"apps":[{"bundleId":"com.tinyspeck.slackmacgap","path":"/Applications/Slack.app"},{"bundleId":"com.example.removed"}],"size":64}}}
+{"to":"app","msg":{"id":"c9","result":{"icons":[{"bundleId":"com.tinyspeck.slackmacgap","png":"iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGPwEvX+D8IMMAYANywGpeWVRmAAAAAASUVORK5CYII="},{"bundleId":"com.example.removed"}]}}}

@@ -474,6 +474,46 @@ public struct AppListResult: Codable, Sendable {
     public init(apps: [AppInfo]) { self.apps = apps }
 }
 
+// MARK: app.icons
+
+public struct AppIconsParams: Codable, Sendable {
+    /// Each app by its bundle's path when it has one, else by bundle id.
+    public var apps: [AppRef]
+    /// The PNG's side in pixels: iconSize when nil, at most maxIconSize.
+    public var size: Int?
+
+    public init(apps: [AppRef], size: Int? = nil) {
+        self.apps = apps
+        self.size = size
+    }
+}
+
+public struct AppRef: Codable, Sendable, Equatable {
+    public var bundleId: String
+    public var path: String?
+
+    public init(bundleId: String, path: String? = nil) {
+        self.bundleId = bundleId
+        self.path = path
+    }
+}
+
+public struct AppIconsResult: Codable, Sendable {
+    public var icons: [AppIcon]
+    public init(icons: [AppIcon]) { self.icons = icons }
+}
+
+public struct AppIcon: Codable, Sendable, Equatable {
+    public var bundleId: String
+    /// A PNG; base64 on the wire. nil: no bundle was found.
+    public var png: Data?
+
+    public init(bundleId: String, png: Data? = nil) {
+        self.bundleId = bundleId
+        self.png = png
+    }
+}
+
 // MARK: - Types by method (the fixture tests; the server's routing)
 
 public enum WireTypes {
@@ -494,6 +534,7 @@ public enum WireTypes {
         case Method.browserURL: BrowserURLParams.self
         case Method.appList: AppListParams.self
         case Method.appConfigure: AppConfigureParams.self
+        case Method.appIcons: AppIconsParams.self
         case Method.captureStarted: CaptureStartedParams.self
         case Method.captureLevel: LevelParams.self
         case Method.capturePCM: PCMParams.self
@@ -523,6 +564,7 @@ public enum WireTypes {
         case Method.textPaste: PasteResult.self
         case Method.browserURL: BrowserURLResult.self
         case Method.appList: AppListResult.self
+        case Method.appIcons: AppIconsResult.self
         default: nil
         }
     }

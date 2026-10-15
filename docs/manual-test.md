@@ -243,7 +243,7 @@ DEEPSEEK_API_KEY=...
 - **做**：
   1. 回到 Auralink 的应用增强页，看顶部的预览，点“重新读取”。
   2. 点“把 github.com 加入 …”。
-  3. 打开“浏览器…”对话框。
+  3. 点页头右上角的地球图标，打开“浏览器”对话框。
 - **应看到**：
   - 预览显示上一个前台 App 和它的网址。
   - Safari 在后台时，预览显示“没有网址…”的说明。
@@ -494,6 +494,7 @@ grep -E '^(STEPFUN_API_KEY|DEEPSEEK_API_KEY)=' ~/.config/auralink-dev/keys.env |
 | 测试 | 内容 | 2026-10-15 在 mac-air（macOS 26.7，M4）上的结果 |
 |---|---|---|
 | `swift test` | 协议 fixture、热键识别、PCM 分帧；新增的文件输入：22.05 kHz 立体声 fixture 按实时节奏读出，混成单声道并重采样到 16 kHz，分帧连续，电平正确；哪些 App 设置 `AXManualAccessibility`、每个进程一次（`ManualAccessibilityTests`） | 32 个用例全部通过 |
+| `TestMacHelperIcons` | 真实的辅助进程画 App 图标（`app.icons`）：访达、Safari 按 bundle ID，微信、Arc 装了才算，已安装列表里的前几个按路径，加一个不存在的 App（应当没有图标）；`AURALINK_E2E_ICONS=<目录>` 时把 PNG 存下来 | 10-15 通过：10 个图标 309 ms（第一次，之后系统有缓存），每个 64×64、4–7 KB；不存在的 App 没有图标 |
 | `TestMacHelperReadOnly` | 真实的 supervisor 加真实的辅助进程：`helper.hello`、`permissions.status`、`hotkey.status`（没有绑定时不装 tap）、`app.frontmost`、`app.list`（运行中的、已安装的）、`capture.devices`、对已经在运行的浏览器按 pid 调三轮 `browser.url`（第二轮之前发 `app.configure`，列出 Chromium 系浏览器：读不到网页区域的会被设置 `AXManualAccessibility` 后重试）、`textio.focus`、`textio.selection`（不允许 ⌘C）；前后的权限状态不变，没有收到任何热键通知 | 通过。从 ssh 跑时：麦克风 `notDetermined`，辅助功能 `true`；前台是 Arc；7 个运行中的 App，117 个已安装的 App；2 个输入设备。Chrome 在后台：`ax-document`，18 ms。**Arc 在前台却读不到网址**（`via none`，查了 400 个节点，641 ms），`textio.focus` 也是“没有焦点元素”，见 10.3。修复后（#12）：Arc 在后台，第一轮 `none`（717 ms），`app.configure` 之后重试读到（`ax-focus`，1230 ms，`retried`），之后 2–5 ms；Chrome 一直是 `ax-document`，1–22 ms |
 | `TestMacHelperCaptureFile` | 辅助进程以 4 倍速读语音样本：`capture.started` 报告文件名、16 kHz、单声道；帧序号和偏移连续；录到的 PCM 和文件逐样本一致；电平约 20 Hz；`capture.stop`、取消、`maxSeconds` 三种结束方式；22.05 kHz 立体声的 fixture 混音后峰值是 0.375；麦克风的权限状态没有变 | 通过：和文件的相关系数 1.00000，延迟 0 个样本；`maxSeconds=1` 时正好 16000 个样本 |
 | `TestMacE2ESessionReal` | 和 app 一样组装的 `session.Manager`：辅助进程按实时节奏读样本，阶跃 step-asr 识别，DeepSeek 整理（词典里有“Auralink”），文字交给假的文本输出，历史写进临时目录里的 SQLite，同时保存录音 | 通过：录音 10.82 s，识别 774 ms（原文“…讨论AurLink的发布计划…”），整理 850 ms，结果“今天下午三点开会讨论 Auralink 的发布计划。Please send the meeting notes to the team.”；历史里各字段和录音文件都对 |

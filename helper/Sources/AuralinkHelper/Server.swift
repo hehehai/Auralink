@@ -213,6 +213,8 @@ final class Server: @unchecked Sendable {
             return try await textio.paste(try msg.decodeParams(PasteParams.self))
         case Method.appList:
             return await AppList.list(installed: try msg.decodeParams(AppListParams.self).installed ?? false)
+        case Method.appIcons:
+            return try AppIcons.icons(try msg.decodeParams(AppIconsParams.self))
         case Method.appConfigure:
             front.configure(try msg.decodeParams(AppConfigureParams.self))
             return Empty()

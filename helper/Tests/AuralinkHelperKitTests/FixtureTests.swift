@@ -173,6 +173,18 @@ final class FixtureTests: XCTestCase {
         XCTAssertEqual(apps[0].pid, 901)
     }
 
+    func testIconSide() {
+        XCTAssertEqual(iconSide(nil), 64)
+        XCTAssertEqual(iconSide(0), 64)
+        XCTAssertEqual(iconSide(32), 32)
+        XCTAssertEqual(iconSide(4096), maxIconSize)
+        // app.icons' params: path is optional, size too.
+        let p = try? Incoming.decode(Data(#"{"id":"c9","method":"app.icons","params":{"apps":[{"bundleId":"com.apple.finder"}]}}"#.utf8))
+            .decodeParams(AppIconsParams.self)
+        XCTAssertEqual(p?.apps, [AppRef(bundleId: "com.apple.finder")])
+        XCTAssertNil(p?.size)
+    }
+
     func testOutermostWebArea() {
         // The focused element's ancestors, nearest first: an iframe's web
         // area inside the page's.

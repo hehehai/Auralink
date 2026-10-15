@@ -35,6 +35,7 @@ const (
 
 	MethodAppList      = "app.list"      // request: running (and installed) apps, to pick from
 	MethodAppConfigure = "app.configure" // request: which apps get AXManualAccessibility as they come to the front
+	MethodAppIcons     = "app.icons"     // request: apps' icons as PNG, for the lists that name apps
 
 	MethodBrowserURL = "browser.url" // request: the front tab's URL of a browser (Accessibility only)
 
@@ -519,6 +520,44 @@ type AppInfo struct {
 	Path     string `json:"path,omitempty"` // its bundle
 }
 
+// ---- app.icons ----
+
+// AppIconsParams asks for the icons of apps, as the Finder shows them:
+// each by its bundle's Path when the app has it (app.list's), else the
+// bundle the system finds for BundleID. At most MaxIcons apps a request;
+// Size is the PNG's side in pixels (default 64, at most 256: 32 points at
+// 2×).
+type AppIconsParams struct {
+	Apps []AppRef `json:"apps"`
+	Size int      `json:"size,omitempty"`
+}
+
+// AppRef names an app for app.icons.
+type AppRef struct {
+	BundleID string `json:"bundleId"`
+	Path     string `json:"path,omitempty"`
+}
+
+// AppIconsResult has an icon per app asked for, in its order.
+type AppIconsResult struct {
+	Icons []AppIcon `json:"icons"`
+}
+
+// AppIcon is an app's icon: PNG is absent when no bundle was found (the
+// app was removed), and the app shows a generic icon.
+type AppIcon struct {
+	BundleID string `json:"bundleId"`
+	PNG      []byte `json:"png,omitempty"` // base64 on the wire
+}
+
+// Icon sizes: the default and the largest side app.icons draws, and the
+// most apps a request may name (a full answer stays far below MaxLine).
+const (
+	IconSize    = 64
+	MaxIconSize = 256
+	MaxIcons    = 48
+)
+
 // ParamsFor returns a new value of the params type of method, or nil for
 // an unknown method. ResultFor does the same for results. The fake helper
 // and the fixture tests use them.
@@ -548,6 +587,8 @@ func ParamsFor(method string) any {
 		return new(AppListParams)
 	case MethodAppConfigure:
 		return new(AppConfigureParams)
+	case MethodAppIcons:
+		return new(AppIconsParams)
 	case MethodCaptureStarted:
 		return new(CaptureStartedParams)
 	case MethodCaptureLevel:
@@ -599,6 +640,8 @@ func ResultFor(method string) any {
 		return new(BrowserURLResult)
 	case MethodAppList:
 		return new(AppListResult)
+	case MethodAppIcons:
+		return new(AppIconsResult)
 	}
 	return nil
 }
@@ -611,7 +654,7 @@ var (
 		MethodPermissionsStatus, MethodPermissionsRequest,
 		MethodCaptureDevices, MethodCaptureStart, MethodCaptureStop,
 		MethodHotkeyConfigure, MethodHotkeyStatus,
-		MethodAppFrontmost, MethodAppList, MethodAppConfigure,
+		MethodAppFrontmost, MethodAppList, MethodAppConfigure, MethodAppIcons,
 		MethodTextFocus, MethodTextSelection, MethodTextPaste,
 		MethodBrowserURL,
 	}
