@@ -127,7 +127,7 @@ func TestPaletteAndDeepLinks(t *testing.T) {
 func TestHotkeyGlyphs(t *testing.T) {
 	for keys, want := range map[string]string{
 		"Fn": "fn", "Fn+Shift": "fn ⇧", "Fn+Control": "fn ⌃", "Control+Command+V": "⌃⌘V",
-		"RightCommand": "R⌘", "Option+Space": "⌥Space", "": "—", "Command+Shift+k": "⌘⇧K",
+		"RightCommand": "Right ⌘", "RightOption+Shift": "Right ⌥ ⇧", "Option+Space": "⌥ Space", "": "—", "Command+Shift+k": "⇧⌘K",
 	} {
 		if got := hotkeyGlyphs(keys); got != want {
 			t.Errorf("%q → %q, want %q", keys, got, want)

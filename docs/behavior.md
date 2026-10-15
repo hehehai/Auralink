@@ -83,7 +83,7 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | 5.8 | — | “能否接收文字”只在确定不行时才算不行：没有焦点元素，或者焦点是按钮、列表、静态文字这类控件；AX 读不出来、网页区域（AXWebArea、AXGroup，contenteditable 常常这样）都照常粘贴 | 宁可多粘一次，也不要让富文本编辑器里的转录都落进卡片 | ✅ 待真机验证各 App |
 | 5.9 | 粘贴最近结果：内存里的最近结果，没有时读历史 | 同样（`Manager.Last`，启动时从历史读最近一条成功的结果）；目标不可写时只提示，不弹卡片 | 和 Voxt 一样 | ✅ |
 | 5.10 | 热键规则和 common stop 写在 `HotkeyManager` 和各 Flow 里 | `internal/hotkey.Route`：空闲时 tap/双击开始，长按的 down 开始、它自己的 up 停止；录音时任何功能的热键都是“停止”（helper 在 `active` 时 tap 立即触发）；识别、整理中只有 Esc（取消）有效；答案卡片打开时 Esc 关闭卡片 | 纯函数、表驱动测试；Voxt 文档里“普通键 binding 不能 common stop”的问题不存在：所有 binding 都走同一条规则 | ✅ |
-| 5.11 | 冲突检查：同一功能同键报重复；跨功能同键同触发方式报重复；粘贴最近结果和其他功能的 tap 相同报重复；系统快捷键提示 | 规则相同（`hotkey.Check`），外加“单独一个普通键会被全局吞掉”的提示；左右侧修饰键（RightCommand）参与比较时，any 和任一侧都算重叠 | 与 Voxt 一致，补上侧别 | ✅ |
+| 5.11 | 一个功能可以有多条快捷键（binding 列表）。冲突检查：同一功能同键报重复；跨功能同键同触发方式报重复；粘贴最近结果和其他功能的 tap 相同报重复；系统快捷键提示 | 规则相同（`hotkey.Check`），外加“单独一个普通键会被全局吞掉”的提示；左右侧修饰键（RightCommand）参与比较时，any 和任一侧都算重叠 | 与 Voxt 一致，补上侧别；转录页在每一条下面写出问题，需要辅助功能的条目带标记；冲突时按设置顺序（转录、翻译、转写、粘贴最近结果）先出现的生效（`hotkey.Build`） | ✅ |
 | 5.12 | 没有辅助功能时不能用 fn 热键 | 事件 tap 没装上时，把能用 Carbon 表达的热键（⌃⌥⇧⌘ 加一个键，不分左右、没有 fn）注册成 `mygo.GlobalShortcut`；tap 装上后注销。长按和双击在 Carbon 下退化为单按 | 没有权限也至少能用 ⌃⌘V 和普通组合键；转录页提示哪些热键需要辅助功能 | ✅ 待真机验证 |
 | 5.13 | M3 只绑定转录和粘贴最近结果 | `liveFeatures`（sessionlink.go）；翻译、转写的热键在 M4 打开 | 没有实现的功能不应该吞掉 fn+⇧ | ✅ |
 | 5.14 | Prompt 变量 `{{RAW_TRANSCRIPTION}}` 把识别文本拼进 system | 输入只在 user 消息里（`<input>…</input>`）；变量 `{{USER_MAIN_LANGUAGE}}`、`{{USER_OTHER_LANGUAGES}}`、`{{TARGET_LANGUAGE}}`、`{{APP_NAME}}` 在内置模板和用户规则里都能用，用户规则里的值不会再被展开 | 避免 prompt 注入，system 对同样的设置保持不变 | ✅ |

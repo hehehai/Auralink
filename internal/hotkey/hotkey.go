@@ -320,7 +320,8 @@ type Plan struct {
 }
 
 // Build turns the shortcuts of the features in enabled (and PasteLast)
-// into bindings. Hotkeys that do not parse are left out (Check reports
+// into bindings, in the settings' order (Transcribe, Translate, Rewrite,
+// PasteLast). Hotkeys that do not parse are left out (Check reports
 // them); so is a later duplicate of the same keys and behaviour.
 func Build(f settings.Features, enabled []string) Plan {
 	var p Plan
@@ -350,11 +351,8 @@ func Build(f settings.Features, enabled []string) Plan {
 			p.Carbon = append(p.Carbon, Carbon{ID: id, Accelerator: acc})
 		}
 	}
-	// PasteLast first: a feature's binding of the same keys must not
-	// shadow it (Check reports the duplicate).
-	if f.PasteLast.Keys != "" {
-		add(PasteLast, f.PasteLast, proto.BehaviorTap)
-	}
+	// In the settings' order, as Check judges clashes: the first binding
+	// of the same keys and behaviour wins.
 	for _, feat := range Features {
 		if !slices.Contains(enabled, feat) {
 			continue
@@ -362,6 +360,9 @@ func Build(f settings.Features, enabled []string) Plan {
 		for i, h := range HotkeysOf(f, feat) {
 			add(ID(feat, i), h, Behavior(h.Trigger))
 		}
+	}
+	if f.PasteLast.Keys != "" {
+		add(PasteLast, f.PasteLast, proto.BehaviorTap)
 	}
 	return p
 }

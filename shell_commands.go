@@ -390,27 +390,11 @@ func (a *app) openURL(raw string) {
 }
 
 // hotkeyGlyphs shows a settings.Hotkey's keys as macOS writes them:
-// "Fn+Shift" → "fn ⇧", "Control+Command+V" → "⌃⌘V".
+// "Fn+Shift" → "fn ⇧", "Control+Command+V" → "⌃⌘V", "RightCommand" →
+// "Right ⌘" (hotkeyText, transcribe_page.go); "—" for none.
 func hotkeyGlyphs(keys string) string {
-	if keys == "" {
+	if strings.TrimSpace(keys) == "" {
 		return "—"
 	}
-	glyph := map[string]string{"command": "⌘", "cmd": "⌘", "control": "⌃", "ctrl": "⌃", "option": "⌥", "alt": "⌥", "shift": "⇧",
-		"rightcommand": "R⌘", "space": "Space", "return": "↩", "enter": "↩"}
-	var out strings.Builder
-	for i, part := range strings.Split(keys, "+") {
-		p := strings.TrimSpace(part)
-		switch g, ok := glyph[strings.ToLower(p)]; {
-		case strings.EqualFold(p, "fn"):
-			if i > 0 {
-				out.WriteString(" ")
-			}
-			out.WriteString("fn ")
-		case ok:
-			out.WriteString(g)
-		default:
-			out.WriteString(strings.ToUpper(p))
-		}
-	}
-	return strings.TrimSpace(out.String())
+	return hotkeyText(keys)
 }

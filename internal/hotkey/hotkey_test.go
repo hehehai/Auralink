@@ -90,7 +90,7 @@ func TestBuildDefaults(t *testing.T) {
 	if len(p.Bindings) != 2 {
 		t.Fatalf("bindings %+v", p.Bindings)
 	}
-	paste, fn := p.Bindings[0], p.Bindings[1]
+	fn, paste := p.Bindings[0], p.Bindings[1]
 	if paste.ID != PasteLast || paste.Key == nil || *paste.Key != 9 || paste.Behavior != proto.BehaviorTap ||
 		paste.Modifiers[proto.ModControl] != proto.SideAny || paste.Modifiers[proto.ModCommand] != proto.SideAny {
 		t.Errorf("paste-last %+v", paste)
@@ -106,7 +106,7 @@ func TestBuildDefaults(t *testing.T) {
 		t.Errorf("configure %+v", cfg)
 	}
 	all := Build(f, Features)
-	if len(all.Bindings) != 4 || all.Bindings[2].ID != "translate/0" || all.Bindings[3].ID != "rewrite/0" {
+	if len(all.Bindings) != 4 || all.Bindings[1].ID != "translate/0" || all.Bindings[2].ID != "rewrite/0" || all.Bindings[3].ID != PasteLast {
 		t.Errorf("all %+v", all.Bindings)
 	}
 	if got := Build(settings.Features{}, Features).Configure(false); got.Bindings == nil || len(got.Bindings) != 0 || got.SwallowFn {
