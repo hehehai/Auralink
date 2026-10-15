@@ -13,11 +13,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/asr"
 	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/session"
+	"github.com/hehehai/Auralink/internal/settings"
 )
 
 var slackApp = proto.App{PID: 812, BundleID: "com.tinyspeck.slackmacgap", Name: "Slack"}
@@ -258,4 +260,16 @@ func overlayShots(t *testing.T, a *app, out, suffix string) {
 	}
 	a.answer, a.notice = answerCard{}, nil
 	snap(a, session.Snapshot{ID: "shot-end", State: session.Cancelled})
+}
+
+func TestOverlayPlace(t *testing.T) {
+	wa := mygo.Rectangle{X: 0, Y: 25, Width: 1440, Height: 875}
+	x, y := overlayPlace(wa, settings.Overlay{Position: "bottom", Margin: 96}, 272, 84)
+	if x != (1440-272)/2 || y != 25+875-84-(96-ovPad) {
+		t.Errorf("bottom %d,%d", x, y)
+	}
+	_, y = overlayPlace(wa, settings.Overlay{Position: "top", Margin: 40}, 272, 84)
+	if y != 25+40-ovPad {
+		t.Errorf("top %d", y)
+	}
 }

@@ -71,6 +71,9 @@ type overlayState struct {
 		shown bool
 		mode  overlayMode
 		w, h  int // the face's size
+		// area is the work area of the display it shows on, chosen when
+		// it appears (the display under the pointer); a resize stays there.
+		area mygo.Rectangle
 		// done is the session whose "inserted" check shows (until its
 		// timer clears it).
 		done string
@@ -152,7 +155,10 @@ func (a *app) overlaySync() {
 		a.ov.win = mygo.NewWindow(floatingWindowOptions("Auralink", winW, winH, ui.View(a.overlayView)))
 	}
 	if !was || resized {
-		x, y := overlayPlace(a.prefs.Overlay, winW, winH)
+		if !was {
+			a.ov.area = mygo.Screen.DisplayNearestPoint(mygo.Screen.CursorScreenPoint()).WorkArea
+		}
+		x, y := overlayPlace(a.ov.area, a.prefs.Overlay, winW, winH)
 		if resized {
 			a.ov.win.SetContentSize(winW, winH)
 		}
@@ -165,11 +171,9 @@ func (a *app) overlaySync() {
 	a.ov.win.Invalidate()
 }
 
-// overlayPlace is where a window of w × h goes: centred on the display
-// under the pointer, Overlay.Margin from its bottom (or top) edge.
-func overlayPlace(o settings.Overlay, w, h int) (int, int) {
-	d := mygo.Screen.DisplayNearestPoint(mygo.Screen.CursorScreenPoint())
-	wa := d.WorkArea
+// overlayPlace is where a window of w × h goes in the work area wa:
+// centred, Overlay.Margin from its bottom (or top) edge.
+func overlayPlace(wa mygo.Rectangle, o settings.Overlay, w, h int) (int, int) {
 	margin := int(math.Round(o.Margin)) - ovPad
 	x := wa.X + (wa.Width-w)/2
 	y := wa.Y + wa.Height - h - margin
