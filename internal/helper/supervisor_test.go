@@ -100,16 +100,31 @@ func TestHandshakeAndControl(t *testing.T) {
 		t.Fatalf("devices %+v %v", devs, err)
 	}
 	u, err := request[proto.BrowserURLResult](t, h, proto.MethodBrowserURL, proto.BrowserURLParams{BundleID: "com.google.Chrome"})
-	if err != nil || !strings.HasPrefix(u.URL, "https://mail.google.com/") {
+	if err != nil || !strings.HasPrefix(u.URL, "https://mail.google.com/") || u.Via != proto.URLViaAppleScript {
 		t.Errorf("url %+v %v", u, err)
 	}
-	_, err = request[proto.BrowserURLResult](t, h, proto.MethodBrowserURL, proto.BrowserURLParams{BundleID: "org.mozilla.firefox"})
-	if !errors.Is(err, &proto.Error{Code: proto.CodeUnsupported}) {
-		t.Errorf("firefox: %v", err)
+	// Not a browser, or not allowed to script it.
+	if u, err := request[proto.BrowserURLResult](t, h, proto.MethodBrowserURL, proto.BrowserURLParams{BundleID: "org.mozilla.firefox"}); err != nil || u.URL != "" || u.Via != proto.URLViaNone {
+		t.Errorf("firefox: %+v %v", u, err)
 	}
-	probe, err := request[proto.AutomationProbeResult](t, h, proto.MethodAutomationProbe, proto.AutomationProbeParams{BundleIDs: []string{"com.apple.Safari", "com.brave.Browser"}, Prompt: true})
-	if err != nil || len(probe.Browsers) != 2 || probe.Browsers[0].State != proto.AutomationGranted || probe.Browsers[1].State != proto.AutomationDenied {
+	if u, err := request[proto.BrowserURLResult](t, h, proto.MethodBrowserURL, proto.BrowserURLParams{BundleID: "com.apple.Safari"}); err != nil || u.Via != proto.URLViaAXWebURL || u.Automation != proto.AutomationNotDetermined {
+		t.Errorf("safari: %+v %v", u, err)
+	}
+	probe, err := request[proto.AutomationProbeResult](t, h, proto.MethodAutomationProbe, proto.AutomationProbeParams{BundleIDs: []string{"com.apple.Safari", "com.brave.Browser", "org.mozilla.firefox"}})
+	if err != nil || len(probe.Browsers) != 3 || probe.Browsers[0].State != proto.AutomationNotDetermined || probe.Browsers[1].State != proto.AutomationDenied ||
+		probe.Browsers[2].State != proto.AutomationNotInstalled || probe.Browsers[1].Code != -1743 {
 		t.Errorf("probe %+v %v", probe, err)
+	}
+	asked, err := request[proto.AutomationState](t, h, proto.MethodAutomationRequest, proto.AutomationRequestParams{BundleID: "com.apple.Safari", Launch: true})
+	if err != nil || asked.State != proto.AutomationGranted || asked.Name != "Safari" {
+		t.Errorf("request %+v %v", asked, err)
+	}
+	if _, err := request[proto.AutomationState](t, h, proto.MethodAutomationRequest, proto.AutomationRequestParams{BundleID: "org.mozilla.firefox"}); !errors.Is(err, &proto.Error{Code: proto.CodeUnsupported}) {
+		t.Errorf("firefox request: %v", err)
+	}
+	front, err := request[proto.App](t, h, proto.MethodAppFrontmost, nil)
+	if err != nil || front.BundleID != "com.tinyspeck.slackmacgap" || front.PID != 812 {
+		t.Errorf("front %+v %v", front, err)
 	}
 	// The fake's log line and stderr reach the log, as source "helper".
 	wait(t, "log lines", func() bool {
@@ -120,72 +135,153 @@ func TestHandshakeAndControl(t *testing.T) {
 	})
 }
 
+func TestPermissions(t *testing.T) {
+	h := start(t, "mic=notDetermined,untrusted")
+	h.ready(t)
+	st, err := request[proto.PermissionsResult](t, h, proto.MethodPermissionsStatus, nil)
+	if err != nil || st.Microphone != proto.PermNotDetermined || st.Accessibility {
+		t.Fatalf("status %+v %v", st, err)
+	}
+	st, err = request[proto.PermissionsResult](t, h, proto.MethodPermissionsRequest, proto.PermissionsRequestParams{Permission: proto.PermissionMicrophone})
+	if err != nil || st.Microphone != proto.PermGranted {
+		t.Fatalf("request %+v %v", st, err)
+	}
+	if _, err := request[proto.PermissionsResult](t, h, proto.MethodPermissionsRequest, proto.PermissionsRequestParams{Permission: "camera"}); !errors.Is(err, &proto.Error{Code: proto.CodeBadRequest}) {
+		t.Errorf("camera: %v", err)
+	}
+	// Without Accessibility, text I/O is refused.
+	_, err = request[proto.PasteResult](t, h, proto.MethodTextPaste, proto.PasteParams{Text: "x"})
+	var perr *proto.Error
+	if !errors.As(err, &perr) || perr.Code != proto.CodePermissionDenied || !strings.Contains(string(perr.Data), "accessibility") {
+		t.Errorf("paste untrusted: %v", err)
+	}
+	d := start(t, "deny-mic")
+	d.ready(t)
+	_, err = request[proto.CaptureResult](t, d, proto.MethodCaptureStart, proto.CaptureParams{})
+	if !errors.As(err, &perr) || perr.Code != proto.CodePermissionDenied || !strings.Contains(string(perr.Data), "microphone") {
+		t.Errorf("capture denied: %v", err)
+	}
+}
+
+// capture runs a capture.start job on a goroutine, collecting its
+// notifications.
+type captureRun struct {
+	mu      sync.Mutex
+	started *proto.CaptureStartedParams
+	levels  int
+	seqs    []int
+	pcm     []byte
+	done    chan struct{}
+	res     proto.CaptureResult
+	err     error
+}
+
+func (c *captureRun) frames() int { c.mu.Lock(); defer c.mu.Unlock(); return len(c.seqs) }
+
+func startCapture(ctx context.Context, h *harness, id string, p proto.CaptureParams) *captureRun {
+	c := &captureRun{done: make(chan struct{})}
+	go func() {
+		defer close(c.done)
+		raw, err := h.sup.Call(ctx, id, proto.MethodCaptureStart, p, func(m proto.Message) {
+			c.mu.Lock()
+			defer c.mu.Unlock()
+			switch m.Method {
+			case proto.MethodCaptureStarted:
+				c.started = new(proto.CaptureStartedParams)
+				m.DecodeParams(c.started)
+			case proto.MethodCaptureLevel:
+				c.levels++
+			case proto.MethodCapturePCM:
+				var f proto.PCMParams
+				m.DecodeParams(&f)
+				if f.Offset != len(c.pcm)/2 {
+					c.err = errors.New("pcm offset gap")
+				}
+				c.seqs = append(c.seqs, f.Seq)
+				c.pcm = append(c.pcm, f.Data...)
+			}
+		})
+		if err == nil {
+			err = json.Unmarshal(raw, &c.res)
+		}
+		c.mu.Lock()
+		if c.err == nil {
+			c.err = err
+		}
+		c.mu.Unlock()
+	}()
+	return c
+}
+
 func TestCaptureStreamsPCM(t *testing.T) {
 	h := start(t, "frame-ms=10")
 	h.ready(t)
-	out := filepath.Join(t.TempDir(), "rec.wav")
-	var mu sync.Mutex
-	var pcm []byte
-	levels, seqs := 0, []int{}
-	type res struct {
-		r   proto.CaptureResult
-		err error
-	}
-	done := make(chan res, 1)
-	go func() {
-		raw, err := h.sup.Call(context.Background(), "S1", proto.MethodCaptureStart,
-			proto.CaptureParams{SampleRate: 16000, Channels: 1, Encoding: "pcm16le", Output: out}, func(m proto.Message) {
-				mu.Lock()
-				defer mu.Unlock()
-				switch m.Method {
-				case proto.MethodCaptureLevel:
-					levels++
-				case proto.MethodCapturePCM:
-					var p proto.PCMParams
-					m.DecodeParams(&p)
-					seqs = append(seqs, p.Seq)
-					pcm = append(pcm, p.Data...)
-				}
-			})
-		var r proto.CaptureResult
-		if err == nil {
-			err = json.Unmarshal(raw, &r)
-		}
-		done <- res{r, err}
-	}()
-	wait(t, "five frames", func() bool { mu.Lock(); defer mu.Unlock(); return len(seqs) >= 5 })
+	c := startCapture(context.Background(), h, "S1", proto.CaptureParams{Devices: []string{"Unplugged", "AirPodsPro:input"}})
+	wait(t, "five frames", func() bool { return c.frames() >= 5 })
 	if st := h.sup.Status(); !slices.Equal(st.Running, []string{"S1"}) {
 		t.Errorf("running %v", st.Running)
 	}
 	// A second recording is refused while one runs.
-	if _, err := request[proto.CaptureResult](t, h, proto.MethodCaptureStart, proto.CaptureParams{SampleRate: 16000, Channels: 1, Encoding: "pcm16le"}); !errors.Is(err, &proto.Error{Code: proto.CodeBusy}) {
+	if _, err := request[proto.CaptureResult](t, h, proto.MethodCaptureStart, proto.CaptureParams{}); !errors.Is(err, &proto.Error{Code: proto.CodeBusy}) {
 		t.Errorf("second capture: %v", err)
 	}
 	stop, err := request[proto.CaptureStopResult](t, h, proto.MethodCaptureStop, proto.CaptureStopParams{Job: "S1"})
 	if err != nil || !stop.Stopped {
 		t.Fatalf("stop %+v %v", stop, err)
 	}
-	r := <-done
-	if r.err != nil || r.r.Reason != proto.CaptureStopped || r.r.Frames < 5 || r.r.Output != out {
-		t.Fatalf("capture %+v %v", r.r, r.err)
+	<-c.done
+	if c.err != nil || c.res.Reason != proto.CaptureStopped || c.res.Frames < 5 || c.res.Device != "AirPodsPro:input" {
+		t.Fatalf("capture %+v %v", c.res, c.err)
 	}
-	mu.Lock()
-	defer mu.Unlock()
-	for i, s := range seqs {
+	if c.started == nil || !c.started.FellBack || c.started.Device != "AirPodsPro:input" || c.started.SampleRate != 16000 {
+		t.Errorf("started %+v", c.started)
+	}
+	for i, s := range c.seqs {
 		if s != i {
-			t.Fatalf("seq %v", seqs)
+			t.Fatalf("seq %v", c.seqs)
 		}
 	}
-	if levels != len(seqs) || len(pcm) != r.r.Frames*160*2 {
-		t.Errorf("%d levels, %d bytes for %d frames", levels, len(pcm), r.r.Frames)
-	}
-	wav, _ := os.ReadFile(out)
-	if len(wav) != 44+len(pcm) || string(wav[:4]) != "RIFF" || binary.LittleEndian.Uint32(wav[24:]) != 16000 {
-		t.Errorf("wav: %d bytes for %d", len(wav), len(pcm))
+	if c.levels != len(c.seqs) || len(c.pcm) != c.res.Frames*1600*2 || c.res.Samples*2 != len(c.pcm) {
+		t.Errorf("%d levels, %d bytes for %d frames (%d samples)", c.levels, len(c.pcm), c.res.Frames, c.res.Samples)
 	}
 	// Stopped already: nothing to stop.
 	if stop, _ := request[proto.CaptureStopResult](t, h, proto.MethodCaptureStop, proto.CaptureStopParams{Job: "S1"}); stop.Stopped {
 		t.Error("stopped twice")
+	}
+	// The chosen input goes away: the recording ends with what it has.
+	c = startCapture(context.Background(), h, "S1b", proto.CaptureParams{Devices: []string{"lost"}})
+	<-c.done
+	if c.err != nil || c.res.Reason != proto.CaptureDeviceLost || c.res.Frames != 3 {
+		t.Errorf("lost: %+v %v", c.res, c.err)
+	}
+}
+
+// TestCapturePlaysRecording: pcm= replays a WAV, resampled to the asked
+// rate, then silence.
+func TestCapturePlaysRecording(t *testing.T) {
+	pcm := make([]byte, 2*8000) // 0.25 s at 32 kHz: a ramp
+	for i := range 8000 {
+		binary.LittleEndian.PutUint16(pcm[2*i:], uint16(int16(i)))
+	}
+	path := filepath.Join(t.TempDir(), "say.wav")
+	os.WriteFile(path, helpertest.WAV(pcm, 32000), 0o644)
+	h := start(t, "frame-ms=5,"+helpertest.Opt("pcm", path))
+	h.ready(t)
+	c := startCapture(context.Background(), h, "S9", proto.CaptureParams{FrameMS: 50})
+	wait(t, "seven frames", func() bool { return c.frames() >= 7 })
+	request[proto.CaptureStopResult](t, h, proto.MethodCaptureStop, proto.CaptureStopParams{Job: "S9"})
+	<-c.done
+	if c.err != nil || len(c.pcm) < 4000*2 {
+		t.Fatalf("%v, %d bytes", c.err, len(c.pcm))
+	}
+	// 16 kHz: every other sample of the ramp, then zeros.
+	for i := range 4000 {
+		if v := int16(binary.LittleEndian.Uint16(c.pcm[2*i:])); v != int16(2*i) {
+			t.Fatalf("sample %d = %d", i, v)
+		}
+	}
+	if v := binary.LittleEndian.Uint16(c.pcm[2*4000+10:]); v != 0 {
+		t.Errorf("after the recording: %d", v)
 	}
 }
 
@@ -193,17 +289,12 @@ func TestCancelCapture(t *testing.T) {
 	h := start(t, "frame-ms=10")
 	h.ready(t)
 	ctx, cancel := context.WithCancel(context.Background())
-	got := make(chan error, 1)
-	frames := make(chan struct{}, 100)
-	go func() {
-		_, err := h.sup.Call(ctx, "S2", proto.MethodCaptureStart, proto.CaptureParams{SampleRate: 16000, Channels: 1, Encoding: "pcm16le"},
-			func(proto.Message) { frames <- struct{}{} })
-		got <- err
-	}()
-	<-frames
+	c := startCapture(ctx, h, "S2", proto.CaptureParams{})
+	wait(t, "a frame", func() bool { return c.frames() >= 1 })
 	cancel()
-	if err := <-got; !errors.Is(err, &proto.Error{Code: proto.CodeCancelled}) {
-		t.Fatalf("cancelled capture: %v", err)
+	<-c.done
+	if !errors.Is(c.err, &proto.Error{Code: proto.CodeCancelled}) {
+		t.Fatalf("cancelled capture: %v", c.err)
 	}
 	if h.sup.Status().State != Ready {
 		t.Error("the helper did not stay")
@@ -214,15 +305,12 @@ func TestStuckCancelRestarts(t *testing.T) {
 	h := start(t, "hang-cancel,frame-ms=10")
 	first := h.ready(t).PID
 	ctx, cancel := context.WithCancel(context.Background())
-	got := make(chan error, 1)
-	go func() {
-		_, err := h.sup.Call(ctx, "S3", proto.MethodCaptureStart, proto.CaptureParams{SampleRate: 16000, Channels: 1, Encoding: "pcm16le"}, nil)
-		got <- err
-	}()
+	c := startCapture(ctx, h, "S3", proto.CaptureParams{})
 	wait(t, "the capture", func() bool { return len(h.sup.Status().Running) == 1 })
 	cancel()
-	if err := <-got; !errors.Is(err, ErrExited) {
-		t.Fatalf("stuck capture: %v", err)
+	<-c.done
+	if !errors.Is(c.err, ErrExited) {
+		t.Fatalf("stuck capture: %v", c.err)
 	}
 	wait(t, "a new helper", func() bool { st := h.sup.Status(); return st.State == Ready && st.PID != first })
 	if st := h.sup.Status(); st.Restarts != 1 {
@@ -230,41 +318,155 @@ func TestStuckCancelRestarts(t *testing.T) {
 	}
 }
 
+var fnTap = []proto.HotkeyBinding{
+	{ID: "transcribe/0", Modifiers: map[string]string{proto.ModFn: proto.SideAny}, Behavior: proto.BehaviorTap},
+	{ID: "translate/0", Modifiers: map[string]string{proto.ModFn: proto.SideAny, proto.ModShift: proto.SideAny}, Behavior: proto.BehaviorTap},
+}
+
+func (h *harness) notes1() []proto.Message {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return slices.Clone(h.notes)
+}
+
 func TestHotkeyEventsGoToOnNotify(t *testing.T) {
-	h := start(t, "press=transcribe/0")
+	h := start(t, "press=transcribe/0,front=com.google.Chrome")
 	h.ready(t)
-	res, err := request[proto.HotkeyConfigureResult](t, h, proto.MethodHotkeyConfigure, proto.HotkeyConfigureParams{Bindings: []proto.HotkeyBinding{
-		{ID: "transcribe/0", Keys: "Fn", Trigger: "tap"}, {ID: "translate/0", Keys: "Fn+Shift", Trigger: "tap"}}})
-	if err != nil || !res.Trusted || !slices.Equal(res.Active, []string{"transcribe/0", "translate/0"}) {
+	res, err := request[proto.HotkeyStatus](t, h, proto.MethodHotkeyConfigure, proto.HotkeyConfigureParams{Bindings: fnTap})
+	if err != nil || !res.Installed || !res.Accessibility || res.Bindings != 2 {
 		t.Fatalf("configure %+v %v", res, err)
 	}
-	wait(t, "three events", func() bool { h.mu.Lock(); defer h.mu.Unlock(); return len(h.notes) == 3 })
-	var actions []string
-	for _, m := range h.notes {
-		var e proto.HotkeyEventParams
-		m.DecodeParams(&e)
-		actions = append(actions, e.Action)
-		if e.Binding != "transcribe/0" {
-			t.Errorf("binding %q", e.Binding)
-		}
-	}
-	if !slices.Equal(actions, []string{"down", "up", "tap"}) {
-		t.Errorf("actions %v", actions)
+	wait(t, "the event", func() bool { return len(h.notes1()) == 1 })
+	var e proto.HotkeyEventParams
+	n := h.notes1()[0]
+	n.DecodeParams(&e)
+	if n.Method != proto.MethodHotkeyEvent || e.Binding != "transcribe/0" || e.Phase != proto.PhaseTrigger || e.Front == nil || e.Front.BundleID != "com.google.Chrome" {
+		t.Errorf("event %s %+v", n.Method, e)
 	}
 
-	u := start(t, "untrusted")
+	// No Accessibility: not installed, until it is granted.
+	u := start(t, "untrusted,trust-after=300")
 	u.ready(t)
-	res, err = request[proto.HotkeyConfigureResult](t, u, proto.MethodHotkeyConfigure, proto.HotkeyConfigureParams{Bindings: []proto.HotkeyBinding{{ID: "a", Keys: "Fn", Trigger: "tap"}}})
-	if err != nil || res.Trusted || len(res.Active) != 0 {
+	res, err = request[proto.HotkeyStatus](t, u, proto.MethodHotkeyConfigure, proto.HotkeyConfigureParams{Bindings: fnTap[:1]})
+	if err != nil || res.Installed || res.Accessibility || res.Error == "" {
 		t.Errorf("untrusted %+v %v", res, err)
+	}
+	wait(t, "hotkey.state", func() bool { return len(u.notes1()) == 1 })
+	var st proto.HotkeyStatus
+	u.notes1()[0].DecodeParams(&st)
+	if u.notes1()[0].Method != proto.MethodHotkeyState || !st.Installed || !st.Accessibility {
+		t.Errorf("state %+v", st)
+	}
+	if res, _ := request[proto.HotkeyStatus](t, u, proto.MethodHotkeyStatus, nil); !res.Installed {
+		t.Errorf("status %+v", res)
+	}
+}
+
+// TestEventScript: events= plays notifications of no request in order,
+// with their delays.
+func TestEventScript(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "events.jsonl")
+	os.WriteFile(script, []byte(`{"method":"app.activated","params":{"pid":901,"bundleId":"com.google.Chrome","name":"Google Chrome"}}
+{"afterMs":50,"method":"hotkey.event","params":{"binding":"transcribe/1","phase":"down","behavior":"longPress","heldMs":300,"t":10}}
+{"afterMs":100,"method":"hotkey.event","params":{"binding":"transcribe/1","phase":"up","behavior":"longPress","heldMs":400,"t":110}}
+`), 0o644)
+	h := start(t, helpertest.Opt("events", script))
+	h.ready(t)
+	t0 := time.Now()
+	request[proto.HotkeyStatus](t, h, proto.MethodHotkeyConfigure, proto.HotkeyConfigureParams{Bindings: fnTap})
+	wait(t, "three notifications", func() bool { return len(h.notes1()) == 3 })
+	if d := time.Since(t0); d < 150*time.Millisecond {
+		t.Errorf("played in %s", d)
+	}
+	var got []string
+	for _, m := range h.notes1() {
+		var e proto.HotkeyEventParams
+		m.DecodeParams(&e)
+		got = append(got, m.Method+":"+e.Phase)
+	}
+	if !slices.Equal(got, []string{"app.activated:", "hotkey.event:down", "hotkey.event:up"}) {
+		t.Errorf("notes %v", got)
+	}
+}
+
+func TestTextIO(t *testing.T) {
+	log := filepath.Join(t.TempDir(), "paste.jsonl")
+	h := start(t, helpertest.Opt("selection", "Hello, world")+","+helpertest.Opt("paste-log", log))
+	h.ready(t)
+	sel, err := request[proto.SelectionResult](t, h, proto.MethodTextSelection, proto.SelectionParams{})
+	if err != nil || sel.Text != "Hello, world" || sel.Via != proto.ViaAX {
+		t.Errorf("selection %+v %v", sel, err)
+	}
+	focus, err := request[proto.FocusResult](t, h, proto.MethodTextFocus, nil)
+	if err != nil || !focus.Editable || focus.PID != 812 || focus.Selection == nil || focus.Selection.Length != 12 {
+		t.Errorf("focus %+v %v", focus, err)
+	}
+	r, err := request[proto.PasteResult](t, h, proto.MethodTextPaste, proto.PasteParams{Text: "你好", TargetPID: 812, Press: []proto.KeyPress{{Key: 36}}})
+	if err != nil || !r.Posted || !r.Restored {
+		t.Errorf("paste %+v %v", r, err)
+	}
+	// The target is not in front: nothing is pasted.
+	r, err = request[proto.PasteResult](t, h, proto.MethodTextPaste, proto.PasteParams{Text: "lost", TargetPID: 1})
+	if err != nil || r.Posted || r.Front == nil || r.Front.PID != 812 {
+		t.Errorf("paste elsewhere %+v %v", r, err)
+	}
+	data, _ := os.ReadFile(log)
+	if lines := strings.Split(strings.TrimSpace(string(data)), "\n"); len(lines) != 1 || !strings.Contains(lines[0], `"text":"你好"`) || !strings.Contains(lines[0], `"press":[{"key":36}]`) {
+		t.Errorf("paste log %q", data)
+	}
+	// ⌘C only when allowed.
+	c := start(t, helpertest.Opt("copy-selection", "line"))
+	c.ready(t)
+	if sel, _ := request[proto.SelectionResult](t, c, proto.MethodTextSelection, proto.SelectionParams{}); sel.Text != "" || sel.Via != proto.ViaNone {
+		t.Errorf("no copy %+v", sel)
+	}
+	if sel, _ := request[proto.SelectionResult](t, c, proto.MethodTextSelection, proto.SelectionParams{AllowCopy: true}); sel.Text != "line" || sel.Via != proto.ViaCopy {
+		t.Errorf("copy %+v", sel)
+	}
+}
+
+// TestTrace: every call reports its phases; a slow control request is
+// logged with them.
+func TestTrace(t *testing.T) {
+	var mu sync.Mutex
+	var traces []Trace
+	h := start(t, "delay=app.frontmost:250", func(c *Config) {
+		c.SlowCall = 200 * time.Millisecond
+		c.OnTrace = func(tr Trace) { mu.Lock(); traces = append(traces, tr); mu.Unlock() }
+	})
+	h.ready(t)
+	request[proto.DevicesResult](t, h, proto.MethodCaptureDevices, nil)
+	request[proto.App](t, h, proto.MethodAppFrontmost, nil)
+	mu.Lock()
+	defer mu.Unlock()
+	if len(traces) != 2 {
+		t.Fatalf("traces %+v", traces)
+	}
+	for _, tr := range traces {
+		if tr.ID == "" || tr.Written < tr.Ready || tr.Answered < tr.Written || tr.Returned < tr.Answered || tr.Err != "" {
+			t.Errorf("phases out of order: %+v", tr)
+		}
+	}
+	slow := traces[1]
+	if slow.Method != proto.MethodAppFrontmost || slow.Answered-slow.Written < 250*time.Millisecond {
+		t.Errorf("slow %+v", slow)
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if !slices.ContainsFunc(h.logs, func(e core.LogEntry) bool {
+		return e.Level == core.SeverityWarning && strings.HasPrefix(e.Message, "slow call: app.frontmost") && strings.Contains(e.Message, "helper 2")
+	}) {
+		t.Errorf("no slow call in the log: %+v", h.logs)
+	}
+	if slices.ContainsFunc(h.logs, func(e core.LogEntry) bool { return strings.Contains(e.Message, "capture.devices") }) {
+		t.Error("a fast call was logged")
 	}
 }
 
 func TestCrashRestartsAndFailsCalls(t *testing.T) {
 	h := start(t, "frame-ms=10")
 	first := h.ready(t).PID
-	_, err := h.sup.Call(context.Background(), "S4", proto.MethodCaptureStart,
-		proto.CaptureParams{Devices: []string{"crash"}, SampleRate: 16000, Channels: 1, Encoding: "pcm16le"}, nil)
+	_, err := h.sup.Call(context.Background(), "S4", proto.MethodCaptureStart, proto.CaptureParams{Devices: []string{"crash"}}, nil)
 	if !errors.Is(err, ErrExited) || !errors.Is(err, core.ErrHelper) {
 		t.Fatalf("crash: %v", err)
 	}
@@ -367,7 +569,7 @@ func TestReplayFixtures(t *testing.T) {
 			h.ready(t)
 			u, err := request[proto.BrowserURLResult](t, h, proto.MethodBrowserURL, proto.BrowserURLParams{BundleID: "com.google.Chrome"})
 			if strings.HasSuffix(path, "browser.jsonl") {
-				if err != nil || u.URL != "https://mail.google.com/mail/u/0/#inbox" {
+				if err != nil || u.URL != "https://mail.google.com/mail/u/0/#inbox" || u.Via != proto.URLViaAppleScript {
 					t.Errorf("replayed url %+v %v", u, err)
 				}
 				return
@@ -375,11 +577,11 @@ func TestReplayFixtures(t *testing.T) {
 			if !errors.Is(err, &proto.Error{Code: proto.CodeMethodNotFound}) {
 				t.Errorf("not in the fixture: %v", err)
 			}
-			res, err := request[proto.HotkeyConfigureResult](t, h, proto.MethodHotkeyConfigure, proto.HotkeyConfigureParams{Bindings: []proto.HotkeyBinding{{ID: "transcribe/0", Keys: "Fn", Trigger: "tap"}}})
-			if err != nil || len(res.Active) != 4 {
+			res, err := request[proto.HotkeyStatus](t, h, proto.MethodHotkeyConfigure, proto.HotkeyConfigureParams{Bindings: fnTap})
+			if err != nil || res.Bindings != 6 || !res.Installed {
 				t.Errorf("replayed configure %+v %v", res, err)
 			}
-			wait(t, "the replayed events", func() bool { h.mu.Lock(); defer h.mu.Unlock(); return len(h.notes) == 3 })
+			wait(t, "the replayed event", func() bool { return len(h.notes1()) == 1 })
 		})
 	}
 }

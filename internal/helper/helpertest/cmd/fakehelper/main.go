@@ -1,7 +1,11 @@
 // Command fakehelper is helpertest's fake auralink-helper as a program,
-// to stand in for the Swift helper in a packaged app until that exists:
-// scripts/stage-fake-helper.sh builds it into the app's resources. It
-// takes the options of AURALINK_FAKE_HELPER (helpertest) from its
+// to try the app without the Swift helper (on Linux, or on a Mac without
+// Xcode): build it and point AURALINK_HELPER at it,
+//
+//	go build -o /tmp/fakehelper ./internal/helper/helpertest/cmd/fakehelper
+//	AURALINK_HELPER=/tmp/fakehelper go tool mygo dev
+//
+// It takes the options of AURALINK_FAKE_HELPER (helpertest) from its
 // arguments or that variable; it records a tone, not the microphone.
 package main
 

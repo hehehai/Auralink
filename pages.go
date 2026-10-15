@@ -32,7 +32,7 @@ func (a *app) pages(c *ui.Context) {
 func (a *app) pageShown(path string) {
 	if path == "/permissions" {
 		a.recheckPermissions()
-		a.probeAutomation(false, nil)
+		a.probeAutomation()
 	}
 }
 

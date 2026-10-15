@@ -1,11 +1,12 @@
 package main
 
 // The Permissions page (/permissions, plan §6): what macOS lets Auralink
-// do, why each permission matters, and how to grant it. The Microphone and
-// Accessibility are read here (internal/permission); each browser's
-// Automation permission, which app enhancement's URL rules need, is the
-// helper's to read (automation.probe). The page reads them again when
-// Auralink comes to the front and with Check again.
+// do, why each permission matters, and how to grant it. The helper, which
+// records, posts keys and sends Apple Events, reads and asks for them
+// (permissions.*, automation.*): macOS checks its permissions against the
+// app, so they are Auralink's. Before the helper is ready the Microphone
+// and Accessibility are read here (internal/permission). The page reads
+// them again when Auralink comes to the front and with Check again.
 
 import (
 	"slices"
@@ -52,6 +53,29 @@ type permissionsState struct {
 	autoErr      string
 }
 
+// micState is a permission.State from the helper's microphone state.
+func micState(s string) permission.State {
+	switch s {
+	case proto.PermGranted:
+		return permission.Granted
+	case proto.PermDenied:
+		return permission.Denied
+	case proto.PermRestricted:
+		return permission.Restricted
+	case proto.PermNotDetermined:
+		return permission.NotDetermined
+	}
+	return permission.Unknown
+}
+
+// helperPerms takes the helper's answer to permissions.*.
+func (a *app) helperPerms(r proto.PermissionsResult, err error) {
+	if err != nil {
+		return // the page keeps what internal/permission read
+	}
+	a.perms.mic, a.perms.access, a.perms.checked = micState(r.Microphone), r.Accessibility, true
+}
+
 func (a *app) openPermissions() {
 	if a.permSys == nil {
 		a.permSys = permission.Native()
@@ -73,26 +97,43 @@ func (a *app) browsers() []browser {
 	return out
 }
 
-// recheckPermissions reads the Microphone and Accessibility (cheap
-// system calls).
+// recheckPermissions reads the Microphone and Accessibility: at once
+// here (cheap system calls), then as the helper sees them.
 func (a *app) recheckPermissions() {
 	a.perms.mic, a.perms.access, a.perms.checked = a.permSys.Microphone(), a.permSys.AccessibilityTrusted(), true
+	if a.hstatus.Has(proto.MethodPermissionsStatus) {
+		helperCall(a, proto.MethodPermissionsStatus, nil, 5*time.Second, a.helperPerms)
+	}
 }
 
-// probeAutomation asks the helper for the browsers' Automation states;
-// prompt (with only, a bundle id) asks macOS to show its consent prompt.
-func (a *app) probeAutomation(prompt bool, only []string) {
+// askPermission shows macOS's prompt for the Microphone or Accessibility
+// (proto.Permission*), through the helper, else from here.
+func (a *app) askPermission(which string) {
+	if a.hstatus.Has(proto.MethodPermissionsRequest) {
+		helperCall(a, proto.MethodPermissionsRequest, proto.PermissionsRequestParams{Permission: which}, 5*time.Minute, a.helperPerms)
+		return
+	}
+	sys := a.permSys
+	if which == proto.PermissionAccessibility {
+		sys.PromptAccessibility()
+		a.recheckPermissions()
+		return
+	}
+	a.async(func() { sys.RequestMicrophone(func(bool) { a.post(a.recheckPermissions) }) })
+}
+
+// probeAutomation asks the helper for the browsers' Automation states,
+// without prompting.
+func (a *app) probeAutomation() {
 	if !a.hstatus.Has(proto.MethodAutomationProbe) {
 		return
 	}
-	ids := only
-	if ids == nil {
-		for _, b := range a.browsers() {
-			ids = append(ids, b.id)
-		}
+	var ids []string
+	for _, b := range a.browsers() {
+		ids = append(ids, b.id)
 	}
 	a.autoChecking = true
-	helperCall(a, proto.MethodAutomationProbe, proto.AutomationProbeParams{BundleIDs: ids, Prompt: prompt}, 30*time.Second,
+	helperCall(a, proto.MethodAutomationProbe, proto.AutomationProbeParams{BundleIDs: ids}, 30*time.Second,
 		func(r proto.AutomationProbeResult, err error) {
 			a.autoChecking = false
 			if err != nil {
@@ -100,13 +141,34 @@ func (a *app) probeAutomation(prompt bool, only []string) {
 				return
 			}
 			a.autoErr = ""
-			if a.automation == nil {
-				a.automation = map[string]string{}
-			}
 			for _, b := range r.Browsers {
-				a.automation[b.BundleID] = b.State
+				a.setAutomation(b)
 			}
 		})
+}
+
+// requestAutomation makes macOS ask once whether Auralink may script the
+// browser, opening it first (in the background) when it is not running:
+// macOS asks only for a running app.
+func (a *app) requestAutomation(id string) {
+	a.autoChecking = true
+	helperCall(a, proto.MethodAutomationRequest, proto.AutomationRequestParams{BundleID: id, Launch: true}, 5*time.Minute,
+		func(r proto.AutomationState, err error) {
+			a.autoChecking = false
+			if err != nil {
+				a.autoErr = err.Error()
+				return
+			}
+			a.autoErr = ""
+			a.setAutomation(r)
+		})
+}
+
+func (a *app) setAutomation(s proto.AutomationState) {
+	if a.automation == nil {
+		a.automation = map[string]string{}
+	}
+	a.automation[s.BundleID] = s.State
 }
 
 // openPrivacy opens a pane of System Settings.
@@ -142,6 +204,8 @@ func automationText(state string) (string, bool) {
 		return i18n.T("Not asked yet"), false
 	case proto.AutomationNotRunning:
 		return i18n.T("Open it to check"), false
+	case proto.AutomationNotInstalled:
+		return i18n.T("Not installed"), false
 	}
 	return i18n.T("Unknown"), false
 }
@@ -154,7 +218,7 @@ func (a *app) permissionsPage(c *ui.Context) {
 	pageHeader(c, i18n.T("Permissions"), func() {
 		if secondaryIconButton(c.Key("perm-recheck"), icons.Refresh, i18n.T("Check again")).Label(i18n.T("Check again")).Clicked() {
 			a.recheckPermissions()
-			a.probeAutomation(false, nil)
+			a.probeAutomation()
 		}
 	})
 	badge := func(text string, ok bool) {
@@ -174,8 +238,7 @@ func (a *app) permissionsPage(c *ui.Context) {
 				badge(micText, micOK)
 				if a.perms.mic == permission.NotDetermined {
 					if ghostButton(c.Key("perm-mic-ask"), i18n.T("Ask")).Clicked() {
-						sys := a.permSys
-						a.async(func() { sys.RequestMicrophone(func(bool) { a.post(a.recheckPermissions) }) })
+						a.askPermission(proto.PermissionMicrophone)
 					}
 				}
 				if !micOK {
@@ -192,8 +255,7 @@ func (a *app) permissionsPage(c *ui.Context) {
 				badge(accText, accOK)
 				if !accOK {
 					if ghostButton(c.Key("perm-access-ask"), i18n.T("Ask")).Tooltip(i18n.T("Adds Auralink to the list in System Settings")).Clicked() {
-						a.permSys.PromptAccessibility()
-						a.recheckPermissions()
+						a.askPermission(proto.PermissionAccessibility)
 					}
 					if ghostIconButton(c.Key("perm-access-open"), icons.SquareArrowRightUp, i18n.T("Open System Settings")).Label(i18n.T("Open System Settings")).Clicked() {
 						a.openPrivacy(c, privacyAccessibility)
@@ -221,9 +283,9 @@ func (a *app) permissionsPage(c *ui.Context) {
 					}
 					text, ok := automationText(state)
 					badge(text, ok)
-					if state == proto.AutomationNotDetermined {
+					if state == proto.AutomationNotDetermined || state == proto.AutomationNotRunning {
 						if ghostButton(c.Key("perm-browser-ask"), i18n.T("Ask")).Disabled(a.autoChecking).Clicked() {
-							a.probeAutomation(true, []string{b.id})
+							a.requestAutomation(b.id)
 						}
 					}
 					if state == proto.AutomationDenied {

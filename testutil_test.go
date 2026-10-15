@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"os"
 	"slices"
 	"sync"
@@ -32,7 +33,8 @@ func TestMain(m *testing.M) {
 
 // fakeSupervisor is a helper.Supervisor in process: Start makes it ready
 // (publishing StatusChanged), and Call answers from handlers, by default
-// helpertest's answers for automation.probe and browser.url.
+// helpertest's answers for automation.* and permissions.* (the microphone
+// not asked yet, Accessibility not allowed).
 type fakeSupervisor struct {
 	bus *core.Bus
 
@@ -44,18 +46,40 @@ type fakeSupervisor struct {
 
 func newFakeSupervisor(bus *core.Bus) *fakeSupervisor {
 	f := &fakeSupervisor{bus: bus, status: helper.Status{State: helper.Stopped}, handlers: map[string]func(json.RawMessage) (any, error){}}
+	auto := maps.Clone(helpertest.AutomationStates)
+	state := func(id string) proto.AutomationState {
+		st, ok := auto[id]
+		if !ok {
+			st = proto.AutomationNotInstalled
+		}
+		return proto.AutomationState{BundleID: id, Name: helpertest.BrowserNames[id], Installed: ok, State: st}
+	}
 	f.handlers[proto.MethodAutomationProbe] = func(raw json.RawMessage) (any, error) {
 		var p proto.AutomationProbeParams
 		json.Unmarshal(raw, &p)
 		res := proto.AutomationProbeResult{}
 		for _, id := range p.BundleIDs {
-			st := helpertest.AutomationStates[id]
-			if p.Prompt && st == proto.AutomationNotDetermined {
-				st = proto.AutomationGranted
-			}
-			res.Browsers = append(res.Browsers, proto.AutomationState{BundleID: id, State: st})
+			res.Browsers = append(res.Browsers, state(id))
 		}
 		return res, nil
+	}
+	f.handlers[proto.MethodAutomationRequest] = func(raw json.RawMessage) (any, error) {
+		var p proto.AutomationRequestParams
+		json.Unmarshal(raw, &p)
+		if st := auto[p.BundleID]; st == proto.AutomationNotDetermined || st == proto.AutomationNotRunning {
+			auto[p.BundleID] = proto.AutomationGranted
+		}
+		return state(p.BundleID), nil
+	}
+	perms := proto.PermissionsResult{Microphone: proto.PermNotDetermined}
+	f.handlers[proto.MethodPermissionsStatus] = func(json.RawMessage) (any, error) { return perms, nil }
+	f.handlers[proto.MethodPermissionsRequest] = func(raw json.RawMessage) (any, error) {
+		var p proto.PermissionsRequestParams
+		json.Unmarshal(raw, &p)
+		if p.Permission == proto.PermissionMicrophone {
+			perms.Microphone = proto.PermGranted
+		}
+		return perms, nil
 	}
 	return f
 }

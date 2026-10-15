@@ -1,0 +1,6 @@
+{"to":"helper","msg":{"id":"c3","method":"app.frontmost"}}
+{"to":"app","msg":{"id":"c3","result":{"pid":812,"bundleId":"com.tinyspeck.slackmacgap","name":"Slack"}}}
+{"to":"app","msg":{"method":"app.activated","params":{"pid":901,"bundleId":"com.google.Chrome","name":"Google Chrome"}}}
+{"to":"app","msg":{"method":"app.activated","params":{"pid":77}}}
+{"to":"helper","msg":{"id":"c4","method":"app.frontmost"}}
+{"to":"app","msg":{"id":"c4","result":{"pid":77}}}

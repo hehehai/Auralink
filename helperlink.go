@@ -36,6 +36,10 @@ func newHelperHost(resources, logDir string) *helperHost {
 type helperLink struct {
 	host    *helperHost
 	hstatus helper.Status // as StatusChanged last said
+	// hotkeys is the event tap's state as hotkey.state last said; front
+	// the app in front as app.activated last said (sessions, M3).
+	hotkeys proto.HotkeyStatus
+	front   proto.App
 }
 
 // connectHelper makes the supervisor and follows its status.
@@ -84,18 +88,33 @@ func (a *app) helperChanged(st helper.Status) {
 	was := a.hstatus.State
 	a.hstatus = st
 	if st.State == helper.Ready && was != helper.Ready {
-		a.probeAutomation(false, nil) // permissions.go
+		a.recheckPermissions() // permissions.go
+		a.probeAutomation()
 	}
 }
 
-// helperNotified handles a notification of no request: M1 only logs the
-// shortcuts the helper reports; sessions (M3) start from them.
+// helperNotified handles a notification of no request. Until sessions
+// (M3) start from hotkey.event, it logs the shortcuts the helper reports
+// and keeps the tap's state and the app in front.
 func (a *app) helperNotified(m proto.Message) {
-	if m.Method == proto.MethodHotkeyEvent {
+	switch m.Method {
+	case proto.MethodHotkeyEvent:
 		var e proto.HotkeyEventParams
 		m.DecodeParams(&e)
-		a.logs.Append(core.LogEntry{Time: time.Now(), Level: core.SeverityDebug, Source: helper.LogSource,
-			Message: "hotkey " + e.Binding + " " + e.Action})
+		msg := "hotkey " + e.Binding + " " + e.Phase
+		if e.Front != nil {
+			msg += " in " + e.Front.BundleID
+		}
+		a.logs.Append(core.LogEntry{Time: time.Now(), Level: core.SeverityDebug, Source: helper.LogSource, Message: msg})
+	case proto.MethodHotkeyState:
+		var st proto.HotkeyStatus
+		m.DecodeParams(&st)
+		if st.Accessibility != a.hotkeys.Accessibility {
+			a.recheckPermissions() // Accessibility was granted or taken away
+		}
+		a.hotkeys = st
+	case proto.MethodAppActivated:
+		m.DecodeParams(&a.front)
 	}
 }
 

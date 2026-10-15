@@ -1,20 +1,19 @@
 // Package proto is the wire format between Auralink and auralink-helper,
-// the Swift helper that records the microphone, watches the keyboard and
-// reads browser URLs: JSON-RPC-shaped messages, one per line, over the
-// helper's stdin (app → helper) and stdout (helper → app). The spec is
-// docs/helper-protocol.md; helper/Fixtures/*.jsonl are golden transcripts
-// that this package's tests (and, once it exists, the Swift side's) decode,
-// so the two sides cannot drift apart silently.
+// the Swift helper that records the microphone, watches the keyboard,
+// reads and writes text in the app in front and reads browser URLs:
+// JSON-RPC-shaped messages, one per line, over the helper's stdin (app →
+// helper) and stdout (helper → app). The spec is docs/helper-protocol.md;
+// helper/Fixtures/*.jsonl are golden transcripts that this package's tests
+// and the Swift helper's (helper/Tests) both decode, so the two sides
+// cannot drift apart silently. The Swift mirror of these types is
+// helper/Sources/AuralinkHelperKit/Wire*.swift.
 //
 // It is a subset of AudioSmith's engine protocol 2, with the same
 // envelope: no "jsonrpc" member, ids are strings, error codes are strings
 // (see the Code* constants), and the helper never sends requests (only
 // responses and notifications). Unlike the engine's, some notifications
 // belong to no request: hotkey.event comes whenever the user presses a
-// bound key.
-//
-// The method names after the handshake are provisional until the M0
-// spikes have run on a Mac (docs/helper-protocol.md).
+// bound key, app.activated whenever another app comes to the front.
 //
 // This package has no dependencies and no behaviour beyond encoding: the
 // supervisor (internal/helper) owns process handling.
@@ -127,7 +126,7 @@ func marshalParams(params any) (json.RawMessage, error) {
 }
 
 // DecodeParams decodes m.Params into v. Unknown fields are ignored, so a
-// newer peer may add optional fields within protocol 2 (the fixture tests
+// newer peer may add optional fields within protocol 1 (the fixture tests
 // decode strictly). Missing params decode as the zero value.
 func (m *Message) DecodeParams(v any) error { return decodeRaw(m.Params, v) }
 

@@ -134,6 +134,11 @@ type Config struct {
 	// CancelGrace is how long a cancelled job may take to end before the
 	// helper is killed and restarted (default 3 s).
 	CancelGrace time.Duration
+	// OnTrace receives the Trace of every finished Call, on the caller's
+	// goroutine (tests; diagnostics). Control requests slower than
+	// SlowCall (default 500 ms) are logged with their phases.
+	OnTrace  func(Trace)
+	SlowCall time.Duration
 	// Env is added to the helper's environment (tests select the fake
 	// helper with it).
 	Env  []string
@@ -167,6 +172,48 @@ type Supervisor interface {
 	// Stop asks the helper to shut down (helper.shutdown), then kills it
 	// after a grace period. Calls in flight fail with core.ErrHelper.
 	Stop()
+}
+
+// Trace times one Call through its phases, to tell where a slow answer
+// waited: for a ready helper, to write the request, for the helper's
+// response line (the helper's own work, and its stdout), or for the
+// caller to wake. The M0 spikes saw 1–2 s round trips where the helper
+// worked for tens of milliseconds; the helper logs its own side of a slow
+// request (queued, ran) on stderr. Durations are since Start; a phase not
+// reached is 0.
+type Trace struct {
+	ID, Method string
+	Start      time.Time     // Call was entered
+	Ready      time.Duration // a ready helper was found (waits while it starts or restarts)
+	Written    time.Duration // the request was written to its stdin
+	Answered   time.Duration // the reader read the response line from its stdout
+	Returned   time.Duration // Call returned
+	Err        string
+}
+
+// String is the trace for the log: "browser.url c12 1.32s (ready 0s,
+// write 0.1ms, helper 1.31s, wake 0.2ms)".
+func (t Trace) String() string {
+	ms := func(d time.Duration) string { return d.Round(10 * time.Microsecond).String() }
+	phase := func(from, to time.Duration) string {
+		if to == 0 {
+			return "-"
+		}
+		return ms(to - from)
+	}
+	s := fmt.Sprintf("%s %s %s (ready %s, write %s, helper %s, wake %s)", t.Method, t.ID, ms(t.Returned),
+		ms(t.Ready), phase(t.Ready, t.Written), phase(t.Written, t.Answered), phase(t.Answered, t.Returned))
+	if t.Err != "" {
+		s += ": " + t.Err
+	}
+	return s
+}
+
+// answered records when the reader read c's response.
+func (t *Trace) answered(c *call) {
+	if !c.answered.IsZero() {
+		t.Answered = c.answered.Sub(t.Start)
+	}
 }
 
 // ErrExited is wrapped by Call errors when the helper died mid-call.

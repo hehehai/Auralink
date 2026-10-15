@@ -84,14 +84,15 @@ func jsonEqual(a, b []byte) bool {
 // checks the protocol's sequencing rules on it (docs/helper-protocol.md).
 func TestFixtures(t *testing.T) {
 	paths, err := filepath.Glob(filepath.Join(fixturesDir, "*.jsonl"))
-	if err != nil || len(paths) < 6 {
+	if err != nil || len(paths) < 9 {
 		t.Fatalf("fixtures: %v %v", paths, err)
 	}
 	for _, path := range paths {
 		name := filepath.Base(path)
 		t.Run(name, func(t *testing.T) {
 			pending := map[string]string{} // request id → method
-			nextSeq := map[string]int{}
+			nextSeq, nextOffset := map[string]int{}, map[string]int{}
+			started := map[string]bool{}
 			for i, l := range readFixture(t, path) {
 				where := fmt.Sprintf("%s:%d", name, i+1)
 				m, err := Decode(l.Msg)
@@ -110,6 +111,13 @@ func TestFixtures(t *testing.T) {
 					pending[m.ID] = m.Method
 					if p := ParamsFor(m.Method); p != nil && slices.Contains(Requests, m.Method) {
 						strict(t, where+" params", m.Params, p)
+						if c, ok := p.(*HotkeyConfigureParams); ok {
+							for _, b := range c.Bindings {
+								if !validBinding(b) {
+									t.Fatalf("%s: binding %+v", where, b)
+								}
+							}
+						}
 					}
 				case l.To == "app" && k == KindNotification:
 					p := ParamsFor(m.Method)
@@ -119,6 +127,12 @@ func TestFixtures(t *testing.T) {
 					strict(t, where+" params", m.Params, p)
 					job := ""
 					switch v := p.(type) {
+					case *CaptureStartedParams:
+						job = v.Job
+						if v.Device == "" || v.SampleRate <= 0 || v.DeviceSampleRate <= 0 || v.DeviceChannels <= 0 || (v.FallbackReason != "") != v.FellBack {
+							t.Fatalf("%s: started %+v", where, v)
+						}
+						started[job] = true
 					case *LevelParams:
 						job = v.Job
 						if v.RMS < -120 || v.Peak < v.RMS || v.Peak > 0 {
@@ -126,15 +140,26 @@ func TestFixtures(t *testing.T) {
 						}
 					case *PCMParams:
 						job = v.Job
-						if v.Seq != nextSeq[job] || v.Encoding != "pcm16le" || v.SampleRate <= 0 || len(v.Data)%(2*v.Channels) != 0 {
-							t.Fatalf("%s: pcm %+v (want seq %d)", where, v, nextSeq[job])
+						if v.Seq != nextSeq[job] || v.Offset != nextOffset[job] || len(v.Data) == 0 || len(v.Data)%2 != 0 {
+							t.Fatalf("%s: pcm %+v (want seq %d offset %d)", where, v, nextSeq[job], nextOffset[job])
 						}
 						nextSeq[job]++
+						nextOffset[job] += len(v.Data) / 2
+					case *RestartedParams:
+						job = v.Job
+						if !slices.Contains([]string{CaptureNoCallback, CaptureConfigurationChange, CaptureDeviceLost}, v.Reason) || v.Attempt < 1 {
+							t.Fatalf("%s: restarted %+v", where, v)
+						}
 					case *HotkeyEventParams:
-						if !slices.Contains([]string{HotkeyDown, HotkeyUp, HotkeyTap, HotkeyDouble, HotkeyLong}, v.Action) || v.Binding == "" {
+						if !validEvent(*v) {
 							t.Fatalf("%s: hotkey event %+v", where, v)
 						}
+					case *App:
+						if v.PID <= 0 {
+							t.Fatalf("%s: app %+v", where, v)
+						}
 					case *LogParams:
+						job = v.Job
 						if !slices.Contains([]string{"debug", "info", "warning", "error"}, v.Level) {
 							t.Fatalf("%s: log level %q", where, v.Level)
 						}
@@ -142,6 +167,9 @@ func TestFixtures(t *testing.T) {
 					if job != "" {
 						if pending[job] != MethodCaptureStart {
 							t.Fatalf("%s: notification for %s, which is not a running capture", where, job)
+						}
+						if m.Method != MethodCaptureStarted && m.Method != MethodLog && !started[job] {
+							t.Fatalf("%s: %s before capture.started", where, m.Method)
 						}
 					}
 				case l.To == "app" && k == KindResponse:
@@ -167,6 +195,11 @@ func TestFixtures(t *testing.T) {
 						t.Fatalf("%s: result for %s, which has none", where, method)
 					}
 					strict(t, where+" result", m.Result, r)
+					if c, ok := r.(*CaptureResult); ok {
+						if c.Frames != nextSeq[m.ID] || c.Samples != nextOffset[m.ID] || !slices.Contains([]string{CaptureStopped, CaptureMaxSeconds, CaptureDeviceLost, CaptureNoCallback}, c.Reason) {
+							t.Fatalf("%s: capture result %+v after %d frames, %d samples", where, c, nextSeq[m.ID], nextOffset[m.ID])
+						}
+					}
 				default:
 					t.Fatalf("%s: a %s cannot go to the %s", where, k, l.To)
 				}
@@ -176,6 +209,38 @@ func TestFixtures(t *testing.T) {
 			}
 		})
 	}
+}
+
+// validBinding: known families and sides, a behaviour, and a modifier for
+// a chord.
+func validBinding(b HotkeyBinding) bool {
+	if b.ID == "" || !slices.Contains([]string{BehaviorTap, BehaviorDoubleTap, BehaviorLongPress}, b.Behavior) {
+		return false
+	}
+	if b.Key == nil && len(b.Modifiers) == 0 {
+		return false
+	}
+	for fam, side := range b.Modifiers {
+		if !slices.Contains([]string{ModFn, ModShift, ModControl, ModOption, ModCommand}, fam) ||
+			!slices.Contains([]string{SideAny, SideLeft, SideRight}, side) || (fam == ModFn && side != SideAny) {
+			return false
+		}
+	}
+	return true
+}
+
+// validEvent: a phase that fits the behaviour.
+func validEvent(e HotkeyEventParams) bool {
+	if e.Binding == "" || e.T <= 0 {
+		return false
+	}
+	switch e.Behavior {
+	case BehaviorTap, BehaviorDoubleTap:
+		return e.Phase == PhaseTrigger
+	case BehaviorLongPress:
+		return e.Phase == PhaseDown || e.Phase == PhaseUp
+	}
+	return false
 }
 
 // TestStopAnswersAfterTheJob: a capture.stop or job.cancel that found its
@@ -289,4 +354,23 @@ func TestErrors(t *testing.T) {
 	if !IsJob(MethodCaptureStart) || IsJob(MethodBrowserURL) {
 		t.Error("IsJob")
 	}
+}
+
+// TestHelloListsEveryRequest: the handshake fixture's helper implements
+// the whole protocol, as the Swift helper must (its tests check its own
+// list against the same fixture).
+func TestHelloListsEveryRequest(t *testing.T) {
+	for _, l := range readFixture(t, filepath.Join(fixturesDir, "handshake.jsonl")) {
+		m, _ := Decode(l.Msg)
+		var h HelloResult
+		if m.Kind() != KindResponse || m.DecodeResult(&h) != nil || h.Protocol == 0 {
+			continue
+		}
+		got, want := slices.Sorted(slices.Values(h.Methods)), slices.Sorted(slices.Values(Requests))
+		if !slices.Equal(got, want) {
+			t.Fatalf("hello lists %v, the protocol has %v", got, want)
+		}
+		return
+	}
+	t.Fatal("no hello result in handshake.jsonl")
 }

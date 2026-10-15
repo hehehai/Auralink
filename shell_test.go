@@ -226,17 +226,31 @@ func TestPermissionsPage(t *testing.T) {
 			t.Errorf("page lacks %q", s)
 		}
 	}
-	// Ask: the first is Accessibility's (the microphone is allowed).
-	click(t, tt, "Ask")
-	if f := a.permSys.(*permission.Fake); f.Prompted != 1 {
-		t.Errorf("accessibility prompts: %d", f.Prompted)
+	// The helper's view of the permissions wins: the microphone is not
+	// asked yet there.
+	if !slices.Contains(fs.methods(), proto.MethodPermissionsStatus) || a.perms.mic != permission.NotDetermined || a.perms.access {
+		t.Errorf("permissions %+v after %v", a.perms, fs.methods())
 	}
-	a.probeAutomation(true, []string{"com.apple.Safari"})
+	// Ask: the first is the microphone's, through the helper.
+	click(t, tt, "Ask")
+	if !slices.Contains(fs.methods(), proto.MethodPermissionsRequest) || a.perms.mic != permission.Granted {
+		t.Errorf("microphone after asking: %+v", a.perms)
+	}
+	if f := a.permSys.(*permission.Fake); f.Prompted != 0 {
+		t.Errorf("asked from the app: %d", f.Prompted)
+	}
+	// A browser not asked yet: Ask makes macOS ask (the helper opens it).
+	a.requestAutomation("com.apple.Safari")
 	if a.automation["com.apple.Safari"] != proto.AutomationGranted {
 		t.Errorf("after asking: %v", a.automation)
 	}
-	// Without the helper, the page says so.
+	// Without the helper, Accessibility is asked from the app.
 	fs.set(helper.Status{State: helper.Failed, Reason: helper.FailCrashed})
+	a.askPermission(proto.PermissionAccessibility)
+	if f := a.permSys.(*permission.Fake); f.Prompted != 1 {
+		t.Errorf("accessibility prompts: %d", f.Prompted)
+	}
+	// Without the helper, the page says so.
 	if !has(tt, "Checking browsers needs the helper, which is not running.") {
 		t.Errorf("no helper: %q", firstTexts(tt))
 	}
@@ -352,12 +366,14 @@ func TestHelperProcess(t *testing.T) {
 	pump("the helper", func() bool { return a.helperStatus().State == helper.Ready })
 	pump("the browsers", func() bool { return a.automation["com.google.Chrome"] == proto.AutomationGranted })
 	// A hotkey.event of no request goes to helperNotified.
-	raw, err := a.host.sup.Call(context.Background(), "", proto.MethodHotkeyConfigure,
-		proto.HotkeyConfigureParams{Bindings: []proto.HotkeyBinding{{ID: "transcribe/0", Keys: "Fn", Trigger: "tap"}}}, nil)
-	if err != nil || !strings.Contains(string(raw), "transcribe/0") {
+	raw, err := a.host.sup.Call(context.Background(), "", proto.MethodHotkeyConfigure, proto.HotkeyConfigureParams{Bindings: []proto.HotkeyBinding{
+		{ID: "transcribe/0", Modifiers: map[string]string{proto.ModFn: proto.SideAny}, Behavior: proto.BehaviorTap}}}, nil)
+	if err != nil || !strings.Contains(string(raw), `"installed":true`) {
 		t.Fatalf("configure: %s %v", raw, err)
 	}
 	pump("the tap", func() bool {
-		return slices.ContainsFunc(a.logs.Tail(50, helper.LogSource), func(e core.LogEntry) bool { return e.Message == "hotkey transcribe/0 tap" })
+		return slices.ContainsFunc(a.logs.Tail(50, helper.LogSource), func(e core.LogEntry) bool {
+			return e.Message == "hotkey transcribe/0 trigger in com.tinyspeck.slackmacgap"
+		})
 	})
 }

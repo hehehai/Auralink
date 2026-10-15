@@ -1,16 +1,17 @@
 # Helper protocol 1
 
-How Auralink (Go) talks to `auralink-helper` (Swift). Go types: `internal/helper/proto`. Golden transcripts: `helper/Fixtures/*.jsonl`. Supervisor: `internal/helper`.
+How Auralink (Go) talks to `auralink-helper` (Swift, [helper/](../helper/README.md)). Go types: `internal/helper/proto`. Swift types: `helper/Sources/AuralinkHelperKit/Wire*.swift`. Golden transcripts: `helper/Fixtures/*.jsonl`, decoded by both sides' tests. Supervisor: `internal/helper`.
 
-It is a subset of AudioSmith's engine protocol 2 (`docs/protocol-v2.md` there): the same envelope, handshake and error shape, with one helper process instead of an engine per role, and a few methods of its own.
+It is a subset of AudioSmith's engine protocol 2 (`docs/protocol-v2.md` there): the same envelope, handshake and error shape, with one helper process instead of an engine per role, and methods of its own. Their shapes come from the M0 spikes on a Mac (the project's `research/spikes.md`); the differences from the spikes' draft are in §6.
 
-> **Provisional.** `helper.hello`, `helper.shutdown`, `job.cancel`, the envelope and the error codes are settled. The capture, hotkey and browser methods are what the plan expects; the M0 spikes on a Mac decide their final shape. Change the Go types, the fixtures and this page together.
+**Change it in all places at once**: the Go types, the Swift types, the fixtures, the fake helper (`internal/helper/helpertest`) and this page. `go test ./internal/helper/proto` and `cd helper && swift test` fail when they disagree.
 
 ## 1. Transport
 
-- The app starts the helper with no arguments; its working directory is the executable's.
+- The app starts the helper with no arguments; its working directory is the executable's. It is `Auralink.app/Contents/Resources/helper/auralink-helper`, or `$AURALINK_HELPER` (development: README, "Signing during development").
 - One JSON message per line (UTF-8, `\n`), at most 4 MiB (`proto.MaxLine`); app → helper on stdin, helper → app on stdout. stderr is free-form text: the supervisor writes it to `~/Library/Logs/Auralink/helper.log` and to the logs panel (source `helper`).
 - The helper exits when stdin closes or on `helper.shutdown`.
+- macOS checks the helper's permissions (Microphone, Accessibility, Automation) against Auralink.app, its responsible process: the prompts and System Settings name Auralink, and a grant reaches the running helper (the event tap installs within 2 s, no restart).
 
 ## 2. Messages
 
@@ -20,62 +21,107 @@ It is a subset of AudioSmith's engine protocol 2 (`docs/protocol-v2.md` there): 
 | notification | `method`, `params`? (no `id`) | helper → app |
 | response | `id` + `result` or `id` + `error` | helper → app |
 
-No `jsonrpc` member; ids are strings (`c1`… for control requests, the session's ULID for a capture). Errors are `{"code": "…", "message": "…", "data"?: {…}}` with a string code:
+No `jsonrpc` member; ids are strings (`c1`… for control requests, the session's ULID for a capture). Unknown members are ignored. A member Go marks `omitempty` is absent when zero (Swift: an optional left nil); the others are always present.
+
+Errors are `{"code": "…", "message": "…", "data"?: {…}}` with a string code:
 
 | Code | When | data |
 |---|---|---|
-| `bad_request` | malformed params | |
+| `bad_request` | malformed params, an unknown permission, a capture.stop without job | |
 | `method_not_found` | unknown method | |
 | `not_initialized` | a request before `helper.hello` | |
 | `protocol_mismatch` | hello with another protocol | `{"supported":[1]}` |
 | `busy` | a recording runs already | |
 | `cancelled` | the job was cancelled | |
 | `permission_denied` | macOS refused | `{"permission":"microphone"\|"accessibility"\|"automation"}` |
-| `device_unavailable` | no input device gave audio | `{"device":"…"}` |
-| `unsupported` | e.g. a browser that cannot be scripted | `{"capability":"…"}` |
+| `device_unavailable` | no input started, or none gave audio | `{"device":"…"}` |
+| `unsupported` | e.g. Automation for an app that is not installed | `{"capability":"…"}` |
 | `timeout` | the helper gave up waiting on macOS | |
 | `internal` | anything else | |
 
 ## 3. Sequencing
 
 - `helper.hello` comes first; until it is answered every other request fails with `not_initialized`. The app refuses a helper whose `protocol` is not 1 (it is not restarted: rebuild it).
-- Requests are answered in any order. Control requests are answered promptly, even while a job runs.
-- **Jobs** (`capture.start`) send notifications naming them in `job` (`capture.level`, `capture.pcm`, `log`) before their response; `job.cancel` makes them answer `cancelled`. `capture.stop` and `job.cancel` are answered after the job they end.
-- Notifications without `job` belong to no request: `hotkey.event` (and `log`). The supervisor hands them to `Config.OnNotify`; a notification naming a job that already answered is dropped.
+- Requests are answered in any order; each control request runs on its own, so a slow AppleScript does not hold up `capture.stop`.
+- **Jobs** (`capture.start`) send notifications naming them in `job` (`capture.started`, `capture.level`, `capture.pcm`, `capture.restarted`, `log`) before their response; `job.cancel` makes them answer `cancelled`. `capture.stop` and `job.cancel` are answered after the job they end, so every frame has arrived when `capture.stop` answers.
+- Notifications without `job` belong to no request: `hotkey.event`, `hotkey.state`, `app.activated` (and `log`). The supervisor hands them to `Config.OnNotify`; a notification naming a job that already answered is dropped.
 - If the helper exits, its calls fail (`core.ErrHelper`) and the supervisor restarts it after 1 s, 2 s, 4 s… (at most 3 times in 10 minutes).
+- **Timing.** The supervisor times each call's phases (`helper.Trace`: waiting for a ready helper, writing, the helper's answer, waking the caller) and logs a control request slower than 500 ms with them; the helper logs its own side of a request slower than 250 ms on stderr (queued, ran, and the time it waited for its main thread, where AppleScript and the clipboard run). The spikes saw 1–2 s round trips while the helper worked for tens of milliseconds; the two lines tell where such a call waited.
 
 ## 4. Methods
 
-| Method | Kind | Params → result |
-|---|---|---|
-| `helper.hello` | control | `{protocol, app, logLevel?}` → `{protocol, version, pid, methods, device{name, os}}` |
-| `helper.shutdown` | control | → `{}`, then exit 0 |
-| `job.cancel` | control | `{job}` → `{cancelled}` |
-| `capture.devices` | control | → `{devices: [{id, name, channels, sampleRate, default?, transport?}]}` |
-| `capture.start` | **job** | `{devices?, sampleRate: 16000, channels: 1, encoding: "pcm16le", frameMs?, maxSeconds?, output?}` → `{device, fallback?, audioSeconds, frames, peak, reason, output?}` |
-| `capture.stop` | control | `{job}` → `{stopped}` |
-| `hotkey.configure` | control | `{bindings: [{id, keys, trigger}], doubleMs?, longMs?}` → `{active, trusted}` |
-| `browser.url` | control | `{bundleId, pid?, timeoutMs?}` → `{url, title?, source: "applescript"\|"ax"}` |
-| `automation.probe` | control | `{bundleIds, prompt?}` → `{browsers: [{bundleId, state}]}` |
+### Control
 
-Notifications:
+| Method | Params → result |
+|---|---|
+| `helper.hello` | `{protocol, app, logLevel?}` → `{protocol, version, pid, methods, device{name, os}}` |
+| `helper.shutdown` | → `{}`, then exit 0 (a recording is cancelled) |
+| `job.cancel` | `{job}` → `{cancelled}` |
+| `permissions.status` | → `{microphone: "granted"\|"denied"\|"notDetermined"\|"restricted", accessibility}` |
+| `permissions.request` | `{permission: "microphone"\|"accessibility"}` → as `permissions.status` |
+| `capture.devices` | → `{devices: [{id, name, channels, sampleRate, default, transport?}]}` |
+| `capture.start` **job** | `{devices?, sampleRate?, frameMs?, levelHz?, maxSeconds?}` → `{device, reason, frames, samples, seconds, restarts, peak, firstFrameMs?, cpuSeconds}` |
+| `capture.stop` | `{job}` → `{stopped}` |
+| `hotkey.configure` | `{bindings: [{id, modifiers, key?, behavior, swallow?}], doubleTapMs?, longPressMs?, tapMaxMs?, swallowFn?, active?}` → hotkey status |
+| `hotkey.status` | → `{installed, accessibility, bindings, events, disabledByTimeout, missedEvents, maxCallbackMicros, error?}` |
+| `app.frontmost` | → `{pid, bundleId?, name?}` |
+| `textio.focus` | → `{pid, role?, subrole?, editable, selection?{location, length}, valueLength, error?}` |
+| `textio.selection` | `{allowCopy?, copyTimeoutMs?}` → `{text?, via: "ax"\|"ax-range"\|"ax-marker"\|"copy"\|"none", ms, steps?}` |
+| `textio.paste` | `{text, keepClipboard?, restoreDelayMs?, targetPid?, press?: [{key, modifiers?}], pressDelayMs?}` → `{posted, restored, clipboardTaken, ms, front?}` |
+| `browser.url` | `{bundleId?}` → `{bundleId, url?, via: "applescript"\|"ax-document"\|"ax-weburl"\|"none", ms, appleScriptMs?, axMs?, automation?, error?}` |
+| `automation.probe` | `{bundleIds?}` → `{browsers: [{bundleId, name, installed, running, state, code}]}` |
+| `automation.request` | `{bundleId, launch?}` → one browser's state |
+
+### Notifications
 
 | Notification | Params |
 |---|---|
-| `capture.level` | `{job, seconds, rms, peak, clipped?}` (dBFS, ~20 Hz) |
-| `capture.pcm` | `{job, seq, sampleRate, channels, encoding, data}` (`data` base64; `seq` from 0 without gaps; ~100 ms each) |
-| `hotkey.event` | `{binding, action: "down"\|"up"\|"tap"\|"double"\|"long", app?: {bundleId, name, pid}}` |
+| `capture.started` | `{job, device, deviceName, fellBack, fallbackReason?, deviceSampleRate, deviceChannels, sampleRate, startMs}` |
+| `capture.level` | `{job, seconds, rms, peak}` (dBFS, -120 is silence; ~20 Hz) |
+| `capture.pcm` | `{job, seq, offset, data}` (`data`: base64 of mono PCM16 LE at the started rate; `seq` from 0 and `offset` in samples, without gaps; ~100 ms each, the last one shorter) |
+| `capture.restarted` | `{job, reason: "noCallback"\|"configurationChange"\|"deviceLost", attempt, device}` |
+| `hotkey.event` | `{binding, phase: "trigger"\|"down"\|"up", behavior: "tap"\|"doubleTap"\|"longPress", heldMs?, t, front?{pid, bundleId?, name?}}` |
+| `hotkey.state` | the hotkey status, when the tap was installed (Accessibility granted) or removed (taken away) |
+| `app.activated` | `{pid, bundleId?, name?}` |
 | `log` | `{level, message, job?}` |
 
-Notes:
+### Notes
 
-- **capture.start** tries `devices` in order, then the default input, moving on when a device yields no audio within 1.2 s (Voxt's watchdog); the result says which one recorded and whether it was a fallback. `output` also writes a WAV.
-- **hotkey.configure** replaces every binding. Keys follow `settings.Hotkey` (`Fn`, `Fn+Shift`, `RightCommand`, `Control+Command+V`). Without Accessibility the tap cannot be installed: `trusted` is false and `active` empty, and the app falls back to MyGo's Carbon shortcuts for plain key combinations. `hotkey.event`'s `app` is the app in front when the key went down: the start of the context snapshot (plan §4.2).
-- **browser.url** answers for Safari, Chrome, Edge, Brave, Arc and browsers the user adds. A URL is used only to match app enhancement rules, never sent to a model.
-- **automation.probe** reports `granted`, `denied`, `notDetermined`, `notRunning` (macOS answers only for a running app) or `unknown`; `prompt` shows macOS's consent prompt for those not determined.
+**capture.start.** It tries `devices` (Core Audio UIDs, the user's order) in turn, then the default input (`fellBack`, `fallbackReason`); none starting is `device_unavailable`, the microphone not allowed `permission_denied` (not asked yet: macOS asks, and the job waits for the answer). The audio is resampled to `sampleRate` (16000) mono and cut into `frameMs` (100) frames. `capture.started` comes with the first audio from the input, 200–400 ms after the request (`startMs`): before it, the user's words are not heard. A watchdog rebuilds an engine that gives no audio within 1.2 s, the second time on the default input; a third silence ends the job (`device_unavailable` when no audio came at all, else the recording so far with reason `noCallback`). A configuration change rebuilds the engine (`capture.restarted`); the chosen device going away ends the recording with reason `deviceLost`, the default input follows the new default. `maxSeconds` ends it on its own (reason `maxSeconds`), a guard against a lost `capture.stop`. The app writes the WAV it keeps, from the frames.
+
+**hotkey.configure.** It replaces every binding; an empty list removes the tap. A binding is a modifier-only chord (`key` absent: `{"fn":"any"}`, `{"fn":"any","shift":"any"}`, `{"command":"right"}`) or a key (`key`: a kVK code, 0 is A) with modifiers (`{"control":"any","command":"any"}` and 9 is ⌃⌘V); families are `fn`, `shift`, `control`, `option`, `command`, sides `any`, `left`, `right` (fn: `any`). Families not listed must be up. The recognizer judges a chord from the first modifier pressed to the last released: everything held in between is the chord (fn then ⇧ is fn+⇧), another key spoils it, a hold longer than `tapMaxMs` (1500) is no tap. A chord bound to both a tap and a double tap fires the tap after `doubleTapMs` (the system's double-click interval, at most 800, else 500) unless a second press starts within it. `longPress` sends `down` after `longPressMs` (300) and `up` on release. Key bindings fire on key down and swallow their key down and up (unless `swallow` is false); modifier-only chords are never swallowed, but fn and the 🌐 key's events with `swallowFn`. With `active` (a session records) a tap fires at once and Escape fires `{"binding":"escape"}` and is swallowed. A modifier whose event comes without its state changing means macOS dropped one (seen: fn's release after fn+⌃): the chord in progress is dropped (`missedEvents`). The app flips `active` by sending the same bindings: a chord in progress survives a change of timings or `active`. Without Accessibility `installed` is false and the helper retries every 2 s, sending `hotkey.state` when it gets in; meanwhile the app falls back to MyGo's Carbon shortcuts for plain key combinations. `front` is the app in front as the key went down, the start of the session's context snapshot (plan §4.2); `t` is the helper's monotonic clock in ms.
+
+**app.\*.** The helper keeps the app in front from NSWorkspace's activations and tells each change (`app.activated`), so the app need not poll. On activation it gives Electron apps `AXManualAccessibility` (Chromium builds its accessibility tree only when asked, a moment later), so the selection can be read when a shortcut comes, and refreshes a known browser's Automation state.
+
+**textio.\*.** `textio.selection` reads the focused element's selected text, the text of its selected range, then WebKit's and Chromium's text markers; a caret without a selection is `none` (no ⌘C: it would copy nothing, or a whole line). Otherwise, with `allowCopy`, it posts ⌘C, waits up to `copyTimeoutMs` (300) for the clipboard to change, reads it and puts the old clipboard back. The app decides `allowCopy` (not in apps that copy a line on an empty selection). `textio.paste` snapshots the clipboard (every item and type), writes the text (marked `org.nspasteboard.TransientType` and `AutoGeneratedType`, which clipboard managers skip), posts ⌘V, then the keys of `press` after `pressDelayMs` (120; app enhancement's auto key: Return is `{"key":36}`), and after `restoreDelayMs` (500) writes the snapshot back unless the clipboard changed meanwhile (`clipboardTaken`). With `targetPid` it pastes only when that app is in front, else answers `posted: false` with the app in `front`; the app reactivates the target itself when it must (`macx.Activate`: only the active app can hand activation over). Posted keys carry the helper's marker, so its own tap lets them through. Without Accessibility, `permission_denied`.
+
+**browser.url.** For a browser the helper knows (Safari, Chrome, Edge, Brave, Arc, Vivaldi, Opera…) it runs a compiled AppleScript, but only once the browser's Automation state is `granted`: on a browser not asked yet AppleScript would make macOS prompt out of the blue. Otherwise, or when it fails, it reads the Accessibility tree (the window's `AXDocument`, a web area's `AXURL`; Safari in the background has neither). `automation` then says the state; `error` the last failure, for the log. A URL is used only to match app enhancement rules, never sent to a model.
+
+**automation.\*.** `automation.probe` never prompts (`AEDeterminePermissionToAutomateTarget` without asking); states are `granted`, `denied`, `notDetermined`, `notRunning` (macOS answers only for a running app), `notInstalled`, `unknown`; `code` is macOS's status (0, -1743, -1744, -600). `automation.request` prompts (once per browser; it waits for the user's choice), with `launch` opening a browser that is not running first, in the background; an app that is not installed is `unsupported`.
 
 ## 5. Testing
 
-- `go test ./internal/helper/proto`: every fixture line decodes strictly with the Go types and encodes back to the same JSON; the sequencing rules hold; every method has a fixture.
-- `go test ./internal/helper`: the supervisor against `helpertest`, the fake helper the test binary becomes (`AURALINK_FAKE_HELPER`): handshake, capture with PCM frames, cancel, a stuck cancel, crash and restart, protocol mismatch, missing executable, hotkey events, fixture replay.
-- The Swift helper's tests will decode `helper/Fixtures/*.jsonl` too.
+- `go test ./internal/helper/proto`: every fixture line decodes strictly with the Go types and encodes back to the same JSON; the sequencing rules hold (one response per request, a job's notifications before its response and after `capture.started`, frames without gaps, the result counting them); every method has a fixture; the handshake lists every request.
+- `cd helper && swift test` (on a Mac): every fixture line decodes with the Swift types and encodes back to the same JSON; the hotkey recognizer and the PCM framer.
+- `go test ./internal/helper`: the supervisor against `helpertest`, the fake helper the test binary becomes (`AURALINK_FAKE_HELPER`): handshake, capture with PCM frames (a tone, or a WAV played back), cancel, a stuck cancel, crash and restart, protocol mismatch, missing executable, permissions, hotkey events and scripted notifications, text I/O, call traces, fixture replay.
+
+## 6. Differences from the spikes' draft
+
+| Draft (research/spikes.md) | Protocol 1 | Why |
+|---|---|---|
+| `capture.start` answers at once; `capture.stop` returns the statistics; `capture.ended` reports a failure | `capture.start` is a job: `capture.started` at the first audio, its response when it ends (stopped, maxSeconds, deviceLost, noCallback), `job.cancel` | The supervisor's job model (routing by `job`, cancel, a crash failing the call); one place says how a recording ended |
+| `{session, device?}` | `{devices?}`, the user's preference list (settings `Audio.Devices`) | The settings keep a list; the helper falls back along it |
+| `capture.pcm {session, seq, offset, samples, pcm}` | `{job, seq, offset, data}` | `samples` is `len(data)/2`; `data` like AudioSmith's chunks |
+| `capture.started` was the start's answer, timed to `engine.start()` | sent with the first audio | That is when the user's words are heard |
+| `watchdogSeconds`, `simulateSilentStarts` | fixed 1.2 s; no test hooks | The fake helper covers the cases on Linux |
+| `hotkey.event {…, lagMs}` | no `lagMs` | `CGEvent.timestamp` is not on `CLOCK_UPTIME_RAW`'s base: the value was always out of range |
+| `hotkey.event` without context | `front`, as the draft recommended | The session's context snapshot |
+| defaults `doubleTapMs` 400, `tapMaxMs` 1000 | 500 (or the system's, at most 800), 1500 | The real-key retest (spike e01bb05): double taps judged by the second press; ⇧+fn held 983 ms |
+| `helper.ping`, `helper.usage`, `helper.quit`, `debug.*`, `hotkey.raw` | `helper.shutdown`; no ping, usage or debug methods | Spike instrumentation; AudioSmith's handshake and shutdown |
+| `permissions.status {…, listenEvent, postEvent}` | `{microphone, accessibility}` | Input Monitoring is not needed; `CGPreflightPostEventAccess` stays false while posting works |
+| `textio.frontmost` | `app.frontmost`, and `app.activated` | Grouped with the activation notifications |
+| `textio.activate`, `textio.paste {targetPid}` activating the target | no activation in the helper; `targetPid` only checks the app in front | macOS 14 activates cooperatively: the active app (Auralink) must yield, so `macx.Activate` runs in the app |
+| `textio.paste {restore, pressReturn, returnDelayMs, source, tap}` | `{keepClipboard, press: [{key, modifiers}], pressDelayMs}`; HID source and tap fixed | Auto keys other than Return (⌘Return); the spike's variants were measurements |
+| `textio.selection {enableChromiumAX, skipAX}` | done at activation (Electron apps); no `skipAX` | The tree needs time to appear: at activation it is ready when the shortcut comes |
+| `browser.url {appleScript, ax, noCache, enableChromiumAX}` | `{bundleId?}`; AppleScript only when `granted`, scripts always cached | Policy in the helper where it is safe; measuring switches dropped |
+| `automation.probe {…, ms}` | no `ms`; `notInstalled` state | The supervisor's trace times calls |

@@ -42,6 +42,9 @@ func New(cfg Config) Supervisor {
 	if cfg.Logf == nil {
 		cfg.Logf = log.Printf
 	}
+	if cfg.SlowCall == 0 {
+		cfg.SlowCall = 500 * time.Millisecond
+	}
 	return &supervisor{cfg: cfg, status: Status{State: Stopped, Since: time.Now()}}
 }
 
@@ -80,11 +83,12 @@ type proc struct {
 }
 
 type call struct {
-	method string
-	notify func(proto.Message)
-	done   chan struct{}
-	resp   proto.Message
-	err    error
+	method   string
+	notify   func(proto.Message)
+	done     chan struct{}
+	resp     proto.Message
+	err      error
+	answered time.Time // when the reader read the response line
 }
 
 func (c *call) result() (json.RawMessage, error) {
@@ -266,7 +270,7 @@ func openLog(path string) *os.File {
 func (s *supervisor) handshake(p *proc) {
 	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.HelloTimeout)
 	defer cancel()
-	raw, err := p.call(ctx, "", proto.MethodHello, proto.HelloParams{Protocol: proto.Version, App: s.cfg.AppVersion, LogLevel: "info"}, nil)
+	raw, err := p.call(ctx, "", proto.MethodHello, proto.HelloParams{Protocol: proto.Version, App: s.cfg.AppVersion, LogLevel: "info"}, nil, &Trace{Start: time.Now()})
 	var hello proto.HelloResult
 	if err == nil {
 		err = json.Unmarshal(raw, &hello)
@@ -314,7 +318,7 @@ func (p *proc) read(stdout io.Reader) {
 	for {
 		line, err := readLine(r)
 		if len(line) > 0 {
-			p.handleLine(line)
+			p.handleLine(line, time.Now())
 		}
 		if err != nil {
 			if err != io.EOF {
@@ -343,7 +347,8 @@ func readLine(r *bufio.Reader) ([]byte, error) {
 	}
 }
 
-func (p *proc) handleLine(line []byte) {
+// handleLine routes one line, read at at.
+func (p *proc) handleLine(line []byte, at time.Time) {
 	m, err := proto.Decode(line)
 	if err != nil {
 		p.tail.add("stdout: " + string(line))
@@ -356,7 +361,7 @@ func (p *proc) handleLine(line []byte) {
 		delete(p.pending, m.ID)
 		p.mu.Unlock()
 		if c != nil {
-			c.resp = m
+			c.resp, c.answered = m, at
 			close(c.done)
 		}
 	case proto.KindNotification:
@@ -473,11 +478,13 @@ func (p *proc) write(m proto.Message) error {
 	return nil
 }
 
-// call sends a request and waits for its response (see Supervisor.Call).
-func (p *proc) call(ctx context.Context, id, method string, params any, notify func(proto.Message)) (json.RawMessage, error) {
+// call sends a request and waits for its response (see Supervisor.Call),
+// filling in tr's phases after Ready.
+func (p *proc) call(ctx context.Context, id, method string, params any, notify func(proto.Message), tr *Trace) (json.RawMessage, error) {
 	if id == "" {
 		id = fmt.Sprintf("c%d", p.s.ctrlID.Add(1))
 	}
+	tr.ID = id
 	req, err := proto.NewRequest(id, method, params)
 	if err != nil {
 		return nil, fmt.Errorf("%s params: %w", method, err)
@@ -498,9 +505,11 @@ func (p *proc) call(ctx context.Context, id, method string, params any, notify f
 		p.drop(id)
 		return nil, err
 	}
+	tr.Written = time.Since(tr.Start)
 
 	select {
 	case <-c.done:
+		tr.answered(c)
 		return c.result()
 	case <-ctx.Done():
 	}
@@ -512,7 +521,7 @@ func (p *proc) call(ctx context.Context, id, method string, params any, notify f
 	go func() {
 		cctx, cancel := context.WithTimeout(context.Background(), p.s.cfg.CancelGrace)
 		defer cancel()
-		p.call(cctx, "", proto.MethodJobCancel, proto.CancelParams{Job: id}, nil)
+		p.call(cctx, "", proto.MethodJobCancel, proto.CancelParams{Job: id}, nil, &Trace{Start: time.Now()})
 	}()
 	grace := time.NewTimer(p.s.cfg.CancelGrace)
 	defer grace.Stop()
@@ -523,6 +532,7 @@ func (p *proc) call(ctx context.Context, id, method string, params any, notify f
 		p.killFor(FailStuck, fmt.Sprintf("job %s did not stop within %s of being cancelled", id, p.s.cfg.CancelGrace), false)
 		<-c.done
 	}
+	tr.answered(c)
 	return c.result()
 }
 
@@ -615,11 +625,30 @@ func (s *supervisor) readyProc(ctx context.Context) (*proc, error) {
 }
 
 func (s *supervisor) Call(ctx context.Context, id, method string, params any, notify func(proto.Message)) (json.RawMessage, error) {
+	tr := Trace{ID: id, Method: method, Start: time.Now()}
 	p, err := s.readyProc(ctx)
-	if err != nil {
-		return nil, err
+	tr.Ready = time.Since(tr.Start)
+	var raw json.RawMessage
+	if err == nil {
+		raw, err = p.call(ctx, id, method, params, notify, &tr)
 	}
-	return p.call(ctx, id, method, params, notify)
+	tr.Returned = time.Since(tr.Start)
+	if err != nil {
+		tr.Err = err.Error()
+	}
+	s.traced(tr)
+	return raw, err
+}
+
+// traced hands a finished call's trace to Config.OnTrace, and logs a
+// control request slower than Config.SlowCall with its phases.
+func (s *supervisor) traced(tr Trace) {
+	if s.cfg.OnTrace != nil {
+		s.cfg.OnTrace(tr)
+	}
+	if tr.Returned >= s.cfg.SlowCall && !proto.IsJob(tr.Method) {
+		s.emit(core.LogEntry{Time: time.Now(), Level: core.SeverityWarning, Source: LogSource, Message: "slow call: " + tr.String()})
+	}
 }
 
 func (s *supervisor) Restart() error {
@@ -669,7 +698,7 @@ func (s *supervisor) Stop() {
 	s.mu.Unlock()
 	if p != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		p.call(ctx, "", proto.MethodShutdown, nil, nil)
+		p.call(ctx, "", proto.MethodShutdown, nil, nil, &Trace{Start: time.Now()})
 		cancel()
 		p.stdin.Close()
 		select {
