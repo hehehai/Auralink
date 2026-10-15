@@ -16,6 +16,7 @@ import (
 //	helperLink        helperlink.go   the Swift helper's supervisor and status
 //	trayState         tray.go         the menu bar icon
 //	permissionsState  permissions.go  the Permissions page
+//	providersState    providers_page.go  the Model services page
 //
 // Add fields to your area's struct, not here.
 type app struct {
@@ -31,6 +32,7 @@ type app struct {
 	helperLink
 	trayState
 	permissionsState
+	providersState
 }
 
 func newApp(lib *library, h *helperHost) *app {
@@ -38,6 +40,7 @@ func newApp(lib *library, h *helperHost) *app {
 	a.helperLink.host = h
 	a.openShell(lib)
 	a.openPermissions()
+	a.openProviders()
 	return a
 }
 

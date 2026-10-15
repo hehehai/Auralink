@@ -47,3 +47,8 @@ pause
 stop
 minus                   # numberInput
 add
+
+# Model services (providers_page.go).
+key-minimalistic-square  # a saved key
+soundwave                # speech services
+chat-round-line          # language models

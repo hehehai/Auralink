@@ -1,8 +1,8 @@
 package main
 
 // The status bar along the bottom of the window (AudioSmith's, with the
-// helper in the engine's place): what the features will use (providers,
-// app enhancement; M2 and M5 fill it in), the helper's state, which opens
+// helper in the engine's place): what Transcribe uses (its speech and
+// language services; app enhancement in M5), the helper's state, which opens
 // its popover, then on the right the notification centre's bell, the logs
 // panel toggle and the version.
 
@@ -20,10 +20,29 @@ func (a *app) statusBar(c *ui.Context) {
 	t := c.Theme()
 	k := tok(t)
 	ui.Row(c).Height(px(t, statusBarHeight)).Shrink(0).Padding(0, px(t, sp2)).Gap(px(t, sp1)).AlignItems(ui.Center).Background(k.Sidebar).TextColor(k.Text2).Children(func() {
-		// The providers (M2 lists "ASR Doubao · LLM DeepSeek" here).
-		if statusButton(c, "status-providers", i18n.T("Set up a speech and a language model service"), func() {
-			statusDot(c, t.Warning)
-			ui.Text(c, i18n.T("No provider set up")).FontSize(px(t, fsCaption)).SingleLine()
+		// What Transcribe uses (providers_page.go).
+		asrName, llmName, both := a.providerSummary()
+		tip := i18n.T("The speech and language services Transcribe uses")
+		if statusButton(c, "status-providers", tip, func() {
+			switch {
+			case asrName == "" && llmName == "":
+				statusDot(c, t.Warning)
+				ui.Text(c, i18n.T("No provider set up")).FontSize(px(t, fsCaption)).SingleLine()
+			default:
+				col := t.Success
+				if !both {
+					col = t.Warning
+				}
+				statusDot(c, col)
+				none := i18n.T("none")
+				if asrName == "" {
+					asrName = none
+				}
+				if llmName == "" {
+					llmName = none
+				}
+				ui.Text(c, i18n.T("ASR %s · LLM %s", asrName, llmName)).FontSize(px(t, fsCaption)).SingleLine().Ellipsis("…").MaxWidth(px(t, 320)).MinWidth(0)
+			}
 		}).Clicked() {
 			a.navigate("/providers")
 		}

@@ -3,8 +3,8 @@ package main
 // The pages of the sidebar (plan §3.1). In M1 each is its header and an
 // empty state that says what the page will hold; the milestones replace
 // them one by one (Home and History M3, the features M3–M4, App
-// enhancement and Dictionary M5, Model services M2). Permissions
-// (permissions.go) and Logs (shell_logs.go) work already.
+// enhancement and Dictionary M5). Permissions (permissions.go), Logs
+// (shell_logs.go) and Model services (providers_page.go) work already.
 
 import (
 	"github.com/egoist/mygo/ui"
@@ -45,6 +45,9 @@ func (a *app) page(c *ui.Context, p navPage) {
 	case "/logs":
 		a.logsPage(c)
 		return
+	case "/providers":
+		a.providersPage(c)
+		return
 	}
 	pageHeader(c, pageTitle(p.path), nil)
 	title, body := placeholderText(p.path)
@@ -72,9 +75,6 @@ func placeholderText(path string) (title, body string) {
 	case "/app-enhancement":
 		return i18n.T("Rules for the app or website in front"),
 			i18n.T("Group apps and website addresses, give each group its own scene prompt (a chat app, your mail), and see which group matches right now.")
-	case "/providers":
-		return i18n.T("Your speech and language services"),
-			i18n.T("Add the services Auralink sends your audio and text to (OpenAI-compatible, Doubao, Alibaba Cloud Model Studio, DeepSeek and more), test them, and pick a model for each feature. Keys stay in the Keychain.")
 	case "/dictionary":
 		return i18n.T("Names and terms you use"),
 			i18n.T("Words you add here go to speech recognition as hints and to the language model as a glossary, so they come back spelled right.")
