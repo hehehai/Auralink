@@ -74,4 +74,3 @@ export                   # export terms
 # Home and the setup guide (home_page.go, onboarding.go).
 compass                  # open the setup guide
 alt-arrow-left           # Back
-stars-minimalistic       # the guide's last step
