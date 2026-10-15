@@ -168,7 +168,7 @@ func Key(t testing.TB, name string) string {
 
 // SamplePath is the speech sample of the end-to-end tests,
 // testdata/speech/sample-zh-en.wav at the repository's root (16 kHz mono
-// 16-bit PCM, about 5 s of Chinese and English; see its README).
+// 16-bit PCM, 10.5 s of Chinese and English; see its README).
 func SamplePath() string {
 	dir, _ := os.Getwd()
 	for {
