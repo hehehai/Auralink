@@ -29,6 +29,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"image/png"
@@ -40,6 +41,8 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/asr"
+	"github.com/hehehai/Auralink/internal/deliver"
+	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/macx"
 	"github.com/hehehai/Auralink/internal/session"
@@ -82,7 +85,7 @@ func ovCheckSteps(lang string) []ovCheckStep {
 			a.sess = session.Snapshot{ID: id, Kind: store.KindTranscribe, State: session.Recording, StartedAt: now, HeardAt: now, Levels: levels, Partial: partial}
 		}
 	}
-	return []ovCheckStep{
+	return append([]ovCheckStep{
 		{"pill", rec(lang+"-1", ""), true},
 		{"live-short", rec(lang+"-1", short), true},
 		{"live-long", rec(lang+"-1", long), true},
@@ -95,6 +98,67 @@ func ovCheckSteps(lang string) []ovCheckStep {
 			a.notice = &sessionNotice{text: text, more: more, action: action}
 		}, true},
 		{"gone", func(a *app) { a.notice = nil }, false},
+	}, cardCheckSteps(lang)...)
+}
+
+// cardCheckSteps are the answer card's states (overlay_card.go): a
+// translation streaming in, short, into another language, copied, Insert
+// that did not work, long (it scrolls), a Rewrite answer, a follow-up
+// recording in its conversation, the conversation, a failure; then gone.
+func cardCheckSteps(lang string) []ovCheckStep {
+	now := time.Now()
+	arc := proto.App{PID: 1, Name: "Arc"}
+	src, short, long := "我们把发布推迟到周四，先把引导页和历史页做完。", "We are moving the release to Thursday, to finish the onboarding and the history page first.", ""
+	if lang != "en" {
+		src, short = "We are moving the release to Thursday.", "我们把发布推迟到周四，先把引导页和历史页做完。"
+	}
+	for range 30 {
+		long += short + " "
+	}
+	tr := func(id string, st session.State, result, draft, target string) session.Snapshot {
+		return session.Snapshot{ID: id, Kind: store.KindTranslate, State: st, Card: true, Delivery: deliver.ReasonNotEditable, Target: arc,
+			Selection: src, TargetLanguage: target, Result: result, Draft: draft}
+	}
+	end := func(s session.Snapshot) func(*app) {
+		return func(a *app) { a.sess = s; a.openAnswer(s) }
+	}
+	return []ovCheckStep{
+		{"card-streaming", func(a *app) {
+			a.answer, a.followUp = answerCard{}, ""
+			a.sess = tr(lang+"-t1", session.Composing, "", short[:len(short)/2], lang)
+		}, true},
+		{"card-short", end(tr(lang+"-t1", session.Done, short, short, lang)), true},
+		{"card-redo", func(a *app) {
+			a.answer.redo, a.answer.redoLang = lang+"-t2", "ja"
+			a.sess = tr(lang+"-t2", session.Composing, "", "", "ja")
+		}, true},
+		{"card-copied", func(a *app) {
+			a.answer.redo, a.answer.redoLang, a.answer.copied = "", "", true
+			a.sess = tr(lang+"-t1", session.Done, short, short, lang)
+		}, true},
+		{"card-insert-failed", func(a *app) {
+			a.answer.copied = false
+			a.answer.msg = deliveryText(deliver.Result{Reason: deliver.ReasonNotFront}, arc)
+		}, true},
+		{"card-long", end(tr(lang+"-t3", session.Done, long, long, lang)), true},
+		{"card-rewrite", func(a *app) {
+			a.answer = answerCard{}
+			end(session.Snapshot{ID: lang + "-r1", Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonLong, Target: arc,
+				Raw: "write that I am late", Title: "Running late", Result: short})(a)
+		}, true},
+		{"card-follow-up", func(a *app) {
+			a.followUp, a.answer.conversation = a.answer.id, true
+			a.sess = session.Snapshot{ID: lang + "-r2", Kind: store.KindRewrite, State: session.Recording, StartedAt: now, HeardAt: now,
+				Levels: previewSession().Levels, Partial: "shorter"}
+		}, true},
+		{"card-conversation", end(session.Snapshot{ID: lang + "-r2", Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonCard,
+			Target: arc, Raw: "shorter", Title: "Late", Result: "Ten minutes late: start without me."}), true},
+		{"card-failed", func(a *app) {
+			a.answer, a.followUp = answerCard{}, ""
+			end(session.Snapshot{ID: lang + "-t4", Kind: store.KindTranslate, State: session.Failed, Card: true, Target: arc, Selection: src,
+				Problem: &session.Problem{Code: session.ProblemLLM, Err: errors.New("server error (503): overloaded")}})(a)
+		}, true},
+		{"card-gone", func(a *app) { a.answer = answerCard{}; a.sess.State = session.Cancelled }, false},
 	}
 }
 
@@ -144,9 +208,9 @@ func (a *app) overlayCheck(dir string) {
 		var region mygo.Rectangle
 		onMain(func() {
 			area := a.overlayArea()
-			// The backdrop: under the widest face (a notice), 20 below
-			// the face's bottom edge (or above its top).
-			wide := overlayFrame(area, a.prefs.Overlay, ovNoticeW2, ovLiveH)
+			// The backdrop: under the largest face (the answer card), 20
+			// below the face's bottom edge (or above its top).
+			wide := overlayFrame(area, a.prefs.Overlay, max(ovNoticeW2, ovAnswerW), ovCardMaxH)
 			bw, bh := wide.Width+60, wide.Height+40
 			region = mygo.Rectangle{X: wide.X - 30, Y: wide.Y + wide.Height - ovPad + 20 - bh, Width: bw, Height: bh}
 			opts := floatingWindowOptions("Auralink overlay check", bw, bh, ui.View(func(c *ui.Context) { ovCheckBackdrop(c, bd.dark) }))

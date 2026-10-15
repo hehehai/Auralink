@@ -225,6 +225,13 @@ func TestWrite(t *testing.T) {
 			},
 		},
 		{
+			// The card's language menu: the answer stays in the card, though
+			// the app takes text.
+			name: "into another language, in the card", kind: store.KindTranslate, sel: &fakeSelector{text: "unused"}, llm: &fakeLLM{text: "おはよう"},
+			req:    StartRequest{Text: &TextInput{Selection: "Good morning"}, TargetLanguage: "ja", Card: true},
+			states: "composing done", state: Done, result: "おはよう", card: deliver.ReasonCard,
+		},
+		{
 			name: "a follow-up", kind: store.KindRewrite, sel: &fakeSelector{text: "unused"}, llm: &fakeLLM{text: `{"title":"Shorter","content":"Friday."}`},
 			req:   StartRequest{Previous: []compose.Turn{{Instruction: "write it", Answer: compose.Answer{Title: "Friday", Content: "We ship on Friday."}}}},
 			speak: true, states: "recording recognizing composing done", state: Done, result: "Friday.", card: deliver.ReasonCard,

@@ -235,7 +235,12 @@ func TestOverlayCheckSteps(t *testing.T) {
 	a, _, _ := newTestApp(t)
 	ft := new(fakeTimers).install(a)
 	want := map[string]overlayMode{"pill": ovRecording, "live-short": ovRecording, "live-long": ovRecording, "working": ovWorking,
-		"inserted": ovHidden, "pill-again": ovRecording, "notice": ovNotice, "gone": ovHidden}
+		"inserted": ovHidden, "pill-again": ovRecording, "notice": ovNotice, "gone": ovHidden, "card-gone": ovHidden}
+	for _, st := range cardCheckSteps("en") {
+		if st.name != "card-gone" {
+			want[st.name] = ovAnswer
+		}
+	}
 	var first mygo.Rectangle
 	for _, lang := range []string{"en", "zh-Hans"} {
 		for _, st := range ovCheckSteps(lang) {
@@ -258,6 +263,14 @@ func TestOverlayCheckSteps(t *testing.T) {
 				}
 			case "live-long":
 				if a.ov.w != ovLiveMaxW || a.ov.h != ovLiveH {
+					t.Errorf("%s/%s: %d×%d", lang, st.name, a.ov.w, a.ov.h)
+				}
+			case "card-short", "card-rewrite":
+				if a.ov.w != ovAnswerW || a.ov.h >= ovCardChrome+3*ovCardTextSize*2 {
+					t.Errorf("%s/%s: %d×%d", lang, st.name, a.ov.w, a.ov.h)
+				}
+			case "card-long":
+				if a.ov.h != ovCardChrome+ovCardBodyMax {
 					t.Errorf("%s/%s: %d×%d", lang, st.name, a.ov.w, a.ov.h)
 				}
 			}
