@@ -43,17 +43,23 @@ import (
 // WaveformView.swift).
 const (
 	ovAnswerW     = 560 // Voxt's answer window, which its card fills
-	ovCardPadX    = 18
-	ovCardPadY    = 16
+	ovCardPadX = 18
+	ovCardPadY = 16 // under the text (Voxt's)
+	// The header: ovCardPadTop over it, ovCardRuleTop under it to the
+	// rule, the same (10-15: Voxt's 16 and 8 left twice as much room over
+	// the header as under it, which the user saw as off); the rule stays
+	// at Voxt's 48.
+	ovCardPadTop  = 12
 	ovCardHeadH   = 24
 	ovCardHeadGap = 12 // between the header's items
-	ovCardRuleTop = 8  // the header to the rule
+	ovCardRuleTop = 12 // the header to the rule
 	ovCardRuleGap = 10 // the rule to the text
+	ovCardRuleY   = ovCardPadTop + ovCardHeadH + ovCardRuleTop // where the rule is
 	ovCardBodyMax = 220
 	ovCardInset   = 10 // the text's right inset: the scroller's room
 	ovCardBodyW   = ovAnswerW - 2*ovCardPadX - ovCardInset
 	// ovCardChrome is the card's height without its text.
-	ovCardChrome = 2*ovCardPadY + ovCardHeadH + ovCardRuleTop + 1 + ovCardRuleGap
+	ovCardChrome = ovCardPadTop + ovCardHeadH + ovCardRuleTop + 1 + ovCardRuleGap + ovCardPadY
 	ovCardMsgGap = 8
 	ovCardMsgH   = 16
 	// ovCardMaxH is the highest card: the text at its most, and a line.
@@ -345,7 +351,7 @@ func (a *app) overlayCard(c *ui.Context) {
 	}
 	bodyH := float32(max(a.ov.h-ovCardChrome-msgH, 0))
 	// The border takes ovBorder of the padding (MyGo's border box).
-	ui.Column(c).Fill().Padding(ovCardPadY-ovBorder, ovCardPadX-ovBorder).Children(func() {
+	ui.Column(c).Fill().Padding(ovCardPadTop-ovBorder, ovCardPadX-ovBorder, ovCardPadY-ovBorder).Children(func() {
 		ui.Row(c).Height(ovCardHeadH).Shrink(0).Gap(ovCardHeadGap).AlignItems(ui.Center).Children(func() {
 			a.cardHeader(c, v)
 		})

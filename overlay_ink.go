@@ -44,11 +44,15 @@ type ovInk struct {
 	textL, textR float64
 	// All the face's ink: its left edge and its bottom.
 	inkL, inkB float64
+	// The answer card's header: its ink's top and bottom (the first band
+	// of ink rows), and the rule under it (a row lighter than the fill
+	// across the card; 0: none found).
+	headT, headB, rule float64
 }
 
 func (k ovInk) String() string {
-	s := fmt.Sprintf("face %.1f×%.1f; ink: left %.1f, %.1f above the bottom; row: left %.1f, right %.1f, icon middle %.1f, waveform middle %.1f",
-		k.faceW, k.faceH, k.inkL, k.faceH-k.inkB, k.iconL, k.faceW-k.restR, k.iconMid, k.restMid)
+	s := fmt.Sprintf("face %.1f×%.1f; header %.1f–%.1f, rule %.1f; ink: left %.1f, %.1f above the bottom; row: left %.1f, right %.1f, icon middle %.1f, waveform middle %.1f",
+		k.faceW, k.faceH, k.headT, k.headB, k.rule, k.inkL, k.faceH-k.inkB, k.iconL, k.faceW-k.restR, k.iconMid, k.restMid)
 	if k.textR > 0 {
 		s += fmt.Sprintf("; text: left %.1f, right %.1f, %.1f wide", k.textL, k.faceW-k.textR, k.textR-k.textL)
 	}
@@ -102,6 +106,7 @@ func measureOverlayInk(img image.Image, scale float64, padY float64, row, text b
 	if ib >= 0 {
 		k.inkL, k.inkB = float64(il-x0)/scale, float64(ib+1-y0)/scale
 	}
+	k.headT, k.headB, k.rule = measureCardHead(img, scale, x0, y0, x1, y1, bright)
 	if !row {
 		return k, nil
 	}
@@ -167,6 +172,59 @@ func measureOverlayInk(img image.Image, scale float64, padY float64, row, text b
 	return k, nil
 }
 
+// measureCardHead finds, in the face x0,y0–x1,y1 of img, its first band
+// of ink rows (the answer card's header) and, under it, the rule: the
+// row whose fill is lightest against the rows 2 DIPs over and under it,
+// across the middle of the face. In DIPs from the face's top.
+func measureCardHead(img image.Image, scale float64, x0, y0, x1, y1 int, bright func(x, y int) bool) (top, bottom, rule float64) {
+	inset := int(math.Ceil(3 * scale))
+	ht, hb := -1, -1
+	for y := y0 + inset; y <= y1-inset; y++ {
+		ink := false
+		for x := x0 + inset; x <= x1-inset && !ink; x++ {
+			ink = bright(x, y)
+		}
+		switch {
+		case ink && ht < 0:
+			ht = y
+		case !ink && ht >= 0:
+			hb = y
+		}
+		if hb >= 0 {
+			break
+		}
+	}
+	if ht < 0 || hb < 0 {
+		return 0, 0, 0
+	}
+	// Each row's mean least channel over the face's middle.
+	mean := func(y int) float64 {
+		var sum float64
+		n := 0
+		for x := x0 + int(30*scale); x <= x1-int(30*scale); x++ {
+			r, g, b, a := img.At(x, y).RGBA()
+			if a == 0 {
+				continue
+			}
+			sum += float64(min(r, g, b)) / float64(a) * 255
+			n++
+		}
+		return sum / float64(max(n, 1))
+	}
+	best, by := 0.0, -1
+	d := int(math.Round(2 * scale))
+	for y := hb; y <= min(hb+int(24*scale), y1-d); y++ {
+		if c := mean(y) - (mean(y-d)+mean(y+d))/2; c > best {
+			best, by = c, y
+		}
+	}
+	top, bottom = float64(ht-y0)/scale, float64(hb-y0)/scale
+	if by >= 0 && best > 3 {
+		rule = float64(by-y0) / scale
+	}
+	return top, bottom, rule
+}
+
 // checkOverlayInk measures img and says what is wrong with it: the
 // face's size, the row's sides, its middle, the text's sides.
 func checkOverlayInk(img image.Image, scale float64, want ovInkWant) (ovInk, []string) {
@@ -184,6 +242,19 @@ func checkOverlayInk(img image.Image, scale float64, want ovInkWant) (ovInk, []s
 		failf("the face is %.1f×%.1f, not %d×%d", k.faceW, k.faceH, want.w, want.h)
 	}
 	if want.card {
+		if math.Abs(k.faceW-ovAnswerW) > ovInkSizeTol {
+			failf("the card is %.1f wide, not %d", k.faceW, ovAnswerW)
+		}
+		// The header between the card's top and the rule: as much room
+		// over its ink as under it (10-15).
+		switch {
+		case k.rule == 0:
+			failf("no rule under the header")
+		case math.Abs(k.rule-ovCardRuleY) > ovInkTol:
+			failf("the rule is %.1f from the top, not %d", k.rule, ovCardRuleY)
+		case math.Abs((k.headT+k.headB)/2-k.rule/2) > 1.5:
+			failf("the header's ink is %.1f under the top and %.1f over the rule", k.headT, k.rule-k.headB)
+		}
 		// The icon's glyph sits a little inside its slot.
 		if k.inkL < ovCardPadX-ovInkTol || k.inkL > ovCardPadX+4 {
 			failf("the card's ink starts %.1f from its left edge, not %d", k.inkL, ovCardPadX)
