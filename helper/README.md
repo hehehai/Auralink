@@ -2,29 +2,62 @@
 
 The small Swift process Auralink runs beside its window, for what MyGo cannot do from Go:
 
-- **capture**: record the microphone (AVAudioEngine) and stream 16 kHz mono PCM16 to the app (`capture.*`), with a watchdog that falls back to the default input when the chosen device gives no audio;
-- **hotkeys**: watch the keyboard with a CGEventTap, so that `fn`, a single modifier, double taps and long presses can be shortcuts, deciding on its own thread whether to swallow the key (`hotkey.configure`, `hotkey.event`);
-- **browser URLs**: read the front tab's URL with AppleScript, or the Accessibility tree when that fails, and report each browser's Automation permission (`browser.url`, `automation.probe`).
+- **capture**: record the microphone (AVAudioEngine) and stream mono PCM16 to the app (`capture.*`), falling back along the user's devices to the default input, with a watchdog for inputs that start without audio;
+- **hotkeys**: watch the keyboard with a CGEventTap, so that `fn`, a single modifier, chords, double taps and long presses can be shortcuts, deciding on the tap's thread whether to swallow each key (`hotkey.*`);
+- **text in and out**: what is focused in the app in front, its selected text (Accessibility, else ⌘C when the app allows), and pasting through the clipboard with keys after it and the clipboard put back (`textio.*`);
+- **the app in front**: kept from NSWorkspace and told to the app (`app.frontmost`, `app.activated`, and `front` in each `hotkey.event`);
+- **browser URLs**: the front tab's URL by AppleScript when allowed, else the Accessibility tree, and each browser's Automation permission (`browser.url`, `automation.*`);
+- **permissions**: the Microphone and Accessibility as the helper sees them, and macOS's prompts (`permissions.*`).
 
-It speaks the helper protocol (`docs/helper-protocol.md`) over stdin and stdout; `internal/helper` supervises it (handshake, restarts, stderr to `~/Library/Logs/Auralink/helper.log`).
+It speaks [helper protocol 1](../docs/helper-protocol.md) over stdin and stdout; `internal/helper` supervises it (handshake, restarts, stderr to `~/Library/Logs/Auralink/helper.log`, call timings). The helper keeps no settings: Go decides (which device, when ⌘C may run, the delays, the keys) and passes it in the params. Its shapes come from the M0 spikes on a Mac (the project's `research/spikes.md`).
 
-## Status
+macOS checks the helper's permissions against Auralink.app, its responsible process: the prompts and System Settings name Auralink, and a helper outside the bundle (`AURALINK_HELPER`) has the app's grants too.
 
-**There is no Swift code yet.** The M0 spikes (thread #1, `~/helper/auralink-spikes`) try capture, the event tap, AppleScript and the Accessibility attribution of a child process on a Mac; their results decide the Swift code and may rename the provisional methods. Until then:
-
-- `Fixtures/*.jsonl` are the protocol's golden transcripts; the Go tests decode them, and the Swift tests will too.
-- `Support/helper.entitlements` gives the helper `com.apple.security.device.audio-input` (mygo.json `macos.helperEntitlements`).
-- `internal/helper/helpertest` is a fake helper in Go. `scripts/stage-fake-helper.sh` builds it into `resources/darwin-arm64/helper/auralink-helper`, where a packaged app looks for the real one, so `go tool mygo build` works and the app's supervisor can be tried on a Mac. It records a tone, not the microphone.
-
-## Layout (planned)
+## Layout
 
 ```
 helper/
-  Package.swift            Swift 6, macOS 15, no third-party dependencies
-  Sources/AuralinkHelper/  Server (routing, hello), Capture, Hotkeys, Browser
-  Tests/                   fixture tests over Fixtures/*.jsonl
-  Fixtures/                golden transcripts (shared with Go)
-  Support/                 entitlements
+  Package.swift              Swift 6, macOS 15, no third-party dependencies
+  Sources/AuralinkHelperKit/ pure logic, tested without permissions:
+    Wire.swift, WireTypes.swift   the protocol (mirror of internal/helper/proto)
+    HotkeyRecognizer.swift        chords, taps, double taps, long presses, swallowing
+    PCMFramer.swift               PCM16 frames and levels
+    Browsers.swift                the browsers it scripts
+  Sources/AuralinkHelper/    the executable:
+    main.swift, Server.swift      stdin/stdout, hello, routing, the capture job, slow-request lines
+    Capture.swift                 AVAudioEngine, devices, watchdog
+    Hotkey.swift                  the event tap
+    FrontApps.swift               the app in front, AXManualAccessibility for Electron apps
+    TextIO.swift                  focus, selection, paste
+    Browser.swift                 AppleScript, AX URLs, Automation
+    Permissions.swift             Microphone, Accessibility
+  Tests/AuralinkHelperKitTests/  FixtureTests (helper/Fixtures), the recognizer, the framer
+  Fixtures/                  golden transcripts, shared with Go
+  Support/                   Info.plist (linked into the binary), helper.entitlements
 ```
 
-`scripts/build-helper.sh` (to come) will build it on the Mac (`scripts/mac.sh scripts/build-helper.sh`) into `resources/darwin-arm64/helper/`.
+## Build and test
+
+On a Mac with Xcode (from Linux through `scripts/mac.sh`):
+
+```sh
+scripts/build-helper.sh                  # release build, signed, into resources/darwin-arm64/helper/
+scripts/build-helper.sh --out DIR        # elsewhere: a helper outside the app (AURALINK_HELPER)
+cd helper && swift test                  # the Kit: fixtures, recognizer, framer
+```
+
+`go tool mygo build` ships `resources/darwin-arm64/helper/auralink-helper` as `Auralink.app/Contents/Resources/helper/auralink-helper`, signed with `Support/helper.entitlements` (mygo.json `macos.helperEntitlements`: the microphone and Apple Events under the hardened runtime). The version in `Support/Info.plist` follows mygo.json's (the build script checks).
+
+Without Xcode, the fake helper stands in (it records a tone): `go build -o /tmp/fakehelper ./internal/helper/helpertest/cmd/fakehelper`, then `AURALINK_HELPER=/tmp/fakehelper`.
+
+## Trying it by hand
+
+The helper answers on a terminal too (its permissions are then the terminal's, not Auralink's):
+
+```sh
+printf '%s\n' '{"id":"1","method":"helper.hello","params":{"protocol":1,"app":"cli"}}' \
+  '{"id":"2","method":"capture.devices"}' '{"id":"3","method":"automation.probe"}' \
+  | helper/.build/debug/auralink-helper
+```
+
+What only a person at the Mac can check (real keys, prompts, pasting into other apps) is in the project's handoff of the helper thread.

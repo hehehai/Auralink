@@ -1,0 +1,546 @@
+import Foundation
+
+// The params and results of each method: internal/helper/proto/methods.go
+// field for field (see the conventions in Wire.swift).
+
+// MARK: helper.*, job.cancel, log
+
+public struct HelloParams: Codable, Sendable {
+    public var `protocol`: Int
+    public var app: String
+    public var logLevel: String?
+}
+
+public struct Device: Codable, Sendable {
+    public var name: String
+    public var os: String
+
+    public init(name: String, os: String) {
+        self.name = name
+        self.os = os
+    }
+}
+
+public struct HelloResult: Codable, Sendable {
+    public var `protocol`: Int
+    public var version: String
+    public var pid: Int
+    public var methods: [String]
+    public var device: Device
+
+    public init(protocol: Int, version: String, pid: Int, methods: [String], device: Device) {
+        self.protocol = `protocol`
+        self.version = version
+        self.pid = pid
+        self.methods = methods
+        self.device = device
+    }
+}
+
+public struct CancelParams: Codable, Sendable {
+    public var job: String
+}
+
+public struct CancelResult: Codable, Sendable {
+    public var cancelled: Bool
+    public init(cancelled: Bool) { self.cancelled = cancelled }
+}
+
+public struct LogParams: Codable, Sendable {
+    public var level: String
+    public var message: String
+    public var job: String?
+
+    public init(level: String, message: String, job: String? = nil) {
+        self.level = level
+        self.message = message
+        self.job = job
+    }
+}
+
+// MARK: permissions.*
+
+public enum PermissionName {
+    public static let microphone = "microphone"
+    public static let accessibility = "accessibility"
+    public static let automation = "automation"
+}
+
+public struct PermissionsResult: Codable, Sendable {
+    /// granted, denied, notDetermined, restricted.
+    public var microphone: String
+    public var accessibility: Bool
+
+    public init(microphone: String, accessibility: Bool) {
+        self.microphone = microphone
+        self.accessibility = accessibility
+    }
+}
+
+public struct PermissionsRequestParams: Codable, Sendable {
+    public var permission: String
+}
+
+// MARK: capture.*
+
+public struct CaptureDevice: Codable, Sendable {
+    public var id: String
+    public var name: String
+    public var channels: Int
+    public var sampleRate: Int
+    public var `default`: Bool
+    public var transport: String?
+
+    public init(id: String, name: String, channels: Int, sampleRate: Int, default: Bool, transport: String?) {
+        self.id = id
+        self.name = name
+        self.channels = channels
+        self.sampleRate = sampleRate
+        self.default = `default`
+        self.transport = transport
+    }
+}
+
+public struct DevicesResult: Codable, Sendable {
+    public var devices: [CaptureDevice]
+    public init(devices: [CaptureDevice]) { self.devices = devices }
+}
+
+public struct CaptureParams: Codable, Sendable {
+    public var devices: [String]?
+    public var sampleRate: Int?
+    public var frameMs: Int?
+    public var levelHz: Int?
+    public var maxSeconds: Double?
+
+    public init(devices: [String]? = nil, sampleRate: Int? = nil, frameMs: Int? = nil, levelHz: Int? = nil, maxSeconds: Double? = nil) {
+        self.devices = devices
+        self.sampleRate = sampleRate
+        self.frameMs = frameMs
+        self.levelHz = levelHz
+        self.maxSeconds = maxSeconds
+    }
+}
+
+public struct CaptureStartedParams: Codable, Sendable {
+    public var job: String
+    public var device: String
+    public var deviceName: String
+    public var fellBack: Bool
+    public var fallbackReason: String?
+    public var deviceSampleRate: Int
+    public var deviceChannels: Int
+    public var sampleRate: Int
+    /// capture.start to the first audio from the input.
+    public var startMs: Double
+
+    public init(job: String, device: String, deviceName: String, fellBack: Bool, fallbackReason: String?,
+                deviceSampleRate: Int, deviceChannels: Int, sampleRate: Int, startMs: Double) {
+        self.job = job
+        self.device = device
+        self.deviceName = deviceName
+        self.fellBack = fellBack
+        self.fallbackReason = fallbackReason
+        self.deviceSampleRate = deviceSampleRate
+        self.deviceChannels = deviceChannels
+        self.sampleRate = sampleRate
+        self.startMs = startMs
+    }
+}
+
+public struct LevelParams: Codable, Sendable {
+    public var job: String
+    public var seconds: Double
+    public var rms: Double
+    public var peak: Double
+
+    public init(job: String, seconds: Double, rms: Double, peak: Double) {
+        self.job = job
+        self.seconds = seconds
+        self.rms = rms
+        self.peak = peak
+    }
+}
+
+public struct PCMParams: Codable, Sendable {
+    public var job: String
+    public var seq: Int
+    public var offset: Int
+    /// Mono PCM16 little endian; base64 on the wire.
+    public var data: Data
+
+    public init(job: String, seq: Int, offset: Int, data: Data) {
+        self.job = job
+        self.seq = seq
+        self.offset = offset
+        self.data = data
+    }
+}
+
+public struct RestartedParams: Codable, Sendable {
+    public var job: String
+    public var reason: String
+    public var attempt: Int
+    public var device: String
+
+    public init(job: String, reason: String, attempt: Int, device: String) {
+        self.job = job
+        self.reason = reason
+        self.attempt = attempt
+        self.device = device
+    }
+}
+
+public enum CaptureReason {
+    public static let stopped = "stopped"
+    public static let maxSeconds = "maxSeconds"
+    public static let deviceLost = "deviceLost"
+    public static let noCallback = "noCallback"
+    public static let configurationChange = "configurationChange"
+}
+
+public struct CaptureResult: Codable, Sendable {
+    public var device: String
+    public var reason: String
+    public var frames: Int
+    public var samples: Int
+    public var seconds: Double
+    public var restarts: Int
+    public var peak: Double
+    public var firstFrameMs: Double?
+    public var cpuSeconds: Double
+
+    public init(device: String, reason: String, frames: Int, samples: Int, seconds: Double, restarts: Int, peak: Double,
+                firstFrameMs: Double?, cpuSeconds: Double) {
+        self.device = device
+        self.reason = reason
+        self.frames = frames
+        self.samples = samples
+        self.seconds = seconds
+        self.restarts = restarts
+        self.peak = peak
+        self.firstFrameMs = firstFrameMs
+        self.cpuSeconds = cpuSeconds
+    }
+}
+
+public struct CaptureStopParams: Codable, Sendable {
+    public var job: String
+}
+
+public struct CaptureStopResult: Codable, Sendable {
+    public var stopped: Bool
+    public init(stopped: Bool) { self.stopped = stopped }
+}
+
+// MARK: hotkey.*
+
+/// hotkey.configure's bindings are the recognizer's (HotkeyRecognizer.swift).
+public typealias HotkeyBinding = Binding
+
+public struct HotkeyConfigureParams: Codable, Sendable {
+    public var bindings: [HotkeyBinding]
+    public var doubleTapMs: Double?
+    public var longPressMs: Double?
+    public var tapMaxMs: Double?
+    public var swallowFn: Bool?
+    public var active: Bool?
+
+    public init(bindings: [HotkeyBinding], doubleTapMs: Double? = nil, longPressMs: Double? = nil, tapMaxMs: Double? = nil,
+                swallowFn: Bool? = nil, active: Bool? = nil) {
+        self.bindings = bindings
+        self.doubleTapMs = doubleTapMs
+        self.longPressMs = longPressMs
+        self.tapMaxMs = tapMaxMs
+        self.swallowFn = swallowFn
+        self.active = active
+    }
+}
+
+public struct HotkeyStatus: Codable, Sendable {
+    public var installed: Bool
+    public var accessibility: Bool
+    public var bindings: Int
+    public var events: Int
+    public var disabledByTimeout: Int
+    public var missedEvents: Int
+    public var maxCallbackMicros: Double
+    public var error: String?
+
+    public init(installed: Bool, accessibility: Bool, bindings: Int, events: Int, disabledByTimeout: Int, missedEvents: Int,
+                maxCallbackMicros: Double, error: String?) {
+        self.installed = installed
+        self.accessibility = accessibility
+        self.bindings = bindings
+        self.events = events
+        self.disabledByTimeout = disabledByTimeout
+        self.missedEvents = missedEvents
+        self.maxCallbackMicros = maxCallbackMicros
+        self.error = error
+    }
+}
+
+public struct HotkeyEventParams: Codable, Sendable {
+    public var binding: String
+    public var phase: Phase
+    public var behavior: Behavior
+    public var heldMs: Double?
+    public var t: Double
+    public var front: App?
+
+    public init(_ e: HotkeyEvent, front: App?) {
+        binding = e.binding
+        phase = e.phase
+        behavior = e.behavior
+        heldMs = e.heldMs
+        t = e.t
+        self.front = front
+    }
+}
+
+// MARK: app.*
+
+public struct App: Codable, Sendable, Equatable {
+    public var pid: Int
+    public var bundleId: String?
+    public var name: String?
+
+    public init(pid: Int, bundleId: String?, name: String?) {
+        self.pid = pid
+        self.bundleId = bundleId
+        self.name = name
+    }
+}
+
+// MARK: textio.*
+
+public struct TextRange: Codable, Sendable {
+    public var location: Int
+    public var length: Int
+    public init(location: Int, length: Int) {
+        self.location = location
+        self.length = length
+    }
+}
+
+public struct FocusResult: Codable, Sendable {
+    public var pid: Int
+    public var role: String?
+    public var subrole: String?
+    public var editable: Bool
+    public var selection: TextRange?
+    public var valueLength: Int
+    public var error: String?
+
+    public init(pid: Int, role: String? = nil, subrole: String? = nil, editable: Bool = false, selection: TextRange? = nil,
+                valueLength: Int = 0, error: String? = nil) {
+        self.pid = pid
+        self.role = role
+        self.subrole = subrole
+        self.editable = editable
+        self.selection = selection
+        self.valueLength = valueLength
+        self.error = error
+    }
+}
+
+public struct SelectionParams: Codable, Sendable {
+    public var allowCopy: Bool?
+    public var copyTimeoutMs: Int?
+}
+
+public enum SelectionVia {
+    public static let ax = "ax"
+    public static let axRange = "ax-range"
+    public static let axMarker = "ax-marker"
+    public static let copy = "copy"
+    public static let none = "none"
+}
+
+public struct SelectionResult: Codable, Sendable {
+    public var text: String?
+    public var via: String
+    public var ms: Double
+    public var steps: [String]?
+
+    public init(text: String?, via: String, ms: Double, steps: [String]) {
+        self.text = text?.isEmpty == true ? nil : text
+        self.via = via
+        self.ms = ms
+        self.steps = steps.isEmpty ? nil : steps
+    }
+}
+
+public struct KeyPress: Codable, Sendable {
+    public var key: Int
+    /// Modifier families: command, shift, option, control.
+    public var modifiers: [String]?
+}
+
+public struct PasteParams: Codable, Sendable {
+    public var text: String
+    public var keepClipboard: Bool?
+    public var restoreDelayMs: Int?
+    public var targetPid: Int?
+    public var press: [KeyPress]?
+    public var pressDelayMs: Int?
+}
+
+public struct PasteResult: Codable, Sendable {
+    public var posted: Bool
+    public var restored: Bool
+    public var clipboardTaken: Bool
+    public var ms: Double
+    public var front: App?
+
+    public init(posted: Bool, restored: Bool, clipboardTaken: Bool, ms: Double, front: App? = nil) {
+        self.posted = posted
+        self.restored = restored
+        self.clipboardTaken = clipboardTaken
+        self.ms = ms
+        self.front = front
+    }
+}
+
+// MARK: browser.url, automation.*
+
+public struct BrowserURLParams: Codable, Sendable {
+    public var bundleId: String?
+}
+
+public enum URLVia {
+    public static let appleScript = "applescript"
+    public static let axDocument = "ax-document"
+    public static let axWebURL = "ax-weburl"
+    public static let none = "none"
+}
+
+public struct BrowserURLResult: Codable, Sendable {
+    public var bundleId: String
+    public var url: String?
+    public var via: String
+    public var ms: Double
+    public var appleScriptMs: Double?
+    public var axMs: Double?
+    public var automation: String?
+    public var error: String?
+
+    public init(bundleId: String, url: String? = nil, via: String = URLVia.none, ms: Double = 0, appleScriptMs: Double? = nil,
+                axMs: Double? = nil, automation: String? = nil, error: String? = nil) {
+        self.bundleId = bundleId
+        self.url = url
+        self.via = via
+        self.ms = ms
+        self.appleScriptMs = appleScriptMs
+        self.axMs = axMs
+        self.automation = automation
+        self.error = error
+    }
+}
+
+public struct AutomationProbeParams: Codable, Sendable {
+    public var bundleIds: [String]?
+}
+
+public enum AutomationStateName {
+    public static let granted = "granted"
+    public static let denied = "denied"
+    public static let notDetermined = "notDetermined"
+    public static let notRunning = "notRunning"
+    public static let notInstalled = "notInstalled"
+    public static let unknown = "unknown"
+
+    /// The state of an AEDeterminePermissionToAutomateTarget status.
+    public static func of(_ code: Int) -> String {
+        switch code {
+        case 0: granted
+        case -1743: denied // errAEEventNotPermitted
+        case -1744: notDetermined // errAEEventWouldRequireUserConsent
+        case -600: notRunning // procNotFound
+        default: unknown
+        }
+    }
+}
+
+public struct AutomationState: Codable, Sendable {
+    public var bundleId: String
+    public var name: String
+    public var installed: Bool
+    public var running: Bool
+    public var state: String
+    public var code: Int
+
+    public init(bundleId: String, name: String, installed: Bool, running: Bool, state: String, code: Int) {
+        self.bundleId = bundleId
+        self.name = name
+        self.installed = installed
+        self.running = running
+        self.state = state
+        self.code = code
+    }
+}
+
+public struct AutomationProbeResult: Codable, Sendable {
+    public var browsers: [AutomationState]
+    public init(browsers: [AutomationState]) { self.browsers = browsers }
+}
+
+public struct AutomationRequestParams: Codable, Sendable {
+    public var bundleId: String
+    public var launch: Bool?
+}
+
+// MARK: - Types by method (the fixture tests; the server's routing)
+
+public enum WireTypes {
+    /// The params type of a method (request or notification), nil for an
+    /// unknown one.
+    public static func params(_ method: String) -> (Codable & Sendable).Type? {
+        switch method {
+        case Method.hello: HelloParams.self
+        case Method.shutdown, Method.captureDevices, Method.permissionsStatus, Method.hotkeyStatus, Method.appFrontmost, Method.textFocus:
+            Empty.self
+        case Method.jobCancel: CancelParams.self
+        case Method.permissionsRequest: PermissionsRequestParams.self
+        case Method.captureStart: CaptureParams.self
+        case Method.captureStop: CaptureStopParams.self
+        case Method.hotkeyConfigure: HotkeyConfigureParams.self
+        case Method.textSelection: SelectionParams.self
+        case Method.textPaste: PasteParams.self
+        case Method.browserURL: BrowserURLParams.self
+        case Method.automationProbe: AutomationProbeParams.self
+        case Method.automationRequest: AutomationRequestParams.self
+        case Method.captureStarted: CaptureStartedParams.self
+        case Method.captureLevel: LevelParams.self
+        case Method.capturePCM: PCMParams.self
+        case Method.captureRestarted: RestartedParams.self
+        case Method.hotkeyEvent: HotkeyEventParams.self
+        case Method.hotkeyState: HotkeyStatus.self
+        case Method.appActivated: App.self
+        case Method.log: LogParams.self
+        default: nil
+        }
+    }
+
+    /// The result type of a request, nil for an unknown one.
+    public static func result(_ method: String) -> (Codable & Sendable).Type? {
+        switch method {
+        case Method.hello: HelloResult.self
+        case Method.shutdown: Empty.self
+        case Method.jobCancel: CancelResult.self
+        case Method.permissionsStatus, Method.permissionsRequest: PermissionsResult.self
+        case Method.captureDevices: DevicesResult.self
+        case Method.captureStart: CaptureResult.self
+        case Method.captureStop: CaptureStopResult.self
+        case Method.hotkeyConfigure, Method.hotkeyStatus: HotkeyStatus.self
+        case Method.appFrontmost: App.self
+        case Method.textFocus: FocusResult.self
+        case Method.textSelection: SelectionResult.self
+        case Method.textPaste: PasteResult.self
+        case Method.browserURL: BrowserURLResult.self
+        case Method.automationProbe: AutomationProbeResult.self
+        case Method.automationRequest: AutomationState.self
+        default: nil
+        }
+    }
+}

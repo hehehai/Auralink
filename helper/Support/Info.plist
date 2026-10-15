@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Linked into auralink-helper (__TEXT,__info_plist; Package.swift): the
+     helper's identity and version (helper.hello) when it runs on its own.
+     Inside Auralink.app macOS attributes its permissions to the app (the
+     responsible process) and asks with the app's usage descriptions
+     (mygo.json); these are for a helper run from a terminal.
+     scripts/build-helper.sh keeps the version in step with mygo.json. -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>dev.hehehai.auralink.helper</string>
+	<key>CFBundleName</key>
+	<string>auralink-helper</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Auralink records your voice while you hold its shortcut and sends the audio to the speech service you set up.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Auralink reads the address of the browser tab in front to pick the scene rules you set for that site.</string>
+</dict>
+</plist>
