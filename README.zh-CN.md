@@ -12,7 +12,7 @@
 
 ## 状态
 
-**Pre-alpha。** 目前是 M1 骨架加上 Swift 辅助进程：窗口、设置、存储、权限页，以及辅助进程（录音、快捷键、在其他 App 里读写文字、读浏览器网址）和它的协议、监管已经可用；三个功能还没有实现，也没有发布版本。
+**Pre-alpha。** 骨架（M1）、远程模型层（M2）和 Swift 辅助进程已经可用：窗口、设置、存储、模型服务页和权限页，以及辅助进程（录音、快捷键、在其他 App 里读写文字、读浏览器网址）和它的协议、监管；三个功能本身还没有实现，也没有发布版本。
 
 Auralink 按 [Voxt](https://github.com/hehehai/voxt) 的行为重写（只用远程模型），工程和界面沿用 [AudioSmith](https://github.com/hehehai/AudioSmith)（Go + [MyGo](https://github.com/egoist/mygo)，不用 cgo）。详见 [docs/architecture.md](docs/architecture.md) 和 [docs/behavior.md](docs/behavior.md)。
 
