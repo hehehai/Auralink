@@ -7,15 +7,10 @@ package main
 // the window hides it, so the shortcuts keep working; the Dock icon or
 // the menu brings it back. Start transcribing records for the app in
 // front (as the shortcut does) and turns into Stop while a session runs;
-// the icon shows a recording dot meanwhile.
+// the icon (Voxt's microphone) shows a recording dot meanwhile.
 
 import (
-	"bytes"
 	"context"
-	"image"
-	"image/color"
-	"image/png"
-	"math"
 	"strings"
 	"time"
 	"unicode"
@@ -25,6 +20,7 @@ import (
 	"github.com/egoist/mygo/transfer"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/trayicon"
 )
 
 // trayState is the menu bar icon.
@@ -48,53 +44,6 @@ const (
 	trayTipRunes    = 400
 )
 
-// The icons are drawn once, as template images (macOS tints them): five
-// rounded bars of a sound wave, and while recording three of them and a
-// dot.
-var (
-	trayIcon     = drawWave(color.NRGBA{0, 0, 0, 255}, false)
-	trayLiveIcon = drawWave(color.NRGBA{0, 0, 0, 255}, true)
-)
-
-// drawWave draws a 36×36 (18 pt @2x) sound wave: five bars, 3 px wide,
-// rounded, of heights that rise and fall; recording, three bars on the
-// left and a solid dot (r 6) on the right.
-func drawWave(c color.NRGBA, recording bool) []byte {
-	const n = 36
-	img := image.NewNRGBA(image.Rect(0, 0, n, n))
-	heights, x0 := []float64{10, 20, 28, 20, 10}, 8.0
-	if recording {
-		heights, x0 = []float64{10, 22, 10}, 5
-	}
-	cover := func(x, y float64) float64 {
-		inside := 0.0
-		for i, h := range heights {
-			cx := x0 + float64(i)*5
-			top, bottom := 18-h/2, 18+h/2
-			cy := min(max(y, top+1.5), bottom-1.5)
-			d := math.Hypot(x-cx, y-cy) - 1.5
-			inside = max(inside, clamp01(0.5-d))
-		}
-		if recording {
-			d := math.Hypot(x-26, y-18) - 6
-			inside = max(inside, clamp01(0.5-d))
-		}
-		return inside
-	}
-	for y := 0; y < n; y++ {
-		for x := 0; x < n; x++ {
-			if a := cover(float64(x)+0.5, float64(y)+0.5); a > 0 {
-				img.SetNRGBA(x, y, color.NRGBA{c.R, c.G, c.B, uint8(a * float64(c.A))})
-			}
-		}
-	}
-	var b bytes.Buffer
-	png.Encode(&b, img)
-	return b.Bytes()
-}
-
-func clamp01(v float64) float64 { return min(max(v, 0), 1) }
-
 // openTray makes the menu bar icon when the settings want one; it runs in
 // App.WhenReady.
 func (a *app) openTray() { a.applyTray() }
@@ -112,11 +61,9 @@ func (a *app) applyTray() {
 		return
 	}
 	live := a.sess.State.Live()
-	icon := trayIcon
-	if live {
-		icon = trayLiveIcon
-	}
-	t, err := mygo.NewTray(mygo.TrayOptions{Icon: icon, IconIsTemplate: true, ToolTip: "Auralink"})
+	// Voxt's microphone, a 36 px template image MyGo shows 18 pt tall
+	// (Voxt: 18×18 pt, template); while recording it has a dot.
+	t, err := mygo.NewTray(mygo.TrayOptions{Icon: trayicon.Icon(live), IconIsTemplate: true, ToolTip: "Auralink"})
 	if err != nil {
 		a.toast(i18n.T("The menu bar icon could not be made: %v", err))
 		return
@@ -246,11 +193,7 @@ func (a *app) buildTrayMenu() {
 		return
 	}
 	if live := a.sess.State.Live(); live != a.trayLive {
-		icon := trayIcon
-		if live {
-			icon = trayLiveIcon
-		}
-		if a.tray.SetIcon(icon, true) == nil {
+		if a.tray.SetIcon(trayicon.Icon(live), true) == nil {
 			a.trayLive = live
 		}
 	}

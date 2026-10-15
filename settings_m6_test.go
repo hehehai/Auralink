@@ -20,6 +20,7 @@ import (
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/trayicon"
 )
 
 func TestAudioSettingsDevices(t *testing.T) {
@@ -307,16 +308,25 @@ func TestStartHidden(t *testing.T) {
 }
 
 func TestTrayIcons(t *testing.T) {
-	if bytes.Equal(trayIcon, trayLiveIcon) {
+	if bytes.Equal(trayicon.Idle, trayicon.Recording) {
 		t.Fatal("the recording icon is the same")
 	}
-	for _, b := range [][]byte{trayIcon, trayLiveIcon} {
+	for _, b := range [][]byte{trayicon.Idle, trayicon.Recording} {
 		img, err := png.Decode(bytes.NewReader(b))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if r := img.Bounds(); r.Dx() != 36 || r.Dy() != 36 {
+		// 18 pt at 2×: MyGo shows any tray icon 18 pt tall.
+		if r := img.Bounds(); r.Dx() != trayicon.Size || r.Dy() != trayicon.Size || trayicon.Size != 36 {
 			t.Errorf("size %v", r)
+		}
+		// A template image: black, only its alpha counts.
+		for y := 0; y < trayicon.Size; y++ {
+			for x := 0; x < trayicon.Size; x++ {
+				if r, g, b, a := img.At(x, y).RGBA(); a > 0 && r|g|b != 0 {
+					t.Fatalf("pixel %d,%d is not black", x, y)
+				}
+			}
 		}
 	}
 }
