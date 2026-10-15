@@ -1,6 +1,6 @@
 # Auralink architecture
 
-*State: M4, Translate and Rewrite end to end (2026-10-15). Product plan: the project's `plan/auralink-plan.md` (§4 architecture, §5 data, §8 engineering). Behaviour compared with Voxt: [behavior.md](behavior.md). Helper wire format: [helper-protocol.md](helper-protocol.md).*
+*State: M5, app enhancement and the dictionary on top of M4's Translate and Rewrite (2026-10-15). Product plan: the project's `plan/auralink-plan.md` (§4 architecture, §5 data, §8 engineering). Behaviour compared with Voxt: [behavior.md](behavior.md). Helper wire format: [helper-protocol.md](helper-protocol.md).*
 
 Auralink is a Go app on MyGo (native UI, no cgo) with one small Swift helper process. It reuses AudioSmith's engineering (AudioSmith @f171c86, Apache-2.0): its window shell, UI kit and tokens, settings, store, i18n, logs and notification code, and its engine supervisor reduced to one helper. What it took and how it changed is in §5.
 
@@ -43,13 +43,18 @@ github.com/hehehai/Auralink
 │   ├── compose/          the layered prompt composer: Transcribe, Translate, Rewrite;
 │   │                     templates/{en,zh-Hans}; 112 golden prompts; Untranslated, ParseAnswer
 │   ├── deliver/          the insert transaction: textio.focus, then textio.paste or the answer card
-│   └── hotkey/           the shortcuts' grammar, bindings for hotkey.configure and the Carbon
-│                         fallback, conflict checks, routing an event to an action
+│   ├── hotkey/           the shortcuts' grammar, bindings for hotkey.configure and the Carbon
+│   │                     fallback, conflict checks, routing an event to an action
+│   ├── appctx/           app enhancement: groups (document appctx:rules), URL rules and their
+│   │                     matching, the order URL → the browser's group → the app's group → none,
+│   │                     the built-in browsers, auto keys
+│   └── dict/             the dictionary's rules: cleaning a term, hints for speech services,
+│                         CSV and text import and export, merging an import
 ├── helper/               the Swift helper (helper/README.md): Sources/, Tests/, Fixtures/, Support/
 └── third_party/mygo/     MyGo 0.4.8 with three patches (scripts/vendor-mygo.sh)
 ```
 
-Later milestones add `appctx` (M5). The plan's `textio` is the helper's `textio.*` (session.HelperText adapts it).
+The plan's `textio` is the helper's `textio.*` (session.HelperText adapts it).
 
 ### Import rules
 
@@ -62,13 +67,14 @@ helper ──▶ core, helper/proto  helper/helpertest ──▶ helper/proto
 notify, logs ──▶ core
 asr ──▶ core, netx            asr/openai, doubao, aliyun ──▶ asr, netx     asr/asrtest ──▶ (nothing internal)
 llm ──▶ core                  providers ──▶ asr (+ its providers), llm, settings, netx
-session ──▶ asr, compose, core, deliver, helper/proto, lang, llm, settings, store
+session ──▶ appctx, asr, compose, core, deliver, dict, helper/proto, lang, llm, settings, store
 compose ──▶ lang              deliver ──▶ helper/proto      hotkey ──▶ helper/proto, settings
+appctx ──▶ helper/proto, hotkey, settings                    dict ──▶ store
 core, settings, helper/proto, i18n, lang, secrets, netx, permission, macx ──▶ (nothing internal)
 icons ──▶ mygo/ui
 ```
 
-The domain packages (session, compose, deliver, hotkey, asr, llm; appctx in M5) are pure Go behind narrow interfaces, with the macOS parts behind them: recording, the event tap, the app in front, AX reads, pasting and AppleScript in the helper; the permission reads before the helper runs and `macx.Activate` in purego code. That keeps their logic testable on Linux with fakes (plan §1.4): the fake helper plays recordings, scripted hotkey events and text I/O.
+The domain packages (session, compose, deliver, hotkey, appctx, dict, asr, llm) are pure Go behind narrow interfaces, with the macOS parts behind them: recording, the event tap, the app in front, AX reads (text, browser addresses) and pasting in the helper; the permission reads before the helper runs and `macx.Activate` in purego code. That keeps their logic testable on Linux with fakes (plan §1.4): the fake helper plays recordings, scripted hotkey events and text I/O.
 
 Event types live next to their publisher, and their topic starts with the publisher's name. They satisfy `core.Event` (a `Topic() string` method) without importing `core`:
 
@@ -89,7 +95,7 @@ MyGo builds the root `main` package (`mygo dev`, `mygo build`, `ui.View`); views
 ┌──────────────────────────────┐  calls (go …)  ┌──────────────────────────────────────────┐
 │ views (build pass: no I/O)   │──────────────▶ │ library: store (SQLite) · bus · settings │
 │ app view state + snapshots   │                │ helper.Supervisor ──stdio JSON lines──▶ auralink-helper (Swift)
-│        ▲ Window.Update       │                │    capture.* · hotkey.* · textio.* · app.* · browser.url · automation.* · permissions.*
+│        ▲ Window.Update       │                │    capture.* · hotkey.* · textio.* · app.* · browser.url · permissions.*
 └────────┼─────────────────────┘                └──────────────────────────────────────────┘
    core.Bus subscribers ◀── Publish ─────────────┘
    (wiring code, once)
@@ -108,9 +114,11 @@ hotkey.event (helper) ─▶ helperNotified ─▶ hotkeyFired ─▶ hotkey.Rou
    session.Manager.Start ─▶ goroutine:
       capture.start (job, the session's id) ─▶ capture.pcm ─▶ memory ─▶ Stream.Send (streaming services)
       Resolver (keys from the Keychain, providers.NewASR/NewLLM) and the dictionary, meanwhile
+      app enhancement, meanwhile: a browser's address (browser.url by the front's pid, 800 ms),
+         appctx.Resolve(rules, front, address, feature) ─▶ the snapshot's Scene (the overlay's label)
    Stop (a shortcut, the overlay, the menu bar) ─▶ capture.stop ─▶ Finish / upload ─▶ the text
-   compose.Build ─▶ one chat (8 s) ─▶ compose.Clean      (fails: the text as recognised, a warning)
-   deliver.Insert: textio.focus ─▶ textio.paste {targetPid}   (or the answer card)
+   compose.Build (+ the Scene layer, the glossary) ─▶ one chat (8 s) ─▶ compose.Clean      (fails: the text as recognised, a warning)
+   deliver.Insert: textio.focus ─▶ textio.paste {targetPid, press: the group's auto key}   (or the answer card)
 Translate: textio.selection {allowCopy: session.AllowCopy(app)} first ─ text ─▶ compose (no recording)
            ─ none ─▶ record and recognise as above ─▶ compose
 Rewrite:   textio.selection while recording; the instruction (+ the selection) ─▶ compose
@@ -147,6 +155,9 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `a.overlaySync()`, `a.ov` (mode, size), `overlayView`, `waveform`, `workingText(s)`, `kindIcon`, `kindTitle`, `cardNow`, `targetLanguageLabel`, `noticeActionLabel` | overlay.go | sessionlink.go; the feature pages and History reuse the texts |
 | `a.featurePage(c, feature)`, `a.fui(feature)` (each page's controls), `featureKind`, `hotkeyText`, `featureTitle` | transcribe_page.go | pages.go (Transcribe, Translate, Rewrite) |
 | `a.historyChanged()` | history_page.go | sessionlink.go, after an entry is kept or changed |
+| `a.aeBook` (`ruleBook`: the groups for sessions, goroutine-safe), `a.aeRules` + `a.setRules(r)`, `a.sceneConfig()`, `a.urlReads`, `a.frontChanged(app)`, `a.lastOther`, `a.previewApp()`, `a.refreshPreview(force)`, `a.previewMatch()` | appenhance.go | sessionlink.go (the manager's Scene), helperlink.go (app.activated), the App enhancement page |
+| `ruleSourceLabel(source)`, `sourceText(source, pattern)` | appenhance_page.go | History's details |
+| `a.loadDict()`, `a.openTerm(term)`, `chooseImportFile`, `chooseExportFile` (test seams) | dictionary_page.go | the Dictionary page |
 | `a.permSys` (`permission.System`), `a.recheckPermissions()`, `a.askPermission(which)` | permissions.go | Settings → Permissions, Diagnostics, onboarding (M6) |
 | `floatingWindowOptions(…)`, `showFloating(w, x, y)` (non-activating windows, mygo patch 0003), `activateTarget(pid)` (`macx.Activate`) | floating.go | the recording pill and the answer card (M3, M4) |
 | `a.toast(msg)`, `a.notify(…)`, `a.post(fn)`, `a.async(fn)` | app.go, shell_status.go | everyone |
@@ -159,7 +170,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 
 | What | Where |
 |---|---|
-| Database: history (+ `history_fts`), dictionary terms, documents (`settings:app`, `appctx:rules`, `notifications`) | `~/Library/Application Support/Auralink/auralink.db` (WAL; `auralink.db.bak-<v>` before each migration) |
+| Database: history (+ `history_fts`; `rule_source` since migration 2), dictionary terms, documents (`settings:app`, `appctx:rules`, `notifications`) | `~/Library/Application Support/Auralink/auralink.db` (WAL; `auralink.db.bak-<v>` before each migration) |
 | Recordings kept with history entries | `…/Auralink/audio/<id>.wav` (only with Settings → Privacy → Keep the recordings) |
 | Data folder location | `…/Auralink/location.json` when the user moved it (Settings → Storage); `move.json`, `reset.json` while a move or an erase waits for the next start |
 | Logs | `~/Library/Logs/Auralink/auralink.log` (app, rotated at 5 MB) and `helper.log` (the helper's stderr) |
@@ -202,6 +213,7 @@ Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services,
 | Mac checks | `scripts/mac.sh 'AURALINK_MAC=1 go test -run "TestMacKeychain|TestNative|TestActivate" -v ./internal/secrets ./internal/permission ./internal/macx'` | the Keychain, the permission calls, activation |
 | Packaged app | `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'` | the helper, then the app; signing during development: README |
 | Provider protocols | `go test ./internal/asr/... ./internal/llm ./internal/providers` | golden files of what each client sends (`testdata/*.golden`; `AURALINK_UPDATE_GOLDEN=1` rewrites them) against loopback servers replaying recorded answers |
+| App enhancement, dictionary | `go test ./internal/appctx ./internal/dict`; `go test -run 'TestScene' ./internal/session`; `go test -run 'TestAppEnhancement|TestDictionary|TestSessionAppEnhancement|TestSceneConfig' .`; `go test -run Dictionary ./internal/asr/...` | URL rules and the matching order (table tests); sessions in a URL group, a browser's group, an app's group, none, an address that times out, the auto key; the dictionary's hints in each service's request (golden files) |
 | Sessions | `go test ./internal/session ./internal/compose ./internal/deliver ./internal/hotkey`; `go test -run 'TestSession|TestOverlay|TestAnswer|TestTranslate|TestRewrite' .` | the state machine with in-process fakes (both kinds of speech service × the language model on, off, failing, timing out × cancel at each stage × a target that takes no text × late callbacks; Translate and Rewrite: a selection read, missing, failing, by ⌘C, the strict retry, the card by choice, by a target that takes no text and by length, the JSON answer, the text given at Start, follow-ups); the app over the fake helper process (`selection=`, `copy-selection=`, `readonly`, `paste-log=`) with loopback transcription, streaming and chat (streaming too) servers |
 | Real services | `AURALINK_E2E=1 go test -run 'TestE2E' -v . ./internal/asr/... ./internal/providers` | keys from the environment or `~/.config/auralink-dev/keys.env` (`DOUBAO_APP_ID`, `DOUBAO_ACCESS_TOKEN`, `DASHSCOPE_API_KEY`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`); speech sample `testdata/speech/sample-zh-en.wav`; each test skips without its key |
 | Text fit | `AURALINK_TEXTFIT_PROBE=1` / `AURALINK_TEXTFIT_AUDIT=1 go test -run 'TestTextFits|TestTranslationsFit' .` | meaningful on macOS (Core Text) |

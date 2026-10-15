@@ -14,8 +14,8 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 |---|---|---|---|---|
 | 1.1 | 会话状态分散在 `AppDelegate` 的 43 个 extension 里（`Voxt/App/*Flow.swift`、`Recording/`），取消和收尾由各个 Flow 各自处理 | 一个 `Session` 状态机（idle → recording → recognizing → composing → delivering → done/cancelled/failed）是会话唯一的所有者；所有异步回调都带 sessionID，迟到的一律丢弃 | 身份、取消、“只收尾一次”集中在一个地方，才能写表驱动测试；迟到回调不会污染下一次会话 | ✅ M3：`internal/session`（§5）；helper 的 job 通知也带 `job`，supervisor 丢弃已结束 job 的迟到通知 |
 | 1.2 | 语音翻译“先增强、再翻译”，两次 LLM 请求（`docs/Prompt.zh-CN.md`“语音翻译”一节） | 一次会话最多一次 LLM 请求：Prompt Composer 按“功能 × 能力 × 场景 × 词典 × 语言”拼出一个请求 | 少一次往返，延迟和费用减半；两段式在第二段会丢掉第一段的上下文 | ✅ M3 转录、M4 翻译和转写（`internal/compose`，§5、§6）；翻译只有“看起来没翻译”时才多一次严格重试 |
-| 1.3 | 命中应用增强分组时，用分组 prompt **整个替换**全局 prompt（`Core/EnhancementPromptResolver.swift`） | 分组 prompt 作为“场景层”**叠加**在基础清理之上 | 用户写的分组规则不完整时，基础清理（去口头语、标点）不会跟着丢 | ○ M5 |
-| 1.4 | 规则匹配、prompt 拼接和 AppKit 调用写在一起 | 匹配、组合、热键判定、文本后处理是纯 Go 函数，Linux 上做表驱动测试；录音、事件 tap、AX、AppleScript、粘贴放在窄接口后面，测试换成假实现 | 不需要 Mac 也能测完整链路 | ◐ M1：helper 进程和协议、假 helper（`helpertest`）、`permission.Fake`、in-process 的假 supervisor 都已就位 |
+| 1.3 | 命中应用增强分组时，用分组 prompt **整个替换**全局 prompt（`Core/EnhancementPromptResolver.swift`） | 分组 prompt 作为“场景层”**叠加**在基础清理之上 | 用户写的分组规则不完整时，基础清理（去口头语、标点）不会跟着丢 | ✅ M5（§7） |
+| 1.4 | 规则匹配、prompt 拼接和 AppKit 调用写在一起 | 匹配、组合、热键判定、文本后处理是纯 Go 函数，Linux 上做表驱动测试；录音、事件 tap、AX、粘贴放在窄接口后面，测试换成假实现 | 不需要 Mac 也能测完整链路 | ◐ M1：helper 进程和协议、假 helper（`helpertest`）、`permission.Fake`、in-process 的假 supervisor 都已就位 |
 | 1.5 | 设置保存在 UserDefaults 的几百个键里（`Voxt/` 中有 259 处 `UserDefaults`），还保留了旧版单热键之类的迁移代码 | 设置是一个带版本号的类型化文档（`internal/settings`，v1），存在 SQLite 的 `documents` 表里；不兼容、也不读取 Voxt 的键 | 从 v1 开始，没有历史包袱；整个文档可以快照、比较、重置 | ✅ M1 |
 | 1.6 | 读输入框用了 CDP（`App/TextInputCDP.swift`），还有截图、窗口上下文等链路 | 不做 CDP、截图和窗口上下文 | 已废弃或小众，权限和维护成本高（方案 §2“不做”） | ✅（不实现） |
 
@@ -24,10 +24,10 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | # | Voxt 怎么做 | Auralink 怎么做 | 为什么 | 状态 |
 |---|---|---|---|---|
 | 2.1 | SwiftUI 设置窗口和菜单栏 | AudioSmith 的外壳（Go + MyGo）：侧边栏、⌘K、设置对话框、状态栏、菜单栏图标 | actnow 家族统一 UI（RULES） | ✅ |
-| 2.2 | 录音、热键、粘贴都在 app 主进程里 | 录音、事件 tap、AppleScript 放在 Swift helper 子进程；Go 进程负责 UI、业务和网络 | MyGo 不能录音；事件 tap 的回调必须同步决定是否吞键；helper 崩溃不会带走 UI（方案 §4.1） | ✅ helper（`helper/`，Swift）和协议 1（`docs/helper-protocol.md`）已完成：录音、热键、textio、前台 App、浏览器 URL、权限 |
+| 2.2 | 录音、热键、粘贴都在 app 主进程里 | 录音、事件 tap、AX 读写放在 Swift helper 子进程；Go 进程负责 UI、业务和网络 | MyGo 不能录音；事件 tap 的回调必须同步决定是否吞键；helper 崩溃不会带走 UI（方案 §4.1） | ✅ helper（`helper/`，Swift）和协议 1（`docs/helper-protocol.md`）已完成：录音、热键、textio、前台 App、浏览器 URL、权限 |
 | 2.3 | 历史存在自己的数据库（`Core/VoxtDatabase.swift`） | SQLite（MyGo 插件）迁移 001：`history`（带 trigram FTS，覆盖原文、选中文本、口述指令、结果）、`dictionary_terms`、`documents`；迁移前自动备份，拒绝打开更新版本 app 的数据库 | 中文子串搜索可用；数据可以整体搬家（设置 → 存储） | ✅ |
 | 2.4 | API Key 存在钥匙串 | 钥匙串 service "Auralink"，账号 `asr.<id>`、`llm.<id>`（`internal/secrets`） | 同样的做法 | ✅ |
-| 2.5 | 权限说明分散在 onboarding 和各设置页 | 权限是设置对话框里的一节（设置 → 权限，在“通用”之后，`/settings/permissions`）：只有麦克风和辅助功能两行，各自说明用途并提供授权入口；首页“检查权限”、⌘K、深链 `auralink://permissions` 和旧路径 `/permissions` 都打开这一节（`permissions.go`、`shell.go` 的 `movedPaths`） | 只剩两项权限，看一次就走，不值得占侧边栏的位置；浏览器网址只用辅助功能（AX）读，不需要浏览器自动化授权（用户 10-15 决定） | ✅ 状态和授权都走 helper（`permissions.*`）；helper 没起来时由 app 自己读。helper 里的 `automation.*` 和 AppleScript 由 M5 删除 |
+| 2.5 | 权限说明分散在 onboarding 和各设置页 | 权限是设置对话框里的一节（设置 → 权限，在“通用”之后，`/settings/permissions`）：只有麦克风和辅助功能两行，各自说明用途并提供授权入口；首页“检查权限”、⌘K、深链 `auralink://permissions` 和旧路径 `/permissions` 都打开这一节（`permissions.go`、`shell.go` 的 `movedPaths`） | 只剩两项权限，看一次就走，不值得占侧边栏的位置；浏览器网址只用辅助功能（AX）读，不需要浏览器自动化授权（用户 10-15 决定） | ✅ 状态和授权都走 helper（`permissions.*`）；helper 没起来时由 app 自己读。M5 已删除 helper 的 `automation.*`、AppleScript 和 Apple Events 声明 |
 | 2.6 | 主窗口 820×560 | 主窗口默认 880×580，最小 720×480（`shell.go`）；窗口记住的尺寸优先，旧版本留下的大窗口不会被缩小；最小尺寸下侧边栏列表滚动，设置对话框左栏至少 240 宽，快捷键表可滚动 | 和 Voxt 相近的小窗口，比 AudioSmith 的 1100×720 更适合常驻的输入工具 | ✅ |
 
 ## 3. 远程模型（M2）
@@ -65,8 +65,8 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | 4.3 | 读选中文本：AX → 浏览器 AppleScript → 模拟 ⌘C；“空选区会复制整行”的 App 名单里不模拟（`SelectedTextSystemSelectionSupport.shouldAttemptSimulatedCopy`）；焦点元素在但没有选区范围时也不模拟 | AX 选中文本 → 选区范围取字符串 → WebKit/Chromium text marker；只有光标没有选区时直接返回空；其余情况由 Go 决定 `allowCopy`（M3 维护整行复制名单）；不用 AppleScript 读浏览器选区 | 策略留在 Go 便于测试；text marker 已覆盖浏览器里的选区（spike S4：Safari、Chrome、Cursor 都能读到），少一次自动化授权 | ✅ helper；名单 ✅ M4（`session.AllowCopy`，§6.2） |
 | 4.4 | Electron App 不做特殊处理 | App 切到前台时，helper 给 Electron App 设置 `AXManualAccessibility`，热键按下时 AX 树已经建好 | Chromium 只有被要求时才建 AX 树，而且要过一会儿才生效（spike S4：Cursor 第一次读为空） | ✅ |
 | 4.5 | 粘贴：写剪贴板、⌘V，按 changeCount 判断后恢复（`PasteboardTextWriter`） | 同样按 changeCount 只恢复自己写的内容；另外保存全部 item 和类型，写入时带 `org.nspasteboard.TransientType`，剪贴板管理器不记录；`targetPid` 不在前台就不粘贴；粘贴后可以按任意键（`press`） | 剪贴板里的图片、文件不会因为恢复而丢掉；不会粘贴到别的窗口 | ✅ |
-| 4.6 | 读 URL：直接跑 AppleScript，失败（-1743）后 5 分钟内不再尝试，再退回 AX（`BrowserContextResolver`）；每次都重新编译脚本 | 先不弹窗地探测自动化状态，只有 `granted` 才跑 AppleScript，否则直接用 AX；编译好的脚本缓存起来；浏览器切到前台时刷新状态 | 未授权时跑 AppleScript 会在用户不知情时弹窗；编译每次多 50–500 ms（spike S5） | ✅ |
-| 4.7 | 浏览器授权：权限设置页请求；浏览器没开时直接失败（`PermissionsSettingsView.requestBrowserAutomationPermission`，appNotRunning） | 不请求浏览器自动化授权：设置 → 权限里没有浏览器一栏 | 网址只用 AX 读，4.6 的 AppleScript 路径由 M5 一并删除；用户不必为每个浏览器授权（用户 10-15 决定） | ◐ UI 已删除；helper 的 `automation.request` 由 M5 删除 |
+| 4.6 | 读 URL：直接跑 AppleScript，失败（-1743）后 5 分钟内不再尝试，再退回 AX（`BrowserContextResolver`）；每次都重新编译脚本 | 只用 AX（`browser.url`）：先找焦点所在的最外层 `AXWebArea` 的 `AXURL`，再看窗口的 `AXDocument`，最后广度优先找第一个网页区域；按热键时的 pid 读，所有浏览器走同一条路径 | 不用 AppleScript 就不需要每个浏览器的自动化授权（用户 10-15 决定）；焦点所在的网页区域就是用户正在输入的标签页，分屏时也对（spike S5：Chrome 的 AXDocument 28–39 ms，Arc 的网页区域 24–92 ms） | ✅ M5；Safari 在前台时、Edge、Brave 待真机验证 |
+| 4.7 | 浏览器授权：权限设置页请求；浏览器没开时直接失败（`PermissionsSettingsView.requestBrowserAutomationPermission`，appNotRunning） | 不请求浏览器自动化授权：设置 → 权限里没有浏览器一栏；helper 没有 `automation.*`，Info.plist 没有 `NSAppleEventsUsageDescription`，helper 的签名不带 apple-events | 网址只用 AX 读（4.6），用户不必为每个浏览器授权（用户 10-15 决定） | ✅ M5 |
 | 4.8 | 浮窗是普通窗口，插入前重新激活目标 App | 录音浮窗用 MyGo 补丁 0003 的 `NonActivating`：点击不激活 Auralink，目标 App 保持焦点；需要打字的窗口才走重新激活（`macx.Activate`） | spike S3：非激活 panel 7/7 生效；重新激活会让焦点闪一下 | ✅ M3：录音浮窗和答案卡片（`overlay.go`）；Auralink 自己在前台时才 `macx.Activate` |
 
 ## 5. 会话与转录（M3）
@@ -88,11 +88,11 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | 5.13 | M3 只绑定转录和粘贴最近结果 | `liveFeatures`（sessionlink.go）；翻译、转写的热键在 M4 打开 | 没有实现的功能不应该吞掉 fn+⇧ | ✅ M4 三个功能都已绑定 |
 | 5.14 | Prompt 变量 `{{RAW_TRANSCRIPTION}}` 把识别文本拼进 system | 输入只在 user 消息里（`<input>…</input>`）；变量 `{{USER_MAIN_LANGUAGE}}`、`{{USER_OTHER_LANGUAGES}}`、`{{TARGET_LANGUAGE}}`、`{{APP_NAME}}` 在内置模板和用户规则里都能用，用户规则里的值不会再被展开 | 避免 prompt 注入，system 对同样的设置保持不变 | ✅ |
 | 5.15 | 增强 prompt 一份长文本（中文约 2000 字、英文约 5800 字），基础清理、结构整理、数字规范、示例都写在一起，翻译 prompt 又复制一遍 | 分层（`internal/compose`）：Role、Input policy、基础清理、结构整理（关闭时换成“保持原样”的 Form 层）、Task、用户规则、Scene（M5）、Glossary、Output contract；中英两套模板按主语言选，重新写过、去掉了示例（所有层合起来中文约 1100 字、英文约 2700 字） | 每层只说一件事，能单独开关、单独测（64 个 golden）；示例占篇幅又容易被模型照抄 | ✅ |
-| 5.16 | 词典术语作为 glossary 追加，命中时才加 | 启用的术语都参与：在识别文本里出现（拼写或别名，忽略大小写和空格）的排在前面，最多 60 条、2000 字；同时作为 ASR 热词 | 识别错的词本来就不一定“出现”在文本里；数量有上限 | ✅ |
+| 5.16 | 词典术语作为 glossary 追加，命中时才加 | 词典不超过 30 条时启用的术语全部参与，在识别文本里出现（拼写或别名，忽略大小写和空格）的排在前面；超过 30 条时只放出现了的；最多 60 条、2000 字。同时作为 ASR 热词（§7.9） | 小词典里识别错的词不一定“出现”在文本里，全放更稳；大词典全放只会多花 token、分散模型注意力 | ✅ M5 调整 |
 | 5.17 | 模型输出原样使用 | `compose.Clean`：去掉模型回显的 `<input>` 标签，去掉整段包起来的引号（输入本身被引号包起来时不去） | 常见的模型小毛病 | ✅ |
 | 5.18 | 录音浮窗：SwiftUI 波形和多种显示模式 | `overlay.go`：非激活浮窗，固定深色；recording（模式图标、16 根 bar、计时、最后 3 行实时文字、停止、×）、working（识别中 / 整理中 / 插入中）、插入后打勾 0.7 s、notice（4 s 自动隐藏，带“打开模型服务 / 打开权限 / 重启辅助进程”）、答案卡片；位置、边距、透明度、圆角读 `settings.Overlay` | 方案 §3.2；“试一试”的会话只显示在转录页，不弹浮窗 | ✅ |
 | 5.19 | 菜单栏“开始转录” | 菜单栏的“开始转录”在录音时变成“停止转录”；目标是最近一次 `app.activated` 的 App（helper 就绪时先问一次 `app.frontmost`） | 点菜单栏图标不会激活 Auralink，前台 App 还是用户要输入的那个 | ✅ |
-| 5.20 | 历史是一个列表，详情窗口另开 | 历史页按功能分 tab（转录、翻译、转写），FTS 搜索；详情侧栏里有结果、原文、交付方式（插入 / 卡片 / 复制）、服务和模型、各阶段耗时、命中规则（M5）；失败的会话也记一条（有录音时可以在访达中找到）；删除要确认 | 排查“为什么慢、用了哪个模型、为什么没插入”时一眼能看到 | ✅（重新处理 ○ 以后） |
+| 5.20 | 历史是一个列表，详情窗口另开 | 历史页按功能分 tab（转录、翻译、转写），FTS 搜索；详情侧栏里有结果、原文、交付方式（插入 / 卡片 / 复制）、服务和模型、各阶段耗时、命中规则（分组名和命中方式：网站 / 浏览器 / 应用）；失败的会话也记一条（有录音时可以在访达中找到）；删除要确认 | 排查“为什么慢、用了哪个模型、为什么没插入”时一眼能看到 | ✅（重新处理 ○ 以后） |
 | 5.21 | 开发期手动检查 helper 用 `AURALINK_TRY`（M1 时的临时面板） | 删除，正式链路替代 | 不留调试入口 | ✅ |
 
 ## 6. 翻译与转写（M4）
@@ -115,13 +115,26 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | 6.14 | 历史记录原文、选中文本、口述指令、目标语言 | 同样（`SourceText`、`PromptText`、`TargetLang`），转写的口述指令只记在“指令”里；列表第二行显示“→ 目标语言”，详情里翻译有“目标语言”一行 | — | ✅ |
 | 6.15 | 翻译和转写的设置页各不相同 | 三个功能页共用一套结构（`transcribe_page.go` 的 `featurePage`）：快捷键、服务、各自的设置（翻译：目标语言、基础清理、在卡片中显示结果；转写：清理口述指令、较长回答放进卡片）、你的规则（含完整提示词预览）、试一试 | 一套代码，三页一致 | ✅ |
 
-## 7. 待补（按里程碑）
+## 7. 应用增强与词典（M5）
+
+| # | Voxt 怎么做 | Auralink 怎么做 | 为什么 | 状态 |
+|---|---|---|---|---|
+| 7.1 | 分组、App 列表、URL 列表分开存在 UserDefaults，分组按 id 引用 URL（`AppBranchGroup.urlPatternIDs`） | 一个文档 `appctx:rules`（documents 表）：分组含 id、名称、启用、场景 prompt、App 成员（bundleId + 显示名）、URL 规则、插入后按键、作用于哪些功能（`internal/appctx`） | 一个文档整体读写、整体校验；没有悬空引用 | ✅ |
+| 7.2 | URL 规范化：小写、去掉 http(s)://，没有路径时补 `/*`，以 `/` 结尾补 `*`；匹配时把 `*` 换成 `.*` 的正则（`AppBranchURLPatternService`） | 同样的规范化，另外去掉 `www.`、端口、query 和 fragment（规则里的 `?` 之后变成 `*`）；`*.example.com` 也匹配 `example.com` 本身；`*` 用逐字符的通配匹配，不编译正则；规则要有站点（含 `.` 或 localhost），不能有空格，只认 http/https | 用户写 `github.com` 时期望 `www.github.com` 也算；`*.notion.so` 期望覆盖根域名；不用正则就不存在转义问题 | ✅ |
+| 7.3 | 浏览器在前台时：先按分组顺序找第一个命中的 URL 规则；没有命中就直接用全局 prompt，不再看 App 分组；URL 读不到也直接用全局 | URL 分组（**最具体的规则优先**：去掉 `*` 后最长的；一样长时排在前面的分组优先）→ **浏览器 App 本身所在的分组** → App 分组 → 全局。读不到 URL 时按浏览器 App 匹配 | `github.com/acme/*` 应该赢过 `github.com`，不该取决于分组顺序；用户把 Chrome 放进“工作”分组时，没写 URL 规则的网站也应按“工作”处理 | ✅ |
+| 7.4 | 每个分组对所有功能生效 | 每个分组有“作用于”：转录、转写默认开，翻译默认关；不作用于当前功能的分组在匹配时当它不存在（继续往下找） | 场景的语气很少适合译文；转写里场景只用来理解口述指令 | ✅ 转录；翻译、转写由 M4 在组合时调用（`run.composeScene()`） |
+| 7.5 | 停止录音时读取前台 App 和 URL | **按下热键时**取前台 App（`hotkey.event` 的 `front`），浏览器的话立刻在后台用这个 pid 调 `browser.url`（800 ms 超时）；匹配结果一出来就放进快照（浮窗显示标签），组合时直接拿；超时就按浏览器 App 匹配 | 用户中途切走窗口不影响匹配；读 URL 和录音并行，不增加延迟 | ✅ |
+| 7.6 | 命中分组时用分组 prompt 替换全局 prompt，`{{APP_NAME}}` 只在某些模板里有 | 组合时把分组 prompt 放进 Scene 层（“文字会插入到 {{APP_NAME}}，用户为这个场景写的规则：…”），叠加在基础清理和用户规则之后；`{{APP_NAME}}` 是按热键时前台 App 的名字 | 见 1.3 | ✅ |
+| 7.7 | 自动按回车：分组可选“插入后按 Return” | 插入后按键：无、Return、⌘Return、⇧Return、⌃Return、⌥Return 或自定义（一个键加修饰键）；由 `textio.paste` 的 `press` 在粘贴后 120 ms 按下；结果进了答案卡片时不按 | 有的聊天软件用 ⌘Return 发送；卡片里的结果是用户手动插入的，不应该替他发送 | ✅ |
+| 7.8 | 设置页列出分组；没有实时预览 | 应用增强页：总开关、左侧分组列表（窄窗口时变成抽屉）、右侧分组详情；顶部“匹配预览”显示当前前台 App（Auralink 自己在前台时显示上一个）、读到的网址、会命中哪个分组和命中方式，可以一键把这个 App 或网站加入当前分组；“浏览器”对话框列出内置和自定义浏览器，以及上次按快捷键时有没有读到网址（读不到的标“只能按应用匹配”） | 规则对不对，一眼就能看出来；某个浏览器读不到网址时用户知道为什么没命中 | ✅ |
+| 7.9 | 词典：ASR 提示按服务商分别处理（`DoubaoDictionaryPayloadBuilder` 最多 5000 个热词外加 correct_words），LLM 术语只在命中时加入 | `internal/dict`：启用的词条去重（忽略大小写），**最近修改的排在前面**，不含别名（别名是识别错的写法）；OpenAI 兼容接在 ASR 提示词之后放进 `prompt`（800 字节）、豆包放进 `corpus.context` 的热词（按文档限额截断）、阿里百炼 fun-asr 放进 `input.context`、qwen-audio 放进 `parameters.vocabulary`（三家都有 golden 请求测试）；LLM 术语表见 5.16 | 服务只收有限数量时，最近加的词更可能是用户正在用的；把别名当热词会让识别更偏向错的写法 | ✅ |
+| 7.10 | 词典页：分类、建议、学习、一键导入 | 0.1 只手动维护：增删改、别名、备注（不发给任何地方）、启用开关、搜索（词条、别名、备注）、导入导出 CSV（`term,aliases,note,enabled`，别名用 `;` 分隔，带 BOM 方便 Excel）和文本（每行“词条 = 别名, 别名”，`#` 注释）；导入时同一个词条（忽略大小写）合并别名、补备注 | 自动学习放到以后（方案 D4）；CSV 能和表格软件互通 | ✅ |
+
+## 8. 待补（按里程碑）
 
 每节在对应里程碑落地时补上。下面先列出方案里已经确定的差异。
 
 | 模块 | Voxt 怎么做 | Auralink 计划怎么做 | 为什么 | 里程碑 |
 |---|---|---|---|---|
-| 应用增强：匹配顺序 | URL 分组 → 浏览器没有命中任何 URL 时直接回到全局（`EnhancementPromptResolver.resolve`） | URL 分组 → **浏览器 App 本身所在的分组** → App 分组 → 全局 | 用户把 Chrome 放进“工作”分组时，没写 URL 规则的网站也应该按“工作”处理 | M5 |
-| 应用增强：上下文快照 | 停止录音时读取前台 App 和 URL | **按下热键时**记下前台 App（helper 的 `hotkey.event` 自带 `front`），同时在后台开始读 URL | AppleScript 要 50–300 ms；用户中途切走窗口也不影响匹配 | ◐ M3：前台 App 作为插入目标；URL M5 |
 | 录音设备 | 1.2 s 看门狗，指定设备失败时回到默认设备 | 保留，放在 helper 的 `capture.start` 里，`capture.started` 写明是否回退（`fellBack`），见 §4 | 蓝牙耳机常常没有声音 | ✅ helper 和会话（设备顺序来自 `Audio.Devices`） |
 | 剪贴板恢复 | 用 changeCount 判断剪贴板是不是自己写的 | 保留（helper 的 `textio.paste`，§4.5） | 避免覆盖用户在这期间复制的内容 | ✅ |
