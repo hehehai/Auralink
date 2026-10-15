@@ -458,7 +458,10 @@ func (a *app) aeApps(c *ui.Context, g appctx.Group) {
 	t := c.Theme()
 	k := tok(t)
 	p := &a.aePage
-	sectionTitleTip(c, i18n.T("Apps"), i18n.T("Dictating in one of these apps uses the group. A browser here covers the websites no website rule of any group matches."))
+	if sectionTitleAdd(c, "ae-add-app", i18n.T("Apps"), i18n.T("Dictating in one of these apps uses the group. A browser here covers the websites no website rule of any group matches."), i18n.T("Add apps…")) {
+		p.appsOpen, p.appsQuery, p.bundleIn = true, "", ""
+		a.loadApps()
+	}
 	card(c.Key("ae-apps")).Gap(px(t, sp1)).Children(func() {
 		if len(g.Apps) == 0 {
 			caption(c, i18n.T("No apps yet."))
@@ -485,12 +488,6 @@ func (a *app) aeApps(c *ui.Context, g appctx.Group) {
 				}
 			})
 		}
-		ui.Row(c).Children(func() {
-			if ghostIconButton(c.Key("ae-add-app"), icons.Add, i18n.T("Add apps…")).Clicked() {
-				p.appsOpen, p.appsQuery, p.bundleIn = true, "", ""
-				a.loadApps()
-			}
-		})
 	})
 }
 

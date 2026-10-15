@@ -480,6 +480,32 @@ func sectionTitleTip(c *ui.Context, title, tip string) {
 	})
 }
 
+// sectionTitleAdd is sectionTitleTip with a small Add button on the
+// right of its row, for a card of items below it (shortcuts, apps), so
+// the card holds only its items. It reports a click.
+//
+// The row is as wide as the card. As the title starts on the card's left
+// edge, the button's label ends on its right edge: the button's right
+// padding and hairline hang past it (its hover face shows in the page's
+// margin). Its height past the ⓘ's 18 hangs out above and below, so the
+// row stands as tall as sectionTitleTip's and the title does not move.
+func sectionTitleAdd(c *ui.Context, key, title, tip, add string) bool {
+	t := c.Theme()
+	clicked := false
+	ui.Row(c).Gap(px(t, 6)).AlignItems(ui.Center).Margin(px(t, sp2), 0, 0, 0).Children(func() {
+		sectionTitleText(c, title).SingleLine().Shrink(0)
+		infoTip(c, tip).Shrink(0)
+		ui.Spacer(c)
+		b := quietButton(c.Key(key), icons.Add, add).Margin(px(t, -3.5), -titleAddHang(t), px(t, -3.5), 0)
+		clicked = b.Clicked()
+	})
+	return clicked
+}
+
+// titleAddHang is how far sectionTitleAdd's button hangs past the card's
+// right edge: quietButton's right padding and its hairline.
+func titleAddHang(t *ui.Theme) float32 { return px(t, 10) + 1 }
+
 func (a *app) generalSettings(c *ui.Context) {
 	t := c.Theme()
 	sectionTitle(c, i18n.T("Languages"))

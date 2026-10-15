@@ -456,7 +456,10 @@ func (a *app) featureShortcuts(c *ui.Context, feature string) {
 	p := featurePrefix(feature)
 	u := a.fui(feature)
 	a.featureSync(feature)
-	sectionTitleTip(c, i18n.T("Shortcuts"), i18n.T("Tap: press to start, press again to stop. Double tap: press twice quickly. Long press: record while you hold the keys. Escape cancels."))
+	if sectionTitleAdd(c, p+"-key-add", i18n.T("Shortcuts"), i18n.T("Tap: press to start, press again to stop. Double tap: press twice quickly. Long press: record while you hold the keys. Escape cancels."), i18n.T("Add a shortcut")) {
+		h := newHotkey(a.prefs.Features)
+		a.setHotkeys(feature, true, func(hs []settings.Hotkey) []settings.Hotkey { return append(hs, h) })
+	}
 	if !a.hotkeys.Installed {
 		notice(c, p+"-no-tap", noticeWarn,
 			i18n.T("Without Accessibility only plain shortcuts work (⌃⌥⇧⌘ with a key); fn, a single modifier, double taps and long presses need it."),
@@ -485,12 +488,6 @@ func (a *app) featureShortcuts(c *ui.Context, feature string) {
 			}
 			a.keyRowView(c, feature, i, hs[i], problems[i])
 		}
-		ui.Row(c).Children(func() {
-			if ghostIconButton(c.Key(p+"-key-add"), icons.Add, i18n.T("Add a shortcut")).Clicked() {
-				h := newHotkey(a.prefs.Features)
-				a.setHotkeys(feature, true, func(hs []settings.Hotkey) []settings.Hotkey { return append(hs, h) })
-			}
-		})
 	})
 	switch feature {
 	case hotkey.Transcribe:

@@ -14,6 +14,7 @@ import (
 	"github.com/hehehai/Auralink/internal/asr"
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/hotkey"
+	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
@@ -437,6 +438,55 @@ func TestTranscribeFullPage(t *testing.T) {
 			}
 			png.Encode(f, tt.Image())
 			f.Close()
+		}
+	}
+}
+
+// TestSectionTitleAdd: "Add a shortcut" and App enhancement's "Add apps…"
+// sit on their section title's line, on its centre line, with their
+// label ending on the card's right edge (its last control + the card's
+// padding and border), at the default and the smallest window, in English
+// and Chinese.
+func TestSectionTitleAdd(t *testing.T) {
+	for _, size := range [][2]int{{windowWidth, windowHeight}, {windowMinWidth, windowMinHeight}} {
+		for _, lang := range []string{"en", "zh-Hans"} {
+			a, _, tt := newTestApp(t)
+			tt.SetSize(size[0], size[1])
+			if lang != "en" {
+				a.updateSettings(func(s *settings.Settings) { s.General.Language = lang })
+			}
+			check := func(title, add, last string) {
+				t.Helper()
+				frames(tt)
+				tr, ok1 := tt.Find(i18n.T(title))
+				br, ok2 := tt.Find(i18n.T(add))
+				lr, ok3 := tt.Find(last)
+				if !ok1 || !ok2 || !ok3 {
+					t.Fatalf("%v %s: %q %v, %q %v, %q %v", size, lang, title, ok1, add, ok2, last, ok3)
+				}
+				if d := (tr.Y + tr.H/2) - (br.Y + br.H/2); d < -0.5 || d > 0.5 {
+					t.Errorf("%v %s: %q is %.1f off %q's centre line", size, lang, add, d, title)
+				}
+				if tr.H > 20 {
+					t.Errorf("%v %s: %q wraps (%.1f high)", size, lang, title, tr.H)
+				}
+				edge := lr.X + lr.W + float32(sp4) + 1
+				if d := br.X + br.W - titleAddHang(&ui.Theme{FontSize: baseFontSize}) - edge; d < -0.5 || d > 0.5 {
+					t.Errorf("%v %s: %q ends %.1f from the card's edge", size, lang, add, d)
+				}
+				if br.X+br.W > float32(size[0]) || br.X < tr.X+tr.W {
+					t.Errorf("%v %s: %q at %+v, title %+v", size, lang, add, br, tr)
+				}
+			}
+			for _, p := range []string{"/transcribe", "/translate", "/rewrite"} {
+				a.navigate(p)
+				check("Shortcuts", "Add a shortcut", i18n.T("Remove shortcut %d", 1))
+			}
+			a.setRules(sampleRules())
+			a.navigate("/app-enhancement")
+			a.aePage.sel = "g-chat"
+			tt.SetSize(size[0], 1600) // the Apps section, below the prompt
+			check("Apps", "Add apps…", i18n.T("Remove %s", "Slack"))
 		}
 	}
 }
