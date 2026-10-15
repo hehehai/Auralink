@@ -89,7 +89,7 @@ var nonText = map[string]bool{
 	"AXButton": true, "AXCheckBox": true, "AXRadioButton": true, "AXPopUpButton": true, "AXMenuButton": true,
 	"AXMenuItem": true, "AXMenuBarItem": true, "AXImage": true, "AXList": true, "AXOutline": true, "AXTable": true,
 	"AXRow": true, "AXCell": true, "AXSlider": true, "AXTabGroup": true, "AXToolbar": true, "AXDisclosureTriangle": true,
-	"AXIncrementor": true, "AXColorWell": true, "AXSplitter": true,
+	"AXIncrementor": true, "AXColorWell": true, "AXSplitter": true, "AXStaticText": true, "AXLink": true, "AXHeading": true,
 }
 
 // Writable says whether a focused element takes text: an editable one,
