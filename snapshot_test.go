@@ -122,6 +122,9 @@ func TestSnapshots(t *testing.T) {
 		a.navigate("/home")
 		save("rail")
 		a.setRail(false)
+
+		// The recording overlay, state by state (overlay_test.go).
+		overlayShots(t, a, out, suffix)
 	}
 }
 

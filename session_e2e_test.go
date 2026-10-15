@@ -393,7 +393,7 @@ func TestSessionEscapeAndFailures(t *testing.T) {
 		if p := a.pasted(); len(p) != 1 || p[0].Text != "hello there" {
 			t.Errorf("pasted %+v", p)
 		}
-		if a.notice == nil || !a.notice.warn || a.ov.mode != ovNotice || !strings.HasPrefix(a.notice.text, "Inserted without clean-up") {
+		if a.notice == nil || !a.notice.warn || a.ov.mode != ovNotice || a.notice.text != "Inserted as recognised: the language model failed." {
 			t.Errorf("notice %+v, overlay %s", a.notice, a.ov.mode)
 		}
 		if es := a.history(); len(es) != 1 || es[0].Error == "" || es[0].Status != store.StatusDone {

@@ -57,7 +57,7 @@ const (
 	ovPillH     = 52
 	ovLiveW     = 380
 	ovLiveH     = 120
-	ovNoticeW   = 380
+	ovNoticeW   = 480
 	ovAnswerW   = 560
 	ovAnswerH   = 340
 	ovDoneTime  = 700 * time.Millisecond

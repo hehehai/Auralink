@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -237,8 +238,12 @@ func sessionProblemText(p *session.Problem) (text, more, action string) {
 		msg, more := providerErrorText(p.Err)
 		return i18n.T("Speech recognition failed: %s", msg), more, actionProviders
 	case session.ProblemLLM:
-		msg, more := providerErrorText(p.Err)
-		return i18n.T("Inserted without clean-up: %s", msg), more, actionNone
+		_, more := providerErrorText(p.Err)
+		var le *llm.Error
+		if errors.Is(p.Err, context.DeadlineExceeded) || errors.As(p.Err, &le) && le.Code == llm.CodeTimeout {
+			return i18n.T("Inserted as recognised: the language model did not answer in time."), more, actionNone
+		}
+		return i18n.T("Inserted as recognised: the language model failed."), more, actionNone
 	case session.ProblemNoSpeech:
 		return i18n.T("Nothing was heard."), "", actionNone
 	case session.ProblemUnsupported:
