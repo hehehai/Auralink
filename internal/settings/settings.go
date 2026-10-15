@@ -27,7 +27,7 @@ import (
 
 // Version is the schema version Defaults writes. Bump it when a field's
 // meaning changes, and migrate older documents in Migrate.
-const Version = 2
+const Version = 3
 
 // Settings is the whole document.
 type Settings struct {
@@ -161,9 +161,14 @@ type Overlay struct {
 	ShowTime bool `json:"showTime,omitempty"`
 }
 
-// DefaultOpacity is the overlay face's: translucent over the blurred
-// material behind it (version 2; version 1's was 1).
-const DefaultOpacity = 0.72
+// DefaultOpacity and DefaultRadius are the overlay face's: translucent
+// over the blurred material behind it, its corners round (version 3,
+// near Voxt's 82 % and 24; version 2's were 0.72 and 16, version 1's 1
+// and 16).
+const (
+	DefaultOpacity = 0.8
+	DefaultRadius  = 24
+)
 
 // Providers lists the speech and language services the user set up on
 // the Model services page, in the order they were added. A preset nobody
@@ -305,7 +310,7 @@ func Defaults() Settings {
 		Appearance: Appearance{Theme: "system", Scale: 1},
 		Privacy:    Privacy{KeepHistory: true},
 		Audio:      Audio{Sounds: true},
-		Overlay:    Overlay{Position: "bottom", Opacity: DefaultOpacity, Radius: 16, Margin: 96},
+		Overlay:    Overlay{Position: "bottom", Opacity: DefaultOpacity, Radius: DefaultRadius, Margin: 96},
 		Features: Features{
 			Transcribe: Transcribe{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn", Trigger: TriggerTap}}}, Enhance: true, Cleanup: true},
 			Translate:  Translate{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn+Shift", Trigger: TriggerTap}}}, Cleanup: true},
@@ -327,10 +332,15 @@ func Migrate(data []byte) (Settings, error) {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return Defaults(), err
 	}
-	if s.Version < 2 && s.Overlay.Opacity == 1 {
-		// Version 2: the overlay is translucent over a blur; 1 was version
-		// 1's default, which nobody could tell from a choice.
+	// An older version's default, which nobody could tell from a choice,
+	// becomes this one's; a value the user chose stays.
+	if s.Version < 2 && s.Overlay.Opacity == 1 || s.Version < 3 && s.Overlay.Opacity == 0.72 {
+		// Version 2: the overlay is translucent over a blur (1 was version
+		// 1's default); version 3: 0.8 (version 2's was 0.72).
 		s.Overlay.Opacity = DefaultOpacity
+	}
+	if s.Version < 3 && s.Overlay.Radius == 16 {
+		s.Overlay.Radius = DefaultRadius // version 3: rounder, as Voxt's
 	}
 	s.Version = Version
 	return normalize(s), nil

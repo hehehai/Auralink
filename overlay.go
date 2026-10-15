@@ -9,8 +9,10 @@ package main
 //	recording  150×48: the feature's icon and a 16-bar waveform; the
 //	           recording's time when Overlay.ShowTime says so; the matched
 //	           app enhancement group, short ("Team chat"); with live text
-//	           (a streaming service's, the answer as the model writes it)
-//	           320×96, its last two lines under them
+//	           (a streaming service's, the text being cleaned up, the
+//	           answer as the model writes it) 72 high, one line of it under
+//	           them, as wide as it takes up to 340, then scrolled to its
+//	           newest words, the start fading out at the left edge (Voxt's)
 //	working    the same pill with a five-dot loader in the waveform's
 //	           place: recognising, cleaning up, translating, writing,
 //	           inserting
@@ -88,13 +90,18 @@ const (
 	ovPillW     = 2*ovPillPadX + ovIconSize + ovGap + ovWaveW
 	ovTimeW     = 8 + 34 // the time, when it shows
 	ovSceneW    = 8 + 88 // the group's name, when one matched
-	ovLiveW     = 320    // with live text…
-	ovLiveH     = 96     // …two lines of it
+	ovLiveMaxW  = 340 // with live text, at most this wide…
+	ovLiveH     = 72  // …and this high: one line of it under the pill's row
+	ovLiveTop   = 10  // the row's place in it: (ovPillH − ovWaveH)/2 as in the pill
+	ovLiveGap   = 4   // between the row and the line
+	ovLineH     = 18  // the line
+	ovLiveSize  = 13  // its font size
+	ovLiveStep  = 16  // the face grows by this much at a time
+	ovFadeW     = 22  // the line's left edge fades out over this, scrolled
 	ovNoticeW   = 200    // a notice's least width…
 	ovNoticeW2  = 420    // …and most
 	ovAnswerW   = 560
 	ovAnswerH   = 340
-	ovLiveLines = 2
 	// ovFrame paces the waveform and the loader (Voxt's 20 per second);
 	// ovFadeStep the fade after an insert (two steps, then hidden).
 	ovFrame    = 50 * time.Millisecond
@@ -110,22 +117,50 @@ type overlayState struct {
 		visible bool
 		mode    overlayMode
 		w, h    int // the face's size
+		// frame is the window's, in screen DIPs, as last given to it (or
+		// as it would be in tests): the face and the shadow's margin
+		// around it, its anchor edge (Overlay.Position) Overlay.Margin
+		// from the work area's, centred. Hidden, the window keeps it, so
+		// the next showing compares with it (10-15: a pill that had grown
+		// with live text came back grown and empty in the next session).
+		frame mygo.Rectangle
+		// live is the session whose live text widened the face, and to
+		// what: within it the face only grows (a revised or restarted
+		// text does not make it jump back), the next starts as a pill.
+		live struct {
+			id string
+			w  int
+		}
 		// area is the work area of the display it shows on, chosen when
 		// it appears (the display under the pointer); a resize stays there.
 		area mygo.Rectangle
 		// style is the material's shape last given to the window.
 		style mygo.VibrancyStyle
+		// passThrough: the window lets the pointer through (recording and
+		// working: nothing in it takes a click).
+		passThrough bool
+		// reveal: the window was just shown transparent; the next build of
+		// its view (the new face's) makes it opaque, so that no frame of
+		// the last face shows.
+		reveal bool
 		// fade numbers the fades out: showing again, or another fade,
 		// makes the steps of an older one do nothing.
 		fade int
 		// epoch is when the overlay first showed: the waveform's and the
 		// loader's motion count from it.
 		epoch time.Time
+		// native: the overlay makes its window without the main one (the
+		// overlay check, overlay_check.go).
+		native bool
 	}
 	// laterHook replaces the timers of later in tests (nil: none run
 	// without a window).
 	laterHook func(time.Duration, func())
 }
+
+// overlayNative says whether the overlay has a real window: in the app,
+// not in tests.
+func (a *app) overlayNative() bool { return a.win != nil || a.ov.native }
 
 // later runs fn on the main thread after d: the notice's and the fade's
 // timers. Without a window (tests) only laterHook runs them.
@@ -134,7 +169,7 @@ func (a *app) later(d time.Duration, fn func()) {
 		a.laterHook(d, fn)
 		return
 	}
-	if a.win == nil {
+	if !a.overlayNative() {
 		return
 	}
 	time.AfterFunc(d, func() { a.post(fn) })
@@ -177,12 +212,25 @@ func (a *app) overlaySize(mode overlayMode) (int, int) {
 		if sceneShort(a.sess) != "" {
 			w += ovSceneW
 		}
-		if liveText(a.sess) != "" {
-			return max(w, ovLiveW), ovLiveH
+		if text := liveText(a.sess); text != "" {
+			w = liveWidth(w, text)
+			if a.ov.live.id == a.sess.ID {
+				w = max(w, a.ov.live.w)
+			}
+			return w, ovLiveH
 		}
 		return w, ovPillH
 	}
 	return ovPillW, ovPillH
+}
+
+// liveWidth is the face's width with live text: the pill's row (base),
+// widened to the text as textWidth guesses it, in steps of ovLiveStep,
+// at most ovLiveMaxW.
+func liveWidth(base int, text string) int {
+	w := textWidth(text, ovLiveSize) + 2*ovPillPadX + 2
+	w = (w + ovLiveStep - 1) / ovLiveStep * ovLiveStep
+	return max(base, min(w, ovLiveMaxW))
 }
 
 // noticeWidth fits a notice's line: its text (as wide as it may be
@@ -204,7 +252,7 @@ func textWidth(text string, size float64) int {
 	w := 0.0
 	for _, r := range text {
 		switch {
-		case unicode.Is(unicode.Han, r) || unicode.In(r, unicode.Hiragana, unicode.Katakana, unicode.Hangul) || r >= 0xFF00 && r <= 0xFFEF || r >= 0x3000 && r <= 0x303F:
+		case wideRune(r):
 			w += size
 		case r == ' ' || r == 'i' || r == 'l' || r == '.' || r == ',' || r == ':':
 			w += 0.32 * size
@@ -215,53 +263,122 @@ func textWidth(text string, size float64) int {
 	return int(math.Ceil(w))
 }
 
+// wideRune says whether r is a wide (CJK) letter: as wide as the font
+// is high.
+func wideRune(r rune) bool {
+	return unicode.Is(unicode.Han, r) || unicode.In(r, unicode.Hiragana, unicode.Katakana, unicode.Hangul) ||
+		r >= 0xFF00 && r <= 0xFFEF || r >= 0x3000 && r <= 0x303F
+}
+
+// ovTestArea is the work area the overlay takes without a display
+// (tests): a 1440 × 900 one under a menu bar.
+var ovTestArea = mygo.Rectangle{X: 0, Y: 25, Width: 1440, Height: 875}
+
+// overlayArea is the work area of the display under the pointer.
+func (a *app) overlayArea() mygo.Rectangle {
+	if !a.overlayNative() {
+		return ovTestArea
+	}
+	return mygo.Screen.DisplayNearestPoint(mygo.Screen.CursorScreenPoint()).WorkArea
+}
+
 // overlaySync shows, resizes or hides the overlay after a change of the
 // session, the notice or the answer card. Main thread.
+//
+// The window is as large as the face (and the shadow's margin), so that
+// the desktop around it takes clicks; it grows and shrinks about its
+// anchor (the bottom edge and the centre, or the top edge), the size and
+// the place set in one move: the material (patch 0004) follows it in the
+// same Core Animation transaction, and MyGo draws the new size's frame
+// before it commits (darwin/surface.go). The view state is the new face's
+// before the window changes, so that frame is the new face. A window that
+// shows again is first transparent, until its view built the new face
+// (reveal): no frame of the last face shows.
 func (a *app) overlaySync() {
 	mode := a.overlayModeNow()
-	w, h := a.overlaySize(mode)
 	was := a.ov.shown
-	resized := w != a.ov.w || h != a.ov.h
-	a.ov.mode, a.ov.w, a.ov.h = mode, w, h
 	if mode == ovHidden {
-		a.ov.shown = false
+		// The face stays as it was while it fades; the next showing sizes
+		// it again.
+		a.ov.mode, a.ov.shown = mode, false
+		a.ov.live.id, a.ov.live.w = "", 0
 		if was {
 			a.overlayFadeOut()
 		}
 		return
 	}
+	w, h := a.overlaySize(mode)
+	if h == ovLiveH && mode != ovAnswer {
+		a.ov.live.id, a.ov.live.w = a.sess.ID, w
+	} else if a.ov.live.id != a.sess.ID {
+		a.ov.live.id, a.ov.live.w = "", 0
+	}
+	if !was {
+		a.ov.area = a.overlayArea()
+	}
+	frame := overlayFrame(a.ov.area, a.prefs.Overlay, w, h)
+	moved := frame != a.ov.frame
+	a.ov.mode, a.ov.w, a.ov.h, a.ov.frame = mode, w, h, frame
 	a.ov.shown = true
 	a.ov.fade++ // a fade on its way stops where it is
 	a.ov.visible = true
 	if a.ov.epoch.IsZero() {
 		a.ov.epoch = time.Now()
 	}
-	if a.win == nil {
+	pass := mode == ovRecording || mode == ovWorking
+	if !a.overlayNative() {
+		a.ov.passThrough = pass
 		return // tests: the state is enough
 	}
-	winW, winH := w+2*ovPad, h+2*ovPad
 	if a.ov.win == nil {
-		opts := floatingWindowOptions("Auralink", winW, winH, ui.View(a.overlayView))
+		opts := floatingWindowOptions("Auralink", frame.Width, frame.Height, ui.View(a.overlayView))
 		opts.Vibrancy = mygo.VibrancyHUD
 		a.ov.win = mygo.NewWindow(opts)
+		a.ov.passThrough = false
 	}
-	if !was || resized {
-		if !was {
-			a.ov.area = mygo.Screen.DisplayNearestPoint(mygo.Screen.CursorScreenPoint()).WorkArea
-		}
-		x, y := overlayPlace(a.ov.area, a.prefs.Overlay, winW, winH)
-		if resized {
-			a.ov.win.SetContentSize(winW, winH)
-		}
-		a.syncOverlayMaterial()
-		if was {
-			a.ov.win.SetPosition(x, y)
-		} else {
-			a.ov.win.SetOpacity(1)
-			showFloating(a.ov.win, x, y)
-		}
+	if pass != a.ov.passThrough {
+		a.ov.passThrough = pass
+		a.ov.win.SetIgnoreMouseEvents(pass)
 	}
+	if !was {
+		a.ov.win.SetOpacity(0)
+		a.ov.reveal = true
+		seq := a.ov.fade
+		a.later(ovRevealMax, func() { // whatever the view does
+			if a.ov.fade == seq && a.ov.shown {
+				a.revealOverlay()
+			}
+		})
+	}
+	if moved {
+		a.ov.win.SetContentBounds(frame)
+	}
+	a.syncOverlayMaterial()
 	a.ov.win.Invalidate()
+	if !was {
+		showFloating(a.ov.win, frame.X, frame.Y)
+	}
+}
+
+// ovRevealMax is how long a window that shows again may wait for its view
+// to build before it turns opaque anyway.
+const ovRevealMax = 120 * time.Millisecond
+
+// revealOverlay makes the window opaque once it shows the new face.
+func (a *app) revealOverlay() {
+	a.ov.reveal = false
+	if a.ov.win != nil && a.ov.shown {
+		a.ov.win.SetOpacity(1)
+	}
+}
+
+// overlayFrame is the window's frame for a face of w × h in the work area
+// wa: centred, its anchor edge (the bottom, or the top) Overlay.Margin
+// from the work area's, the shadow's margin around the face.
+func overlayFrame(wa mygo.Rectangle, o settings.Overlay, w, h int) mygo.Rectangle {
+	winW, winH := w+2*ovPad, h+2*ovPad
+	x, y := overlayPlace(wa, o, winW, winH)
+	return mygo.Rectangle{X: x, Y: y, Width: winW, Height: winH}
 }
 
 // syncOverlayMaterial shapes the window's material to the face: inside
@@ -291,7 +408,6 @@ func (a *app) overlayFadeOut() {
 		a.ov.visible = false
 		if a.ov.win != nil {
 			a.ov.win.Hide()
-			a.ov.win.SetOpacity(1)
 		}
 	}
 	if a.prefs.Appearance.ReduceMotion {
@@ -325,16 +441,19 @@ func overlayPlace(wa mygo.Rectangle, o settings.Overlay, w, h int) (int, int) {
 // overlayRestyle applies a change of settings.Overlay to the overlay
 // while it shows: its place, its size (the time) and its face.
 func (a *app) overlayRestyle() {
-	if !a.ov.shown || a.ov.win == nil {
+	if !a.ov.shown {
 		return
 	}
 	w, h := a.overlaySize(a.ov.mode)
-	if w != a.ov.w || h != a.ov.h {
-		a.ov.w, a.ov.h = w, h
-		a.ov.win.SetContentSize(w+2*ovPad, h+2*ovPad)
+	frame := overlayFrame(a.ov.area, a.prefs.Overlay, w, h)
+	moved := frame != a.ov.frame
+	a.ov.w, a.ov.h, a.ov.frame = w, h, frame
+	if a.ov.win == nil {
+		return
 	}
-	x, y := overlayPlace(a.ov.area, a.prefs.Overlay, a.ov.w+2*ovPad, a.ov.h+2*ovPad)
-	a.ov.win.SetPosition(x, y)
+	if moved {
+		a.ov.win.SetContentBounds(frame)
+	}
 	a.syncOverlayMaterial()
 	a.ov.win.Invalidate()
 }
@@ -356,7 +475,7 @@ func overlayTheme() *ui.Theme {
 }
 
 // overlayMotion says whether the waveform and the loader move.
-func (a *app) overlayMotion() bool { return a.win != nil && !a.prefs.Appearance.ReduceMotion }
+func (a *app) overlayMotion() bool { return a.overlayNative() && !a.prefs.Appearance.ReduceMotion }
 
 // overlayPhase is the time the motion is at, in seconds; 0 when nothing
 // moves (and in tests).
@@ -375,6 +494,11 @@ func (a *app) overlayView(c *ui.Context) {
 	// built: the kit's ink buttons swap the theme while they build
 	// (AudioSmith's pill).
 	defer c.Root().Background(ui.Transparent)
+	if a.ov.reveal {
+		// This frame draws the new face: opaque from the next one.
+		a.ov.reveal = false
+		a.post(a.revealOverlay)
+	}
 	motion := a.overlayMotion()
 	if !motion {
 		c.DisableAnimations()
@@ -385,7 +509,7 @@ func (a *app) overlayView(c *ui.Context) {
 	case a.ov.mode == ovRecording && a.prefs.Overlay.ShowTime:
 		c.After(250 * time.Millisecond) // the time
 	}
-	look := pillLook{time: a.prefs.Overlay.ShowTime, motion: motion, phase: a.overlayPhase()}
+	look := pillLook{time: a.prefs.Overlay.ShowTime, motion: motion, phase: a.overlayPhase(), w: a.ov.w}
 	ui.Column(c).Fill().Padding(ovPad).Children(func() {
 		o := a.prefs.Overlay
 		switch a.ov.mode {
@@ -394,7 +518,8 @@ func (a *app) overlayView(c *ui.Context) {
 		case ovNotice:
 			a.overlayNotice(c)
 		default:
-			faceStyle(ui.Column(c.Key("ov-face")), o, a.ov.mode, a.ov.h).DragWindow().Children(func() {
+			// The pointer goes through it (passThrough): nothing to drag.
+			faceStyle(ui.Column(c.Key("ov-face")), o, a.ov.mode, a.ov.h).Children(func() {
 				overlayPill(c, a.sess, a.ov.mode, look)
 			})
 		}
@@ -431,20 +556,27 @@ func faceStyle(e ui.Element, o settings.Overlay, mode overlayMode, h int) ui.Ele
 }
 
 // pillLook is how the pill draws: with the time, moving, at phase
-// seconds.
+// seconds, w DIPs wide.
 type pillLook struct {
 	time   bool
 	motion bool
 	phase  float64
+	w      int
 }
 
 // overlayPill is the recording and working pill of s in mode: the
 // feature's icon, the waveform or the loader, the time and the matched
 // group when they show, and the live text under them.
 func overlayPill(c *ui.Context, s session.Snapshot, mode overlayMode, look pillLook) {
-	text := liveTail(liveText(s))
-	ui.Column(c).Fill().Padding(0, ovPillPadX).Children(func() {
-		ui.Row(c).Height(ovPillH).Shrink(0).Gap(ovGap).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+	text := strings.Join(strings.Fields(liveText(s)), " ")
+	col := ui.Column(c).Fill().Padding(0, ovPillPadX)
+	rowH := float32(ovPillH)
+	if text != "" {
+		col.Padding(ovLiveTop, ovPillPadX, 0, ovPillPadX)
+		rowH = ovWaveH
+	}
+	col.Children(func() {
+		ui.Row(c).Height(rowH).Shrink(0).Gap(ovGap).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			ui.Icon(c, kindIcon(s.Kind).Bold).Size(ovIconSize, ovIconSize).TextColor(ovIcon).Shrink(0).Label(kindTitle(s.Kind))
 			if mode == ovRecording {
 				waveform(c, s.Levels, !s.HeardAt.IsZero(), look)
@@ -460,50 +592,79 @@ func overlayPill(c *ui.Context, s session.Snapshot, mode overlayMode, look pillL
 			}
 		})
 		if text != "" {
-			ui.Text(c, text).FontSize(13).LineHeight(1.35).TextColor(ovText).MaxLines(ovLiveLines).Ellipsis("…").Padding(0, 2, 12, 2)
+			liveLine(c.Key("ov-live-"+s.ID), text, float32(max(look.w, ovPillW)-2*ovPillPadX), look.motion)
 		}
 	})
 }
 
+// liveLine is the live text on one line, width DIPs wide: centred while
+// it fits, else scrolled so that its newest words show at the right
+// edge, sliding left as more come (180 ms, Voxt's 0.2 s ease-out), the
+// letters at the left edge fading out to say that more came before. The
+// key is the session's: a new one starts where its text is, not sliding.
+func liveLine(c *ui.Context, text string, width float32, motion bool) {
+	measure := func(t string) float32 { w, _ := c.MeasureText(0, ui.Span{Text: t, Size: ovLiveSize}); return w }
+	box := ui.Row(c).Width(width).Height(ovLineH).Margin(ovLiveGap, 0, 0, 0).Shrink(0).AlignItems(ui.Center).Clip().Label(text)
+	// Centred under the row while it fits; else its end at the right edge.
+	target := width - measure(text)
+	if target > 0 {
+		target /= 2
+	}
+	x := target
+	if motion {
+		x = box.AnimateTo("x", target, ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut})
+	}
+	shown, at, spans := text, x, []ui.Span{{Text: text, Size: ovLiveSize, Color: ovText}}
+	if x < 0 {
+		shown, at, spans = fadeSpans(text, -x, measure)
+		at = x + at
+	}
+	box.Children(func() {
+		ui.RichText(c, spans...).NoWrap().Shrink(0).FixedLineHeight(ovLineH).Translate(at, 0).Label(shown)
+	})
+}
+
+// fadeSpans are the part of text that shows when it is scrolled off DIPs
+// to the left, measure telling how wide a part of it is: the letters past
+// the edge, where the shown part starts (from the text's start), and its
+// spans: the letters in the ovFadeW after the edge fading in from it, the
+// rest as ovText.
+func fadeSpans(text string, off float32, measure func(string) float32) (string, float32, []ui.Span) {
+	r := []rune(text)
+	// The first letter that ends past the edge.
+	lo, hi := 0, len(r)
+	for lo < hi {
+		mid := (lo + hi) / 2
+		if measure(string(r[:mid+1])) <= off {
+			lo = mid + 1
+		} else {
+			hi = mid
+		}
+	}
+	from := measure(string(r[:lo]))
+	var spans []ui.Span
+	i, start := lo, from-off
+	for ; i < len(r) && start < ovFadeW; i++ {
+		end := measure(string(r[:i+1])) - off
+		mid := max(0, (start+end)/2)
+		a := 0.1 + 0.9*min(mid/ovFadeW, 1)
+		spans = append(spans, ui.Span{Text: string(r[i]), Size: ovLiveSize, Color: ui.RGBA(245, 245, 247, a)})
+		start = end
+	}
+	if i < len(r) {
+		spans = append(spans, ui.Span{Text: string(r[i:]), Size: ovLiveSize, Color: ovText})
+	}
+	return string(r[lo:]), from, spans
+}
+
 // liveText is the text the pill shows under it: the answer as the model
-// writes it, else what the speech service heard so far.
+// writes it, else what the speech service heard so far (a file service's
+// whole text, while it is cleaned up).
 func liveText(s session.Snapshot) string {
 	if d := strings.TrimSpace(s.Draft); d != "" && (s.State == session.Composing || s.State == session.Delivering) {
 		return d
 	}
 	return strings.TrimSpace(s.Partial)
-}
-
-// liveTail is the end of the live text that fits the pill's two lines
-// (the newest words), after "…" when it is cut.
-func liveTail(text string) string {
-	return tailFit(text, float64(ovLiveW-2*ovPillPadX-4)*ovLiveLines*0.9, 13)
-}
-
-// tailFit is the end of text no wider than width DIPs at size (as
-// textWidth guesses), after "…" when it is cut.
-func tailFit(text string, width, size float64) string {
-	text = strings.Join(strings.Fields(text), " ")
-	if text == "" || float64(textWidth(text, size)) <= width {
-		return text
-	}
-	r := []rune(text)
-	room := width - size // the "…"
-	i := len(r)
-	for i > 0 && float64(textWidth(string(r[i-1:]), size)) <= room {
-		i--
-	}
-	// Not in the middle of a (Latin) word: from the next space, if near.
-	latin := func(c rune) bool { return c < 0x2E80 && (unicode.IsLetter(c) || unicode.IsDigit(c)) }
-	if i > 0 && i < len(r) && latin(r[i-1]) && latin(r[i]) {
-		for j := i; j < len(r) && j < i+16; j++ {
-			if r[j] == ' ' {
-				i = j
-				break
-			}
-		}
-	}
-	return "…" + strings.TrimSpace(string(r[i:]))
 }
 
 // sceneLabel is the app enhancement group a session falls in, as the

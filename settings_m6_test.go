@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"image/png"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/hehehai/Auralink/internal/helper"
@@ -330,26 +331,53 @@ func TestTrayRecent(t *testing.T) {
 	if got := recentResults(es, 3); !slices.Equal(got, []string{"newest", "second", "third"}) {
 		t.Fatalf("recent %q", got)
 	}
-	long := "一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十一二三"
-	if got := trayLabel(long); len([]rune(got)) != trayRecentChars || got[len(got)-len("…"):] != "…" {
-		t.Errorf("long label %q", got)
+	// One short line: as wide as the menu's other items, whatever the
+	// script; the whole result in the tooltip, and copied on a click.
+	for _, c := range []struct{ in, want string }{
+		{"two\nlines  here", "two lines here"},
+		{"短句。", "短句。"},
+		{strings.Repeat("一二三四五六七八九十", 5), "一二三四五六七八九十一二…"},
+		{"Please send the meeting notes to the whole team before Friday.", "Please send the meeting…"},
+		{"讨论一下 Auralink 的发布计划，然后把引导页做完", "讨论一下 Auralink 的发布…"},
+		{"今天下午三点开会，讨论发布计划，然后把引导页做完", "今天下午三点开会，讨论发…"},
+		{"\n  Exactly twenty-six chars\t", "Exactly twenty-six chars"},
+		{"Supercalifragilisticexpialidocious words", "Supercalifragilisticexpia…"},
+	} {
+		got := trayLabel(c.in)
+		if got != c.want {
+			t.Errorf("trayLabel(%q) = %q, want %q", c.in, got, c.want)
+		}
+		if displayWidth(got) > trayRecentWidth || strings.ContainsAny(got, "\n\t") {
+			t.Errorf("trayLabel(%q) = %q: %d units", c.in, got, displayWidth(got))
+		}
 	}
-	if got := trayLabel("two\nlines  here"); got != "two lines here" {
-		t.Errorf("label %q", got)
+	if displayWidth("开始转录 fn") != 11 || displayWidth("e\u0301") != 1 {
+		t.Error("displayWidth")
+	}
+	huge := strings.Repeat("长", 1000)
+	if tip := trayTip(huge); len([]rune(tip)) != trayTipRunes+1 || trayTip(" short \n") != "short" {
+		t.Errorf("tip %d", len([]rune(tip)))
 	}
 	// The items: the recent results, a click copies one.
 	a, _, _ := newTestApp(t)
 	var copied []string
 	a.copyText = func(s string) error { copied = append(copied, s); return nil }
-	a.recent = []string{"hello there"}
-	found := false
+	long := "Please send the meeting notes to the whole team before Friday.\nThanks!"
+	a.recent = []string{"hello there", long}
+	found, title := 0, false
 	for _, it := range a.trayItems() {
-		if it.Label == "hello there" {
-			found = true
+		switch it.Label {
+		case "hello there", "Please send the meeting…":
+			found++
 			it.Click(it, nil)
+			if it.Label != "hello there" && it.ToolTip != long {
+				t.Errorf("tooltip %q", it.ToolTip)
+			}
+		case "Recent results":
+			title = it.Disabled
 		}
 	}
-	if !found || !slices.Equal(copied, []string{"hello there"}) {
-		t.Errorf("recent item: found %v, copied %q", found, copied)
+	if found != 2 || !title || !slices.Equal(copied, []string{"hello there", long}) {
+		t.Errorf("recent items: found %d, title %v, copied %q", found, title, copied)
 	}
 }

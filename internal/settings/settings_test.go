@@ -167,22 +167,29 @@ func TestDeviceNames(t *testing.T) {
 	}
 }
 
-// TestMigrateOverlayOpacity: version 2 makes the overlay translucent, but
-// keeps an opacity the user chose (anything but version 1's default).
+// TestMigrateOverlayOpacity: version 2 makes the overlay translucent,
+// version 3 0.8 and rounder (24), but each keeps a value the user chose
+// (anything but an older version's default).
 func TestMigrateOverlayOpacity(t *testing.T) {
 	for _, tc := range []struct {
-		doc  string
-		want float64
+		doc            string
+		opacity, round float64
 	}{
-		{`{"version":1,"overlay":{"position":"bottom","opacity":1,"radius":16,"margin":96}}`, DefaultOpacity},
-		{`{"version":1,"overlay":{"position":"bottom","opacity":0.8,"radius":16,"margin":96}}`, 0.8},
-		{`{"version":2,"overlay":{"position":"bottom","opacity":1,"radius":16,"margin":96}}`, 1},
-		{`{"version":1}`, DefaultOpacity},
+		{`{"version":1,"overlay":{"position":"bottom","opacity":1,"radius":16,"margin":96}}`, DefaultOpacity, DefaultRadius},
+		{`{"version":1,"overlay":{"position":"bottom","opacity":0.9,"radius":10,"margin":96}}`, 0.9, 10},
+		{`{"version":2,"overlay":{"position":"bottom","opacity":0.72,"radius":16,"margin":96}}`, DefaultOpacity, DefaultRadius},
+		{`{"version":2,"overlay":{"position":"bottom","opacity":1,"radius":20,"margin":96}}`, 1, 20},
+		{`{"version":2,"overlay":{"position":"bottom","opacity":0.6,"radius":16,"margin":96}}`, 0.6, DefaultRadius},
+		{`{"version":3,"overlay":{"position":"bottom","opacity":0.72,"radius":16,"margin":96}}`, 0.72, 16},
+		{`{"version":1}`, DefaultOpacity, DefaultRadius},
 	} {
 		s, err := Migrate([]byte(tc.doc))
-		if err != nil || s.Overlay.Opacity != tc.want || s.Version != Version || s.Overlay.ShowTime {
+		if err != nil || s.Overlay.Opacity != tc.opacity || s.Overlay.Radius != tc.round || s.Version != Version || s.Overlay.ShowTime {
 			t.Errorf("%s: %+v %v", tc.doc, s.Overlay, err)
 		}
+	}
+	if d := Defaults().Overlay; d.Opacity != 0.8 || d.Radius != 24 {
+		t.Errorf("defaults %+v", d)
 	}
 	// The detection's settings are all zero (the package's defaults) and
 	// stay out of the document.

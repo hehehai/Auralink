@@ -138,7 +138,7 @@ func TestOverlayWriting(t *testing.T) {
 		t.Errorf("reading %s", a.ov.mode)
 	}
 	snap(a, session.Snapshot{ID: "t1", Kind: store.KindTranslate, State: session.Composing, Selection: "Hi", Draft: "你"})
-	if a.ov.mode != ovWorking || a.ov.w != ovLiveW {
+	if a.ov.mode != ovWorking || a.ov.h != ovLiveH {
 		t.Errorf("draft %s %d", a.ov.mode, a.ov.w)
 	}
 	snap(a, session.Snapshot{ID: "t1", Kind: store.KindTranslate, State: session.Composing, Selection: "Hi", Draft: "你好", Card: true, TargetLanguage: "zh-Hans"})

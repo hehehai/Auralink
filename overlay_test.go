@@ -58,7 +58,7 @@ func TestOverlayModes(t *testing.T) {
 		t.Errorf("recording %s %d×%d", a.ov.mode, a.ov.w, a.ov.h)
 	}
 	snap(a, session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now, Partial: "hello"})
-	if a.ov.w != ovLiveW || a.ov.h != ovLiveH {
+	if a.ov.w != ovPillW || a.ov.h != ovLiveH {
 		t.Errorf("live text %d×%d", a.ov.w, a.ov.h)
 	}
 	snap(a, session.Snapshot{State: session.Composing, Partial: "hello"})
@@ -199,20 +199,46 @@ func TestClockAndTail(t *testing.T) {
 			t.Errorf("clock(%v) = %q", d, got)
 		}
 	}
-	long := ""
-	for i := range 40 {
-		long += "word" + itoa(i) + " "
+	// The face's width with live text: the pill's at least, the text's
+	// (in steps), at most ovLiveMaxW.
+	for _, c := range []struct {
+		base int
+		text string
+		want int
+	}{
+		{ovPillW, "hi", ovPillW},
+		{ovPillW, "明天三点开会，讨论发布计划", 208},
+		{ovPillW, strings.Repeat("今天下午三点开会讨论发布计划", 10), ovLiveMaxW},
+		{ovPillW + ovSceneW, "ok", ovPillW + ovSceneW},
+	} {
+		if got := liveWidth(c.base, c.text); got != c.want || got%ovLiveStep != 0 && got != c.base && got != ovLiveMaxW {
+			t.Errorf("liveWidth(%d, %q) = %d, want %d", c.base, c.text, got, c.want)
+		}
 	}
-	got := liveTail(long)
-	if !strings.HasPrefix(got, "…") || !strings.HasSuffix(got, "word39") || textWidth(got, 13) > (ovLiveW-2*ovPillPadX)*ovLiveLines {
-		t.Errorf("liveTail %q", got)
+}
+
+// TestFadeSpans: scrolled, the line shows from the letter at the left
+// edge, the first ovFadeW of it fading in, the rest whole.
+func TestFadeSpans(t *testing.T) {
+	measure := func(s string) float32 { return float32(len([]rune(s))) * 10 } // 10 a letter
+	shown, at, spans := fadeSpans("abcdefghij", 25, measure)
+	if shown != "cdefghij" || at != 20 {
+		t.Fatalf("shown %q at %v", shown, at)
 	}
-	zh := strings.Repeat("今天下午三点开会讨论发布计划", 10)
-	if got := liveTail(zh); !strings.HasPrefix(got, "…") || !strings.HasSuffix(got, "发布计划") || len([]rune(got)) > 2*(ovLiveW-2*ovPillPadX)/13 {
-		t.Errorf("liveTail zh %q", got)
+	var b strings.Builder
+	var prev uint8
+	for i, sp := range spans {
+		b.WriteString(sp.Text)
+		if sp.Color.A < prev {
+			t.Errorf("span %d %q: alpha %v after %v", i, sp.Text, sp.Color.A, prev)
+		}
+		prev = sp.Color.A
 	}
-	if liveTail("  short  text ") != "short text" {
-		t.Error("short text")
+	if b.String() != shown || spans[0].Color.A > 80 || spans[len(spans)-1].Color != ovText || spans[len(spans)-1].Text != "fghij" {
+		t.Errorf("spans %+v", spans)
+	}
+	if shown, at, _ := fadeSpans("abc", 0, measure); shown != "abc" || at != 0 {
+		t.Errorf("not scrolled: %q %v", shown, at)
 	}
 }
 
@@ -265,6 +291,10 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 		{"overlay-recording", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-12 * time.Second), Levels: wave()}, nil},
 		{"overlay-recording-time", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-12 * time.Second), Levels: wave()},
 			func() { a.prefs.Overlay.ShowTime = true }},
+		{"overlay-live-short", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-3 * time.Second), Levels: wave(),
+			Partial: "Meet at three tomorrow"}, nil},
+		{"overlay-live-short-zh", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-3 * time.Second), Levels: wave(),
+			Partial: "明天三点开会"}, nil},
 		{"overlay-live-text", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-47 * time.Second), Levels: wave(),
 			Partial: "So the plan for the release is to finish the onboarding first, then the history page, and after that we look at the translation card"}, nil},
 		{"overlay-live-text-zh", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-20 * time.Second), Levels: wave(),

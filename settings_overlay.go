@@ -4,15 +4,17 @@ package main
 // overlay shows (the bottom or the top of the display, how far from its
 // edge), how opaque its face is, how round its corners are and whether it
 // shows the recording's time (settings.Overlay), with a preview: the
-// overlay's own pill, drawn as overlay.go draws it, over a window half
-// light and half dark that shows through it blurred, as the desktop does
-// through the real one, and a small screen with the pill in its place.
+// overlay's own pill, drawn as overlay.go draws it, over a desktop picture
+// that shows through it blurred, as the desktop does through the real one,
+// where the settings put it.
 // A change moves the overlay at once when it shows; it is saved once the
 // sliders rest.
 
 import (
+	_ "embed"
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo/plugins/glass"
@@ -121,16 +123,11 @@ func (a *app) overlaySettings(c *ui.Context) {
 	})
 
 	sectionTitle(c, i18n.T("Preview"))
-	fillCard(c.Key("ov-preview")).Children(func() {
-		ui.Row(c).Wrap().Gap(px(t, sp6)).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-			overlayScreen(c, a.prefs.Overlay)
-			a.overlayPreviewPill(c)
-		})
-	})
+	a.overlayPreview(c)
 }
 
 // previewSession is the recording the preview shows: Transcribe, seven
-// seconds in, speaking.
+// seconds in, a word on the waveform.
 func previewSession() session.Snapshot {
 	t0 := time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)
 	levels := make([]float64, session.Bars)
@@ -140,93 +137,68 @@ func previewSession() session.Snapshot {
 	return session.Snapshot{Kind: store.KindTranscribe, State: session.Recording, StartedAt: t0, HeardAt: t0, StoppedAt: t0.Add(7 * time.Second), Levels: levels}
 }
 
-// Sizes of the preview's window behind the pill.
+// The preview's background: a desktop picture (Voxt's, Apache-2.0: see
+// NOTICE), decoded once.
+//
+//go:embed assets/overlay-preview-background.png
+var ovPreviewPNG []byte
+
+var ovPreviewBackground = sync.OnceValue(func() *ui.Bitmap {
+	b, _ := ui.DecodeBitmap(ovPreviewPNG)
+	return b
+})
+
+// The preview card: as wide as the section, ovPreviewH high, its corners
+// ovPreviewRadius (Voxt's); the pill at least ovPreviewInset from its
+// top or bottom edge.
 const (
-	ovBackdropW = 300
-	ovBackdropH = 96
+	ovPreviewH      = 150
+	ovPreviewRadius = 18
+	ovPreviewInset  = 12
 )
 
-// overlayPreviewPill is the recording pill as the overlay draws it, at
-// its size, in its dark theme, over a window half light and half dark
-// that shows through it blurred (the desktop does, on the Mac).
-func (a *app) overlayPreviewPill(c *ui.Context) {
+// overlayPreview is the overlay's pill as it draws, at its size, in its
+// dark theme, over a desktop picture that shows through it blurred (the
+// desktop does, on the Mac), after Voxt's preview: where the settings put
+// it (the bottom or the top, the distance from the edge to scale with the
+// card), as opaque, as round, with the time when it shows it. A change
+// shows at once.
+func (a *app) overlayPreview(c *ui.Context) {
 	t := c.Theme()
 	o := a.prefs.Overlay
 	w := ovPillW
 	if o.ShowTime {
 		w += ovTimeW
 	}
+	cardH := px(t, ovPreviewH)
+	// The distance from the edge, from none to ovMaxMargin, across the
+	// card's room.
+	room := max(cardH-ovPillH-2*px(t, ovPreviewInset), 0)
+	off := px(t, ovPreviewInset) + room*float32(min(max(o.Margin, 0), ovMaxMargin)/ovMaxMargin)
 	radius := faceRadius(o, ovRecording, ovPillH)
-	ui.Box(c.Key("ov-preview-backdrop")).Size(px(t, ovBackdropW), px(t, ovBackdropH)).Shrink(0).Radius(px(t, 8)).Clip().
-		Border(1, tok(t).Line).Label(i18n.T("Preview of the overlay")).Children(func() {
-		backdropHalf := func(left bool, bg, line ui.Color) {
-			half := ui.Column(c).Absolute().Top(0).Bottom(0).Width(px(t, ovBackdropW/2)).Background(bg).Padding(px(t, 12)).Gap(px(t, 7))
-			if left {
-				half.Left(0)
-			} else {
-				half.Right(0)
-			}
-			half.Children(func() {
-				for i, wd := range []float32{0.9, 0.7, 0.95, 0.6, 0.8} {
-					ui.Box(c.Key(itoa(i))).Height(px(t, 5)).Width(px(t, wd*(ovBackdropW/2-24))).Radius(px(t, 2.5)).Background(line)
-				}
-			})
+	ui.Box(c.Key("ov-preview")).FillWidth().MinWidth(0).Height(cardH).Shrink(0).Radius(px(t, ovPreviewRadius)).Clip().
+		Background(ui.RGB(40, 90, 170)).Label(i18n.T("Preview of the overlay")).Children(func() {
+		if bg := ovPreviewBackground(); bg != nil {
+			ui.Image(c, bg).Absolute().Left(0).Top(0).Right(0).Bottom(0).Fit(ui.Cover)
 		}
-		backdropHalf(true, ui.RGB(250, 250, 252), ui.RGB(120, 128, 140))
-		backdropHalf(false, ui.RGB(32, 34, 40), ui.RGB(150, 160, 178))
-		// The pill, centred: the blur of what is under it, then the face.
-		ui.Box(c).Absolute().Fill().Center().Children(func() {
+		place := ui.Row(c).Absolute().Left(0).Right(0).Height(ovPillH).Justify(ui.Center)
+		if o.Position == "top" {
+			place.Top(off)
+		} else {
+			place.Bottom(off)
+		}
+		place.Children(func() {
 			c.SetTheme(overlayTheme())
 			ui.Box(c.Key("ov-preview-pill")).Size(float32(w), ovPillH).Shrink(0).Children(func() {
-				ui.Box(c).Absolute().Fill().Radius(radius).Material(glass.Blur{Radius: 6})
-				// Positioned too, to paint over the blur.
+				// The blur of what is under it, then the face, positioned
+				// too to paint over the blur.
+				ui.Box(c).Absolute().Fill().Radius(radius).Material(glass.Blur{Radius: 8})
 				face := ui.Column(c.Key("ov-preview-face")).Absolute().Left(0).Top(0).Right(0).Bottom(0)
 				faceStyle(face, o, ovRecording, ovPillH).Children(func() {
-					overlayPill(c, previewSession(), ovRecording, pillLook{time: o.ShowTime})
+					overlayPill(c, previewSession(), ovRecording, pillLook{time: o.ShowTime, w: w})
 				})
 			})
 			c.SetTheme(t)
 		})
-	})
-}
-
-// Sizes of the preview's screen: a 1440 × 900 display, scaled.
-const (
-	ovScreenW  = 200
-	ovScreenH  = 125
-	ovDisplayW = 1440
-	ovMenuBarH = 4 // the menu bar, drawn
-)
-
-// Colours of the preview's screen: a wallpaper of a mid grey-blue, on
-// which the dark pill shows in either appearance.
-var (
-	ovWallpaper = ui.RGB(150, 160, 178)
-	ovMenuBar   = ui.RGBA(255, 255, 255, 0.55)
-)
-
-// overlayScreen is a small screen with the pill where o puts it, at the
-// scale of a 1440 DIPs wide display.
-func overlayScreen(c *ui.Context, o settings.Overlay) {
-	t := c.Theme()
-	k := tok(t)
-	scale := float32(ovScreenW) / ovDisplayW
-	sw, sh := px(t, ovScreenW), px(t, ovScreenH)
-	f := sw / ovScreenW // the theme's scale
-	ui.Box(c.Key("ov-screen")).Size(sw, sh).Shrink(0).Radius(px(t, 6)).Background(ovWallpaper).Border(1, k.Line).Clip().
-		Label(i18n.T("Where the overlay shows")).Children(func() {
-		ui.Box(c).Absolute().Left(0).Top(0).Right(0).Height(px(t, ovMenuBarH)).Background(ovMenuBar)
-		w, h := ovPillW*scale*f, ovPillH*scale*f
-		if o.ShowTime {
-			w = (ovPillW + ovTimeW) * scale * f
-		}
-		m := float32(o.Margin) * scale * f
-		pill := ui.Box(c).Absolute().Left((sw-w)/2).Size(w, h).Radius(min(float32(o.Radius), ovPillH/2) * scale * f).
-			Background(ui.RGBA(22, 22, 26, faceAlpha(o)))
-		if o.Position == "top" {
-			pill.Top(px(t, ovMenuBarH) + m)
-		} else {
-			pill.Bottom(m)
-		}
 	})
 }
