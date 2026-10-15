@@ -990,3 +990,6 @@ func (s *Surface) Accessibility() (*platform.AccessTree, int) {
 	defer s.mu.Unlock()
 	return s.access, s.accessN
 }
+
+// SetVibrancyStyle does nothing: the fake shows no material.
+func (w *Window) SetVibrancyStyle(platform.VibrancyStyle) {}

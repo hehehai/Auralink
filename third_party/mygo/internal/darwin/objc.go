@@ -45,6 +45,8 @@ var (
 	msgSetPoint      func(obj id, sel objc.SEL, p NSPoint)
 	msgInitRect      func(obj id, sel objc.SEL, r NSRect) id
 	msgInitRectID    func(obj id, sel objc.SEL, r NSRect, a id) id
+	msgInitSize      func(obj id, sel objc.SEL, s NSSize) id
+	msgRectRadii     func(cls id, sel objc.SEL, r NSRect, rx, ry float64) id
 	msgRectIDUint    func(obj id, sel objc.SEL, r NSRect, a id, n uint)
 	msgInitIDPoint   func(obj id, sel objc.SEL, a id, p NSPoint) id
 	msgInitWindow    func(obj id, sel objc.SEL, r NSRect, style uint, backing uint, deferFlag bool) id
@@ -137,6 +139,8 @@ func load() {
 		purego.RegisterFunc(&msgSetPoint, msgSendAddr)
 		purego.RegisterFunc(&msgInitRect, msgSendAddr)
 		purego.RegisterFunc(&msgInitRectID, msgSendAddr)
+		purego.RegisterFunc(&msgInitSize, msgSendAddr)
+		purego.RegisterFunc(&msgRectRadii, msgSendAddr)
 		purego.RegisterFunc(&msgRectIDUint, msgSendAddr)
 		purego.RegisterFunc(&msgInitIDPoint, msgSendAddr)
 		purego.RegisterFunc(&msgInitWindow, msgSendAddr)

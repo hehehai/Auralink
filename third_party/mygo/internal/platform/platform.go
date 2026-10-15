@@ -41,6 +41,15 @@ type TitleBar struct{ Height, Left, Right int }
 // Color is an 8-bit RGBA color.
 type Color struct{ R, G, B, A uint8 }
 
+// VibrancyStyle shapes a window's material: insets from the edges of its
+// content, in DIPs, a corner radius, and the dark appearance whatever the
+// app's.
+type VibrancyStyle struct {
+	Top, Right, Bottom, Left float64
+	Radius                   float64
+	Dark                     bool
+}
+
 // Backend is implemented by every native backend.
 type Backend interface {
 	// Name identifies the backend, for example "darwin/wkwebview".
@@ -318,6 +327,9 @@ type Window interface {
 	SetIgnoreMouseEvents(v bool)
 	SetContentProtection(v bool)
 	SetVibrancy(material string)
+	// SetVibrancyStyle shapes the material (macOS; elsewhere it does
+	// nothing).
+	SetVibrancyStyle(s VibrancyStyle)
 	// SetProgressBar shows progress on the taskbar button, Dock icon or
 	// launcher entry: state is "" (none), "normal", "indeterminate",
 	// "paused" or "error", value between 0 and 1.

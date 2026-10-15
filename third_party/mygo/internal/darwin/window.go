@@ -58,7 +58,9 @@ type window struct {
 	delegate id
 	ucc      id
 	effect   id
-	parent   *window
+	// vstyle shapes the effect view (SetVibrancyStyle).
+	vstyle platform.VibrancyStyle
+	parent *window
 	// flyout is how a flyout (WindowOptions.Flyout) was placed last, at
 	// flyoutSize.
 	flyout     platform.Flyout
@@ -863,9 +865,59 @@ func (w *window) SetVibrancy(material string) {
 			// Behind the page and a docked inspector.
 			send(w.view, "addSubview:positioned:relativeTo:", uintptr(w.effect), ^uintptr(0), 0) // NSWindowBelow
 			send(w.web, "setValue:forKey:", uintptr(nsBool(false)), uintptr(nsString("drawsBackground")))
+			w.styleEffect()
 		}
 		send(w.effect, "setMaterial:", m)
 	})
+}
+
+func (w *window) SetVibrancyStyle(s platform.VibrancyStyle) {
+	w.vstyle = s
+	withPool(w.styleEffect)
+}
+
+// styleEffect fits the effect view to vstyle: its frame inset from the
+// content view's bounds (which it follows as they resize), its corners
+// rounded by a mask, its appearance.
+func (w *window) styleEffect() {
+	if w.effect == 0 {
+		return
+	}
+	s := w.vstyle
+	b := msgRect(w.view, sel("bounds"))
+	// The content view is not flipped: Bottom is the origin's side.
+	f := NSRect{
+		Origin: NSPoint{X: s.Left, Y: s.Bottom},
+		Size:   NSSize{Width: max(b.Size.Width-s.Left-s.Right, 0), Height: max(b.Size.Height-s.Top-s.Bottom, 0)},
+	}
+	msgSetRect(w.effect, sel("setFrame:"), f)
+	var mask id
+	if s.Radius > 0 {
+		mask = roundedMask(s.Radius)
+	}
+	send(w.effect, "setMaskImage:", uintptr(mask))
+	var appearance id
+	if s.Dark {
+		appearance = send(class("NSAppearance"), "appearanceNamed:", uintptr(nsString("NSAppearanceNameDarkAqua")))
+	}
+	send(w.effect, "setAppearance:", uintptr(appearance))
+}
+
+// roundedMask is a mask image for NSVisualEffectView: a rounded
+// rectangle of radius r whose corners stay as they are while its middle
+// stretches to the view's size (cap insets). Autoreleased.
+func roundedMask(r float64) id {
+	size := 2*r + 1
+	img := autorelease(msgInitSize(send(class("NSImage"), "alloc"), sel("initWithSize:"), NSSize{Width: size, Height: size}))
+	send(img, "lockFocus")
+	send(send(class("NSColor"), "blackColor"), "set")
+	path := msgRectRadii(class("NSBezierPath"), sel("bezierPathWithRoundedRect:xRadius:yRadius:"), NSRect{Size: NSSize{Width: size, Height: size}}, r, r)
+	send(path, "fill")
+	send(img, "unlockFocus")
+	// NSEdgeInsets (top, left, bottom, right) has NSRect's layout.
+	msgSetRect(img, sel("setCapInsets:"), NSRect{Origin: NSPoint{X: r, Y: r}, Size: NSSize{Width: r, Height: r}})
+	send(img, "setResizingMode:", 1) // NSImageResizingModeStretch
+	return img
 }
 
 func (w *window) SetMenu(*platform.Menu) {}

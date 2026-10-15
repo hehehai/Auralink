@@ -982,6 +982,9 @@ func (w *window) SetVibrancy(material string) {
 	procInvalidateRect(w.hwnd)
 }
 
+// SetVibrancyStyle does nothing: a system backdrop fills the window.
+func (w *window) SetVibrancyStyle(platform.VibrancyStyle) {}
+
 func (w *window) SetMenu(m *platform.Menu) {
 	w.ownMenu = m != nil
 	if m == nil && w.b.appMenu != nil {

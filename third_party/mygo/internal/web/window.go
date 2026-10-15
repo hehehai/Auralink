@@ -231,3 +231,6 @@ func (w *window) PrintToPDF(_ platform.PDFOptions, cb func([]byte, error)) { cb(
 func (w *window) CallAsyncFunction(_ string, cb func(string, error)) {
 	cb("", errUnsupported)
 }
+
+// SetVibrancyStyle does nothing: a page shows no material.
+func (w *window) SetVibrancyStyle(platform.VibrancyStyle) {}

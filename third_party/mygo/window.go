@@ -903,6 +903,27 @@ func (w *Window) SetVibrancy(v Vibrancy) {
 	w.Invalidate()
 }
 
+// VibrancyStyle shapes a window's material (WindowOptions.Vibrancy,
+// SetVibrancy) on macOS: the material fills a rectangle inset from the
+// edges of the window's content by Top, Right, Bottom and Left DIPs, its
+// corners rounded by Radius, as for a transparent window that draws a
+// rounded HUD with room for its own shadow around it. Dark shows the
+// material as in the dark appearance whatever the app's, for a HUD that
+// stays dark over anything. The zero value fills the window, as without a
+// style. Other platforms ignore it.
+type VibrancyStyle struct {
+	Top, Right, Bottom, Left float64
+	Radius                   float64
+	Dark                     bool
+}
+
+// SetVibrancyStyle shapes the window's material (see VibrancyStyle); it
+// holds for a material set later too.
+func (w *Window) SetVibrancyStyle(s VibrancyStyle) {
+	ps := platform.VibrancyStyle(s)
+	w.do(func(n platform.Window) { n.SetVibrancyStyle(ps) })
+}
+
 // ProgressState is the state of a progress bar; see ProgressBar.
 type ProgressState string
 

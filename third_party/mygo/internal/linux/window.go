@@ -1603,3 +1603,6 @@ func initWindowCallbacks() {
 		return 0 // CAIRO_STATUS_SUCCESS
 	})
 }
+
+// SetVibrancyStyle does nothing: Linux has no material.
+func (w *window) SetVibrancyStyle(platform.VibrancyStyle) {}
