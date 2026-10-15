@@ -290,6 +290,8 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 	t.Helper()
 	now := time.Now()
 	a.prefs.Overlay.ShowTime = false
+	a.measureHook = nil // the overlay's view measures its texts, as on the Mac
+	defer func() { a.measureHook = guessWidth }()
 	states := []struct {
 		name  string
 		s     session.Snapshot
@@ -359,6 +361,7 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 		if a.ov.mode == ovHidden {
 			t.Fatalf("%s: nothing shows", st.name)
 		}
+		renderOverlay(t, a) // its texts measured, the face fitted to them
 		w, h := a.ov.w+2*ovPad, a.ov.h+2*ovPad
 		radius := faceRadius(a.prefs.Overlay, a.ov.mode, a.ov.h)
 		tt := ui.NewTester(func(c *ui.Context) {
