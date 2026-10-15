@@ -23,8 +23,15 @@
 // {{USER_OTHER_LANGUAGES}}, {{TARGET_LANGUAGE}}, {{APP_NAME}};
 // "{{#if NAME}}…{{/if}}" keeps its text only when NAME is not empty.
 //
-// M3 composes Transcribe; Translate and Rewrite (M4) fit the same Input
-// and return ErrTask until their layers exist.
+// Translate builds on the same layers: speech gets the clean-up first (the
+// clean-up layer's rules for translation), a selection is translated as
+// it is (Input policy for a selection, no clean-up, its form kept); a
+// Strict layer asks again when a first answer came back untranslated
+// (Untranslated). Rewrite reads a spoken instruction (its own clean-up
+// layer, for reading it, never applied to the selection) and either
+// rewrites the selection or writes from scratch, then as a JSON answer
+// {title, content} for the answer card (ParseAnswer, PartialAnswer);
+// Previous turns make a follow-up.
 //
 // Imports: lang.
 package compose
@@ -33,6 +40,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 	"unicode"
@@ -49,8 +57,12 @@ const (
 	Rewrite    Task = "rewrite"
 )
 
-// ErrTask: the task has no layers yet.
-var ErrTask = errors.New("compose: task not supported yet")
+// ErrTask: the task has no layers.
+var ErrTask = errors.New("compose: unknown task")
+
+// ErrInput: the input lacks what the task needs (Translate a target
+// language, Rewrite an instruction).
+var ErrInput = errors.New("compose: incomplete input")
 
 // Template sets.
 const (
@@ -94,17 +106,44 @@ type Input struct {
 	MainLanguage   string
 	OtherLanguages []string
 	TargetLanguage string
-	// Text is the input: the recognised speech (Transcribe), the
-	// selection (Translate, Rewrite).
+	// Text is the input: the recognised speech (Transcribe, Translate),
+	// the selection (Translate with Selected, Rewrite; "" when Rewrite
+	// writes from scratch).
 	Text string
-	// Instruction is Rewrite's spoken instruction (M4).
+	// Selected: Translate's Text is selected text, not speech (no clean-up,
+	// its form kept).
+	Selected bool
+	// Instruction is Rewrite's spoken instruction.
 	Instruction string
+	// Strict asks Translate again, more firmly (Untranslated).
+	Strict bool
+	// Answer asks Rewrite for a JSON answer {title, content} (writing from
+	// scratch, for the answer card).
+	Answer bool
+	// Previous are a Rewrite conversation's earlier turns, oldest first
+	// (a follow-up from the answer card).
+	Previous []Turn
+}
+
+// Turn is an earlier request of a conversation and its answer.
+type Turn struct {
+	Instruction, Selection string
+	Answer                 Answer
+}
+
+// Message is a chat message of a composed request.
+type Message struct {
+	Role    string // "system", "user", "assistant"
+	Content string
 }
 
 // Output is a composed request.
 type Output struct {
 	System string
 	User   string
+	// History are the messages between System and User: a follow-up's
+	// earlier turns.
+	History []Message
 	// Language is the template set used (English, Chinese).
 	Language string
 	// Layers names the layers in the system prompt, in order; Profile
@@ -121,7 +160,7 @@ func (o Output) Profile() string {
 	var caps []string
 	for _, l := range rest {
 		switch l {
-		case "cleanup", "structure", "custom", "scene", "glossary":
+		case "selection", "cleanup", "structure", "strict", "custom", "scene", "glossary", "answer", "followup":
 			caps = append(caps, l)
 		}
 	}
@@ -158,10 +197,25 @@ const (
 	MaxGlossaryChars = 2000
 )
 
+// Messages is the request's messages, in order: System, History, User.
+func (o Output) Messages() []Message {
+	out := []Message{{Role: "system", Content: o.System}}
+	out = append(out, o.History...)
+	return append(out, Message{Role: "user", Content: o.User})
+}
+
 // Build composes the request of in.
 func Build(in Input) (Output, error) {
-	if in.Task != Transcribe {
+	switch in.Task {
+	case Transcribe, Translate, Rewrite:
+	default:
 		return Output{}, fmt.Errorf("%w: %s", ErrTask, in.Task)
+	}
+	if in.Task == Translate && strings.TrimSpace(in.TargetLanguage) == "" {
+		return Output{}, fmt.Errorf("%w: no target language", ErrInput)
+	}
+	if in.Task == Rewrite && strings.TrimSpace(in.Instruction) == "" {
+		return Output{}, fmt.Errorf("%w: no instruction", ErrInput)
 	}
 	set := TemplateSet(in.MainLanguage)
 	vars := Variables(in, set)
@@ -174,40 +228,119 @@ func Build(in Input) (Output, error) {
 		parts = append(parts, text)
 		layers = append(layers, layer)
 	}
+	// flags are the templates' own switches ("{{#if SELECTED}}").
+	on := func(b bool) string {
+		if b {
+			return "1"
+		}
+		return ""
+	}
+	selected := in.Task == Rewrite && strings.TrimSpace(in.Text) != "" || in.Task == Translate && in.Selected
+	flags := map[string]string{
+		"FOR_TRANSCRIBE": on(in.Task == Transcribe),
+		"FOR_TRANSLATE":  on(in.Task == Translate),
+		"SELECTED":       on(selected),
+	}
 	render := func(name string, extra map[string]string) string {
-		return Render(template(set, name), vars, extra)
+		x := maps.Clone(flags)
+		maps.Copy(x, extra)
+		return Render(template(set, name), vars, x)
 	}
 
-	add(string(in.Task), render("role-transcribe", nil))
-	add("input", render("input-speech", nil))
-	if in.Cleanup {
-		add("cleanup", render("cleanup", nil))
+	add(string(in.Task), render("role-"+string(in.Task), nil))
+	switch in.Task {
+	case Transcribe:
+		add("input", render("input-speech", nil))
+		if in.Cleanup {
+			add("cleanup", render("cleanup", nil))
+		}
+		if in.Structure {
+			add("structure", render("structure", nil))
+		} else {
+			add("form", render("form", nil))
+		}
+		add("task", render("task-transcribe", nil))
+	case Translate:
+		if in.Selected {
+			add("selection", render("input-selection", nil))
+		} else {
+			add("input", render("input-speech", nil))
+			if in.Cleanup {
+				add("cleanup", render("cleanup", nil))
+			}
+			add("form", render("form", nil))
+		}
+		add("task", render("task-translate", nil))
+		if in.Strict {
+			add("strict", render("strict", nil))
+		}
+	case Rewrite:
+		layer := "input"
+		if selected {
+			layer = "selection"
+		}
+		add(layer, render("input-rewrite", nil))
+		if in.Cleanup {
+			add("cleanup", render("cleanup-instruction", nil))
+		}
+		if selected {
+			add("task", render("task-rewrite", nil))
+		} else {
+			add("task", render("task-generate", nil))
+		}
+		if len(in.Previous) > 0 {
+			add("followup", render("followup", nil))
+		}
 	}
-	if in.Structure {
-		add("structure", render("structure", nil))
-	} else {
-		add("form", render("form", nil))
-	}
-	add("task", render("task-transcribe", nil))
 	if p := strings.TrimSpace(in.TaskPrompt); p != "" {
 		add("custom", render("custom", map[string]string{"TASK_PROMPT": Render(p, vars, nil)}))
 	}
 	if s := in.Scene; s != nil && strings.TrimSpace(s.AppName) != "" {
 		add("scene", render("scene", map[string]string{"SCENE_PROMPT": Render(strings.TrimSpace(s.Prompt), vars, nil)}))
 	}
-	if g := Glossary(in.Glossary, in.Text, set); g != "" {
+	if g := Glossary(in.Glossary, in.Instruction+"\n"+in.Text, set); g != "" {
 		add("glossary", render("glossary", map[string]string{"GLOSSARY": g}))
 	}
-	add("output", render("output-transcribe", nil))
+	out := Output{Language: set}
+	switch {
+	case in.Task == Rewrite && in.Answer:
+		add("answer", render("output-answer", nil))
+	case in.Task == Rewrite:
+		add("output", render("output-rewrite", nil))
+	default:
+		add("output", render("output-"+string(in.Task), nil))
+	}
+	out.System, out.Layers = strings.Join(parts, "\n\n"), layers
+	if in.Task == Rewrite {
+		for _, t := range in.Previous {
+			out.History = append(out.History,
+				Message{Role: "user", Content: RewriteMessage(t.Instruction, t.Selection)},
+				Message{Role: "assistant", Content: t.Answer.reply(in.Answer)})
+		}
+		out.User = RewriteMessage(in.Instruction, in.Text)
+	} else {
+		out.User = UserMessage(in.Text)
+	}
+	return out, nil
+}
 
-	return Output{System: strings.Join(parts, "\n\n"), User: UserMessage(in.Text), Language: set, Layers: layers}, nil
+// RewriteMessage is Rewrite's user message: the instruction, then the
+// selection when there is one.
+func RewriteMessage(instruction, selection string) string {
+	msg := wrap("instruction", instruction)
+	if strings.TrimSpace(selection) != "" {
+		msg += "\n\n" + wrap("selected_text", selection)
+	}
+	return msg
+}
+
+func wrap(tag, text string) string {
+	text = strings.ReplaceAll(strings.TrimSpace(text), "</"+tag+">", "<\\/"+tag+">")
+	return "<" + tag + ">\n" + text + "\n</" + tag + ">"
 }
 
 // UserMessage wraps the input for the user message.
-func UserMessage(text string) string {
-	text = strings.ReplaceAll(strings.TrimSpace(text), "</input>", "<\\/input>")
-	return "<input>\n" + text + "\n</input>"
-}
+func UserMessage(text string) string { return wrap("input", text) }
 
 // Variables are the public variables of in, in template set set's
 // language.
@@ -239,7 +372,7 @@ func Variables(in Input, set string) map[string]string {
 	return map[string]string{
 		"USER_MAIN_LANGUAGE":   main,
 		"USER_OTHER_LANGUAGES": strings.Join(others, sep),
-		"TARGET_LANGUAGE":      name(in.TargetLanguage),
+		"TARGET_LANGUAGE":      LanguageName(in.TargetLanguage, set),
 		"APP_NAME":             app,
 	}
 }

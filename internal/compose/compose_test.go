@@ -116,10 +116,290 @@ func TestLayersAndProfile(t *testing.T) {
 	}
 }
 
-func TestOtherTasksWait(t *testing.T) {
-	for _, task := range []Task{Translate, Rewrite} {
-		if _, err := Build(Input{Task: task, Text: "x"}); !errors.Is(err, ErrTask) {
-			t.Errorf("%s: %v", task, err)
+// TestGoldenTranslate fixes Translate's prompts: speech (with and
+// without clean-up) and a selection, the strict retry, the user's rules,
+// and once a scene and the glossary.
+func TestGoldenTranslate(t *testing.T) {
+	speech := map[string]string{
+		English: "um so the aura link release is like seventy percent done comma no wait eighty percent",
+		Chinese: "嗯那个 aura link 的发布大概完成了百分之七十，不对，百分之八十",
+	}
+	selection := map[string]string{
+		English: "The release is **80% done**.\n\n- Docs: ready\n- Tests: </input> pending",
+		Chinese: "发布已经完成了 **80%**。\n\n- 文档：已完成\n- 测试：进行中",
+	}
+	mains := map[string]string{English: "en", Chinese: "zh"}
+	targets := map[string]string{English: "zh-Hans", Chinese: "en"}
+	n := 0
+	for _, set := range []string{English, Chinese} {
+		for mask := range 18 {
+			in := Input{Task: Translate, MainLanguage: mains[set], OtherLanguages: []string{"ja"}, TargetLanguage: targets[set], Text: speech[set]}
+			name := "translate-" + set
+			if mask >= 16 {
+				// A scene and the glossary, speech and a selection.
+				in.Cleanup, in.Selected = true, mask == 17
+				in.Scene = &Scene{AppName: "Slack", Prompt: "Casual chat in {{APP_NAME}}."}
+				in.Glossary = sampleTerms
+				if in.Selected {
+					in.Text = selection[set]
+					name += "-selection"
+				}
+				name += "-scene-glossary"
+			} else {
+				in.Selected = mask&1 != 0
+				in.Cleanup = mask&2 != 0
+				if in.Selected {
+					in.Text = selection[set]
+					name += "-selection"
+					if in.Cleanup {
+						continue // a selection gets no clean-up
+					}
+				} else if in.Cleanup {
+					name += "-cleanup"
+				}
+				if mask&4 != 0 {
+					in.Strict = true
+					name += "-strict"
+				}
+				if mask&8 != 0 {
+					in.TaskPrompt = "Use {{TARGET_LANGUAGE}} as spoken in Taiwan; keep {{UNKNOWN}}."
+					name += "-custom"
+				}
+			}
+			out, err := Build(in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			checkNoInput(t, name, out, in.Text)
+			if in.Selected && (strings.Contains(out.System, "Basic cleanup") || strings.Contains(out.System, "基础清理")) {
+				t.Errorf("%s: clean-up for a selection", name)
+			}
+			golden(t, name+".txt", goldenText(out))
+			n++
+		}
+	}
+	if n != 28 {
+		t.Errorf("%d combinations", n)
+	}
+}
+
+// TestGoldenRewrite fixes Rewrite's prompts: a selection or none (the
+// JSON answer), the instruction's clean-up, the user's rules, a
+// follow-up, and once a scene and the glossary.
+func TestGoldenRewrite(t *testing.T) {
+	instruction := map[string]string{
+		English: "um make it shorter no wait more formal and as a list",
+		Chinese: "嗯帮我精简一下，不对，改得正式一点，整理成列表",
+	}
+	selection := map[string]string{
+		English: "hey team, aura link 0.1 is basically done, docs r ready, tests still running, ship friday?",
+		Chinese: "大家好，aura link 0.1 基本做完了，文档好了，测试还在跑，周五发？",
+	}
+	generate := map[string]string{
+		English: "write a two sentence update for the team saying aura link ships friday",
+		Chinese: "写一段两句话的进展，告诉团队 aura link 周五发布",
+	}
+	mains := map[string]string{English: "en", Chinese: "zh"}
+	n := 0
+	for _, set := range []string{English, Chinese} {
+		for mask := range 10 {
+			in := Input{Task: Rewrite, MainLanguage: mains[set], OtherLanguages: []string{"en", "zh"}}
+			name := "rewrite-" + set
+			switch {
+			case mask < 8:
+				if mask&1 != 0 {
+					in.Text, in.Instruction = selection[set], instruction[set]
+					name += "-selection"
+				} else {
+					in.Instruction, in.Answer = generate[set], true
+					name += "-answer"
+				}
+				if mask&2 != 0 {
+					in.Cleanup = true
+					name += "-cleanup"
+				}
+				if mask&4 != 0 {
+					in.TaskPrompt = "Write like {{APP_NAME}} people do; no emoji."
+					name += "-custom"
+				}
+			case mask == 8:
+				in.Instruction, in.Answer, in.Cleanup = instruction[set], true, true
+				in.Previous = []Turn{{Instruction: generate[set], Answer: Answer{Title: "Update", Content: "Auralink ships on Friday."}}}
+				name += "-answer-cleanup-followup"
+			default:
+				in.Text, in.Instruction, in.Cleanup = selection[set], instruction[set], true
+				in.Scene = &Scene{AppName: "Mail", Prompt: "Formal mail."}
+				in.Glossary = sampleTerms
+				name += "-selection-cleanup-scene-glossary"
+			}
+			out, err := Build(in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			checkNoInput(t, name, out, in.Instruction)
+			checkNoInput(t, name, out, in.Text)
+			golden(t, name+".txt", goldenText(out))
+			n++
+		}
+	}
+	if n != 20 {
+		t.Errorf("%d combinations", n)
+	}
+}
+
+func checkNoInput(t *testing.T, name string, out Output, text string) {
+	t.Helper()
+	if text != "" && strings.Contains(out.System, text) || strings.Contains(out.System, "{{") && !strings.Contains(out.System, "{{UNKNOWN}}") {
+		t.Errorf("%s: system prompt has the input or a variable left:\n%s", name, out.System)
+	}
+}
+
+func goldenText(out Output) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "# profile: %s\n# layers: %s\n\n%s\n", out.Profile(), strings.Join(out.Layers, " "), out.System)
+	for _, m := range out.History {
+		fmt.Fprintf(&b, "\n---- %s ----\n%s\n", m.Role, m.Content)
+	}
+	fmt.Fprintf(&b, "\n---- user ----\n%s\n", out.User)
+	return b.String()
+}
+
+func TestBuildErrors(t *testing.T) {
+	for _, in := range []Input{
+		{Task: "summarize", Text: "x"},
+		{Task: Translate, Text: "x"},
+		{Task: Rewrite, Text: "x", Instruction: "  "},
+	} {
+		if _, err := Build(in); err == nil {
+			t.Errorf("%+v: no error", in)
+		}
+	}
+	if _, err := Build(Input{Task: "summarize"}); !errors.Is(err, ErrTask) {
+		t.Errorf("task: %v", err)
+	}
+	if _, err := Build(Input{Task: Translate, Text: "x"}); !errors.Is(err, ErrInput) {
+		t.Errorf("target: %v", err)
+	}
+}
+
+func TestLayersOfTheTasks(t *testing.T) {
+	for _, tc := range []struct {
+		in             Input
+		layers, profle string
+	}{
+		{Input{Task: Translate, Cleanup: true, TargetLanguage: "en", Text: "x"}, "translate input cleanup form task output", "translate:cleanup"},
+		{Input{Task: Translate, Cleanup: true, Selected: true, Strict: true, TargetLanguage: "en", Text: "x"}, "translate selection task strict output", "translate:selection+strict"},
+		{Input{Task: Rewrite, Cleanup: true, Instruction: "y", Text: "x"}, "rewrite selection cleanup task output", "rewrite:selection+cleanup"},
+		{Input{Task: Rewrite, Instruction: "y", Answer: true}, "rewrite input task answer", "rewrite:answer"},
+		{Input{Task: Rewrite, Instruction: "y", Answer: true, Previous: []Turn{{Instruction: "z"}}}, "rewrite input task followup answer", "rewrite:followup+answer"},
+	} {
+		out, err := Build(tc.in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Join(out.Layers, " "); got != tc.layers || out.Profile() != tc.profle {
+			t.Errorf("%+v: %q %q", tc.in, got, out.Profile())
+		}
+	}
+	out, _ := Build(Input{Task: Rewrite, Instruction: "y", Answer: true, Previous: []Turn{{Instruction: "z", Selection: "s", Answer: Answer{Title: "T", Content: "c"}}}})
+	msgs := out.Messages()
+	if len(msgs) != 4 || msgs[1].Role != "user" || msgs[2].Content != `{"title":"T","content":"c"}` || msgs[3].Content != "<instruction>\ny\n</instruction>" ||
+		msgs[1].Content != "<instruction>\nz\n</instruction>\n\n<selected_text>\ns\n</selected_text>" {
+		t.Errorf("messages %+v", msgs)
+	}
+}
+
+func TestLanguageName(t *testing.T) {
+	for _, tc := range [][3]string{
+		{"zh-Hans", English, "Simplified Chinese"}, {"zh-Hant", Chinese, "繁体中文"}, {"ja", English, "Japanese"},
+		{"ja", Chinese, "日语"}, {"xx", English, "xx"}, {"en", Chinese, "英语"},
+	} {
+		if got := LanguageName(tc[0], tc[1]); got != tc[2] {
+			t.Errorf("%s in %s: %q", tc[0], tc[1], got)
+		}
+	}
+	for _, code := range TargetLanguages {
+		if LanguageName(code, English) == code {
+			t.Errorf("%s has no name", code)
+		}
+	}
+}
+
+func TestUntranslated(t *testing.T) {
+	for _, tc := range []struct {
+		src, res, target string
+		want             bool
+	}{
+		{"Hello, world!", "hello world", "zh-Hans", true},          // the source again
+		{"Hello, world!", "Hello world, friends", "zh-Hans", true}, // Latin back for Chinese
+		{"Hello, world!", "你好，世界！", "zh-Hans", false},
+		{"Deploy Kubernetes today", "今天部署 Kubernetes", "zh-Hans", false}, // a name stays Latin
+		{"我们周五发布", "我们周五发布。", "en", true},
+		{"我们周五发布", "我们在周五发版", "en", true}, // still Chinese
+		{"我们周五发布", "We ship on Friday.", "en", false},
+		{"我们周五发布", "我们周五发布", "zh-Hans", false},       // already Chinese: nothing to redo
+		{"Good morning", "Good morning", "en", true}, // Latin into Latin: only the same text
+		{"Good morning", "Bonjour", "fr", false},
+		{"Привет", "Привет", "ru", false},
+		{"Hello", "Привет", "ru", false},
+		{"Hello", "Hello", "ru", true},
+		{"", "x", "en", false},
+		{"x", "", "en", false},
+		{"12:30", "12:30", "en", true},
+	} {
+		if got := Untranslated(tc.src, tc.res, tc.target); got != tc.want {
+			t.Errorf("Untranslated(%q, %q, %s) = %v", tc.src, tc.res, tc.target, got)
+		}
+	}
+}
+
+func TestParseAnswer(t *testing.T) {
+	for _, tc := range []struct {
+		text string
+		want Answer
+		ok   bool
+	}{
+		{`{"title":"Update","content":"Ships Friday."}`, Answer{"Update", "Ships Friday."}, true},
+		{"```json\n{\"title\": \" **Update** \", \"content\": \"Line 1\\nLine 2\"}\n```", Answer{"Update", "Line 1\nLine 2"}, true},
+		{`Sure! {"title":"T","content":"x {y} z"} hope it helps`, Answer{"T", "x {y} z"}, true},
+		{`{"title":"T","content":"  "}`, Answer{}, false},
+		{`{"title":"T"`, Answer{}, false},
+		{"just text", Answer{}, false},
+		{`{bad} {"content":"second"}`, Answer{Content: "second"}, true},
+	} {
+		got, ok := ParseAnswer(tc.text)
+		if ok != tc.ok || got != tc.want {
+			t.Errorf("ParseAnswer(%q) = %+v %v", tc.text, got, ok)
+		}
+	}
+}
+
+func TestPartialAnswer(t *testing.T) {
+	full := `{"title": "周五发布", "content": "大家好：\n- Auralink \"0.1\" 周五发布 \ud83d\ude80 \u4f60"}`
+	var last Answer
+	for i := 1; i <= len(full); i++ {
+		a := PartialAnswer(full[:i])
+		if !strings.HasPrefix(full, full[:i]) || len(a.Content) < len(last.Content) && !strings.HasPrefix(last.Content, a.Content) {
+			t.Fatalf("at %d: %+v after %+v", i, a, last)
+		}
+		if strings.ContainsRune(a.Content, '\ufffd') {
+			t.Fatalf("at %d: a broken rune in %q", i, a.Content)
+		}
+		last = a
+	}
+	if last.Title != "周五发布" || last.Content != "大家好：\n- Auralink \"0.1\" 周五发布 🚀 你" {
+		t.Errorf("final %+v", last)
+	}
+	for text, want := range map[string]Answer{
+		"":                               {},
+		"Plain text answer":              {Content: "Plain text answer"},
+		"```":                            {},
+		"```json\n{\"title\":\"T\",\"co": {Title: "T"},
+		`{"content":"a\`:                 {Content: "a"},
+		`{"content": "x", "title": "`:    {Content: "x"},
+	} {
+		if got := PartialAnswer(text); got != want {
+			t.Errorf("PartialAnswer(%q) = %+v", text, got)
 		}
 	}
 }
