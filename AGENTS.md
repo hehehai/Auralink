@@ -9,7 +9,8 @@ Auralink is a macOS voice input app on remote models: Go + MyGo (native UI, no c
 - **Voxt is a reference, not a source.** Port behaviour, never code: read what Voxt does, write it our way (one session owner, a layered prompt composer, pure logic apart from platform code), and record the difference in `docs/behavior.md` (Voxt / Auralink / why).
 - **The UI is AudioSmith's.** Build pages from `ui_kit.go` and the tokens in `ui_tokens.go` (one ink primary button per view, the accent for state only, Solar icons, `settingRow` with ⓘ help). New icons: add the name to `internal/icons/names.txt`, then `go generate ./internal/icons`.
 - **Pure logic in `internal/`, platform code behind narrow interfaces** (the helper, `permission`), with fakes for tests: everything must be testable on Linux.
-- **The helper protocol** (`internal/helper/proto`, `docs/helper-protocol.md`, `helper/Fixtures`) changes in all three places at once.
+- **The helper protocol** changes in every place at once: `internal/helper/proto`, the Swift types (`helper/Sources/AuralinkHelperKit/Wire*.swift`), `helper/Fixtures`, the fake helper (`internal/helper/helpertest`) and `docs/helper-protocol.md`. Go and Swift tests decode the same fixtures.
+- **The helper does, Go decides**: policy (when ⌘C may run, delays, keys after a paste, which device) goes in the params; the helper keeps no settings.
 - Code comments and commit messages in English. Keep the MyGo lifetime rules (`.agents/skills/mygo-maintenance`).
 
 ## Commands
@@ -21,6 +22,7 @@ CGO_ENABLED=1 go test -race ./...                            # needs cgo
 AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .   # pages as PNG
 go test -run TestKeyParity ./internal/i18n                   # strings and zh-Hans
 scripts/mac.sh '<command>'                                   # run on the Mac (MAC_HOST, MAC_DIR=code/Auralink)
-scripts/mac.sh 'scripts/stage-fake-helper.sh && go tool mygo build'
+scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'   # the Swift helper, then the app
+scripts/mac.sh 'cd helper && swift test'                     # the helper's tests (same fixtures as Go)
 scripts/vendor-mygo.sh --check                               # third_party/mygo is MyGo + our patches
 ```

@@ -1,6 +1,6 @@
 # Auralink architecture
 
-*State: M2, the remote model layer (2026-10-15). Product plan: the project's `plan/auralink-plan.md` (§4 architecture, §5 data, §8 engineering). Behaviour compared with Voxt: [behavior.md](behavior.md). Helper wire format: [helper-protocol.md](helper-protocol.md).*
+*State: M2, the remote model layer, and the Swift helper (2026-10-15). Product plan: the project's `plan/auralink-plan.md` (§4 architecture, §5 data, §8 engineering). Behaviour compared with Voxt: [behavior.md](behavior.md). Helper wire format: [helper-protocol.md](helper-protocol.md).*
 
 Auralink is a Go app on MyGo (native UI, no cgo) with one small Swift helper process. It reuses AudioSmith's engineering (AudioSmith @f171c86, Apache-2.0): its window shell, UI kit and tokens, settings, store, i18n, logs and notification code, and its engine supervisor reduced to one helper. What it took and how it changed is in §5.
 
@@ -14,7 +14,7 @@ github.com/hehehai/Auralink
 │   ├── settings/         the typed, versioned settings document (v1) + Service                 (leaf)
 │   ├── store/            persistence contract: Documents, History, Dictionary
 │   │   └── sqlitestore/  SQLite (MyGo plugin): migrations, backup, FTS5 trigram, maintenance
-│   ├── helper/           supervisor of auralink-helper: handshake, restarts, stderr to the log
+│   ├── helper/           supervisor of auralink-helper: handshake, restarts, stderr to the log, call traces
 │   │   ├── proto/        the helper protocol's wire types (leaf); fixtures in helper/Fixtures/
 │   │   └── helpertest/   a fake helper for tests (the test binary re-runs itself); cmd/fakehelper
 │   ├── i18n/             T / N / X keyed by English source; locales/*.json; dates              (leaf)
@@ -25,6 +25,7 @@ github.com/hehehai/Auralink
 │   ├── secrets/          API keys in the Keychain, service "Auralink"                          (leaf)
 │   ├── netx/             the proxy (settings.Network) and the HTTP client every provider uses  (leaf)
 │   ├── permission/       Microphone and Accessibility (purego on darwin; Fake for tests)       (leaf)
+│   ├── macx/             activating an app again before a paste (purego on darwin)            (leaf)
 │   ├── asr/              remote speech recognition: FileTranscriber, Streamer/Stream, error kinds,
 │   │   │                 endpoint policy, WebSocket dial through the proxy, WAV/PCM helpers
 │   │   ├── openai/       OpenAI-compatible /audio/transcriptions (multipart upload)
@@ -35,8 +36,8 @@ github.com/hehehai/Auralink
 │   │                     JSON repair, usage, skills and routing, Probe
 │   └── providers/        settings.Providers ↔ asr/llm: presets of the Models page, readiness, the
 │                         service a feature uses, building clients, connection tests
-├── helper/               the Swift helper (to come: helper/README.md), Fixtures/, Support/
-└── third_party/mygo/     MyGo 0.4.8 with two patches (scripts/vendor-mygo.sh)
+├── helper/               the Swift helper (helper/README.md): Sources/, Tests/, Fixtures/, Support/
+└── third_party/mygo/     MyGo 0.4.8 with three patches (scripts/vendor-mygo.sh)
 ```
 
 Later milestones add, as the plan's §4.1 lists: `internal/session`, `compose`, `deliver`, `textio`, `hotkey` (M3), `appctx` (M5).
@@ -52,11 +53,11 @@ helper ──▶ core, helper/proto  helper/helpertest ──▶ helper/proto
 notify, logs ──▶ core
 asr ──▶ core, netx            asr/openai, doubao, aliyun ──▶ asr, netx     asr/asrtest ──▶ (nothing internal)
 llm ──▶ core                  providers ──▶ asr (+ its providers), llm, settings, netx
-core, settings, helper/proto, i18n, lang, secrets, netx, permission ──▶ (nothing internal)
+core, settings, helper/proto, i18n, lang, secrets, netx, permission, macx ──▶ (nothing internal)
 icons ──▶ mygo/ui
 ```
 
-The domain packages (session, compose, appctx, asr, llm…) will be pure Go behind narrow interfaces, with the macOS parts (recording, the event tap, AX, AppleScript, pasting) behind them: in the helper, or in purego code like `permission`. That keeps their logic testable on Linux with fakes (plan §1.4).
+The domain packages (session, compose, appctx, asr, llm…) will be pure Go behind narrow interfaces, with the macOS parts behind them: recording, the event tap, the app in front, AX reads, pasting and AppleScript in the helper; the permission reads before the helper runs and `macx.Activate` in purego code. That keeps their logic testable on Linux with fakes (plan §1.4): the fake helper plays recordings, scripted hotkey events and text I/O.
 
 Event types live next to their publisher, and their topic starts with the publisher's name. They satisfy `core.Event` (a `Topic() string` method) without importing `core`:
 
@@ -77,7 +78,7 @@ MyGo builds the root `main` package (`mygo dev`, `mygo build`, `ui.View`); views
 ┌──────────────────────────────┐  calls (go …)  ┌──────────────────────────────────────────┐
 │ views (build pass: no I/O)   │──────────────▶ │ library: store (SQLite) · bus · settings │
 │ app view state + snapshots   │                │ helper.Supervisor ──stdio JSON lines──▶ auralink-helper (Swift)
-│        ▲ Window.Update       │                │    capture.* · hotkey.* · browser.url    │
+│        ▲ Window.Update       │                │    capture.* · hotkey.* · textio.* · app.* · browser.url · automation.* · permissions.*
 └────────┼─────────────────────┘                └──────────────────────────────────────────┘
    core.Bus subscribers ◀── Publish ─────────────┘
    (wiring code, once)
@@ -105,8 +106,9 @@ There is no job queue (plan §5): a session (M3) lives in memory, owned by one s
 | `navGroups`, `shortcutPages` (⌘1–⌘6), `pageTitle`, `a.navBadge` | shell.go | sidebar, rail, palette, Go menu |
 | `a.page(c, p)`, `placeholderText`, `a.pageShown(path)` | pages.go | the router; milestones replace a page's placeholder here |
 | `a.updateSettings(fn)`, `a.prefs`, `settingsSections()` | shell_settings.go | every area that changes a setting |
-| `a.helperStatus()`, `helperCall[T](a, method, params, timeout, then)`, `a.helperNotified(m)`, `a.restartHelper()` | helperlink.go | status bar, permissions, Diagnostics; sessions (M3) |
-| `a.permSys` (`permission.System`), `a.recheckPermissions()`, `a.probeAutomation(prompt, ids)`, `a.browsers()` | permissions.go | Permissions page, Diagnostics, onboarding (M6) |
+| `a.helperStatus()`, `helperCall[T](a, method, params, timeout, then)`, `a.helperNotified(m)`, `a.restartHelper()`, `a.hotkeys` (hotkey.state), `a.front` (app.activated) | helperlink.go | status bar, permissions, Diagnostics; sessions (M3) |
+| `a.permSys` (`permission.System`), `a.recheckPermissions()`, `a.askPermission(which)`, `a.probeAutomation()`, `a.requestAutomation(id)`, `a.browsers()` | permissions.go | Permissions page, Diagnostics, onboarding (M6) |
+| `floatingWindowOptions(…)`, `showFloating(w, x, y)` (non-activating windows, mygo patch 0003), `activateTarget(pid)` (`macx.Activate`) | floating.go | the recording pill and the answer card (M3, M4) |
 | `a.toast(msg)`, `a.notify(…)`, `a.post(fn)`, `a.async(fn)` | app.go, shell_status.go | everyone |
 | `a.keys` (`keyring`: the Keychain; memory in tests), `a.keyMasks`, `a.hasKey(account)`, `a.providerSummary()`, `providerName(kind, p)`, `providerErrorText(err)` | providers_page.go | Model services page, status bar; sessions (M3) read keys through `a.keys` off the main thread |
 | `hotkeyGlyphs(keys)` | shell_commands.go | ? sheet, menu bar, feature pages |
@@ -139,13 +141,14 @@ There is no job queue (plan §5): a session (M3) lives in memory, owned by one s
 | `internal/helper` (+ `proto`, `helpertest`) | `engine` (+ `proto`, `enginetest`) | one process instead of roles; no scheduler, memory budget or stats polling; notifications without a job go to `OnNotify`; protocol 1 with the helper's methods |
 | `internal/secrets` | `hub/token.go` (`Keychain`, `Secret`) | service "Auralink"; no HF token |
 | `internal/netx` | `hub/proxy.go` | unchanged rules |
-| `internal/permission` | `dictation/system_darwin.go` | Microphone and Accessibility only |
+| `internal/permission` | `dictation/system_darwin.go` | Microphone and Accessibility only; the page asks the helper first |
+| `helper/` (Swift) | `engine/Sources` (`Server.swift`, `Capture.swift`, the protocol target's `Wire.swift`) and the M0 spikes | no MLX; the M0 spike's capture, event tap, text I/O and browser code, made protocol 1 (docs/helper-protocol.md §6) |
 | `internal/i18n`, `icons`, `logs`, `notify`, `lang` | same | zh-Hans rebuilt from what Auralink uses (304 strings); 38 icons; log file `auralink.log` |
-| `third_party/mygo`, `scripts/vendor-mygo.sh`, `scripts/mac.sh`, CI | same | renamed |
+| `third_party/mygo`, `scripts/vendor-mygo.sh`, `scripts/mac.sh`, CI | same | renamed; patch 0003 (non-activating windows) is Auralink's |
 
 | `internal/llm` | `llm` | no engine backend, no dubbing skills, no Ollama/LM Studio presets; skills `transcribe_enhance`, `translate_text`, `rewrite`; Volcengine Ark, MiniMax, StepFun, MiMo presets; `extraBody` (thinking off); https-only base URLs; `Probe` (its README) |
 
-Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services, dsp, translate, text, doc, dub, api, mcp, workflow, telephony, watermark, gallery, voicedesign, audio. The dictation's paste and clipboard code comes in M3.
+Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services, dsp, translate, text, doc, dub, api, mcp, workflow, telephony, watermark, gallery, voicedesign, audio, and the dictation's paste and clipboard code (pasting is the helper's `textio.paste`).
 
 ## 6. Testing
 
@@ -155,8 +158,9 @@ Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services,
 | MyGo vet | `go tool mygo vet .` | `go vet ./...` and the UI-lifetime checks |
 | Race | `CGO_ENABLED=1 go test -race ./...` | needs cgo |
 | Snapshots | `AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .` | every page, the settings sections and the overlays, light/dark, en/zh-Hans, 2×; `AURALINK_SNAPSHOTS_SIZE=820x520` for the smallest window |
-| Mac checks | `scripts/mac.sh 'AURALINK_MAC=1 go test -run "TestMacKeychain|TestNative" -v ./internal/secrets ./internal/permission'` | the Keychain and the permission calls |
-| Packaged app | `scripts/mac.sh 'scripts/stage-fake-helper.sh && go tool mygo build'` | until the Swift helper exists, with the fake one |
+| Swift helper | `scripts/mac.sh 'cd helper && swift test'` | the wire types against helper/Fixtures (the same lines the Go tests decode), the hotkey recognizer, the PCM framer |
+| Mac checks | `scripts/mac.sh 'AURALINK_MAC=1 go test -run "TestMacKeychain|TestNative|TestActivate" -v ./internal/secrets ./internal/permission ./internal/macx'` | the Keychain, the permission calls, activation |
+| Packaged app | `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'` | the helper, then the app; signing during development: README |
 | Provider protocols | `go test ./internal/asr/... ./internal/llm ./internal/providers` | golden files of what each client sends (`testdata/*.golden`; `AURALINK_UPDATE_GOLDEN=1` rewrites them) against loopback servers replaying recorded answers |
 | Real services | `AURALINK_E2E=1 go test -run 'TestE2E' -v ./internal/asr/... ./internal/providers` | keys from the environment or `~/.config/auralink-dev/keys.env` (`DOUBAO_APP_ID`, `DOUBAO_ACCESS_TOKEN`, `DASHSCOPE_API_KEY`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`); speech sample `testdata/speech/sample-zh-en.wav`; each test skips without its key |
 | Text fit | `AURALINK_TEXTFIT_PROBE=1` / `AURALINK_TEXTFIT_AUDIT=1 go test -run 'TestTextFits|TestTranslationsFit' .` | meaningful on macOS (Core Text) |

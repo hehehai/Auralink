@@ -24,10 +24,10 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | # | Voxt 怎么做 | Auralink 怎么做 | 为什么 | 状态 |
 |---|---|---|---|---|
 | 2.1 | SwiftUI 设置窗口和菜单栏 | AudioSmith 的外壳（Go + MyGo）：侧边栏、⌘K、设置对话框、状态栏、菜单栏图标 | actnow 家族统一 UI（RULES） | ✅ |
-| 2.2 | 录音、热键、粘贴都在 app 主进程里 | 录音、事件 tap、AppleScript 放在 Swift helper 子进程；Go 进程负责 UI、业务和网络 | MyGo 不能录音；事件 tap 的回调必须同步决定是否吞键；helper 崩溃不会带走 UI（方案 §4.1） | ◐ 协议和 supervisor 已完成，Swift 端等 M0 spike 结果 |
+| 2.2 | 录音、热键、粘贴都在 app 主进程里 | 录音、事件 tap、AppleScript 放在 Swift helper 子进程；Go 进程负责 UI、业务和网络 | MyGo 不能录音；事件 tap 的回调必须同步决定是否吞键；helper 崩溃不会带走 UI（方案 §4.1） | ✅ helper（`helper/`，Swift）和协议 1（`docs/helper-protocol.md`）已完成：录音、热键、textio、前台 App、浏览器 URL、权限 |
 | 2.3 | 历史存在自己的数据库（`Core/VoxtDatabase.swift`） | SQLite（MyGo 插件）迁移 001：`history`（带 trigram FTS，覆盖原文、选中文本、口述指令、结果）、`dictionary_terms`、`documents`；迁移前自动备份，拒绝打开更新版本 app 的数据库 | 中文子串搜索可用；数据可以整体搬家（设置 → 存储） | ✅ |
 | 2.4 | API Key 存在钥匙串 | 钥匙串 service "Auralink"，账号 `asr.<id>`、`llm.<id>`（`internal/secrets`） | 同样的做法 | ✅ |
-| 2.5 | 权限说明分散在 onboarding 和各设置页 | 侧边栏有独立的“权限”页：麦克风、辅助功能、每个浏览器的自动化权限，各自说明用途并提供授权入口 | 应用增强需要按浏览器授权，集中在一处更好排查 | ◐ 页面已完成；浏览器状态依赖 helper 的 `automation.probe` |
+| 2.5 | 权限说明分散在 onboarding 和各设置页 | 侧边栏有独立的“权限”页：麦克风、辅助功能、每个浏览器的自动化权限，各自说明用途并提供授权入口 | 应用增强需要按浏览器授权，集中在一处更好排查 | ✅ 状态和授权都走 helper（`permissions.*`、`automation.*`）；helper 没起来时麦克风和辅助功能由 app 自己读 |
 
 ## 3. 远程模型（M2）
 
@@ -53,16 +53,31 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | 3.18 | MiniMax 用原生 `chatcompletion_v2` 接口 | 用它的 OpenAI 兼容接口 `api.minimaxi.com/v1`，输出里的 `<think>` 由 Client 去掉 | 和其他 provider 共用一个 transport | ◐ 等真实 Key 验证 |
 | 3.19 | 每个 provider 的配置页各不相同 | 模型服务页：ASR / LLM 两个 tab，“各功能使用”选择器，服务卡片（状态点、默认模型、Key 掩码、测试），点卡片打开同一种配置对话框（Key、Endpoint、模型下拉 + 自定义、ASR 提示词） | 一种界面覆盖所有 provider | ✅ |
 
-## 4. 待补（按里程碑）
+## 4. 辅助进程（helper，Swift）
+
+做法来自 M0 spike 的实测（项目 `research/spikes.md`），协议见 `docs/helper-protocol.md`。
+
+| # | Voxt 怎么做 | Auralink 怎么做 | 为什么 | 状态 |
+|---|---|---|---|---|
+| 4.1 | 录音、热键、读选中文本、粘贴、读 URL 都在 app 主进程里，各自在不同的 Flow 中调用 | 全部放在一个 Swift 子进程里；Go 只下发策略（设备顺序、是否允许 ⌘C、延迟、粘贴后的按键），helper 不存任何设置 | 事件 tap、AX、剪贴板、注入事件的标记在同一个进程里，不需要来回通信；权限按负责进程算在 Auralink 名下（spike S2 实测） | ✅ |
+| 4.2 | 热键：`Hotkey/HotkeyManager.swift` 按修饰键状态判定，单按和双击共用时单按走 `scheduleTapFallback` 延迟触发 | 识别器（`AuralinkHelperKit/HotkeyRecognizer.swift`）按“修饰键会话”判定：从第一个修饰键按下到全部松开算一个和弦；第二次按下在窗口内开始就算双击（默认 500 ms，取系统双击间隔，最多 800 ms）；单按最长 1500 ms；某个修饰键的事件来了状态却没变，说明系统丢了事件，丢弃当前和弦 | 真实按键补测：双击两次松开相隔 450 ms 但第二次按下只隔 303 ms；⇧+fn 按住 983 ms；fn+⌃ 之后 fn 的松开事件会丢 | ✅ 识别器；真实右⌘ 待测 |
+| 4.3 | 读选中文本：AX → 浏览器 AppleScript → 模拟 ⌘C；“空选区会复制整行”的 App 名单里不模拟（`SelectedTextSystemSelectionSupport.shouldAttemptSimulatedCopy`）；焦点元素在但没有选区范围时也不模拟 | AX 选中文本 → 选区范围取字符串 → WebKit/Chromium text marker；只有光标没有选区时直接返回空；其余情况由 Go 决定 `allowCopy`（M3 维护整行复制名单）；不用 AppleScript 读浏览器选区 | 策略留在 Go 便于测试；text marker 已覆盖浏览器里的选区（spike S4：Safari、Chrome、Cursor 都能读到），少一次自动化授权 | ✅ helper；名单 ○ M3 |
+| 4.4 | Electron App 不做特殊处理 | App 切到前台时，helper 给 Electron App 设置 `AXManualAccessibility`，热键按下时 AX 树已经建好 | Chromium 只有被要求时才建 AX 树，而且要过一会儿才生效（spike S4：Cursor 第一次读为空） | ✅ |
+| 4.5 | 粘贴：写剪贴板、⌘V，按 changeCount 判断后恢复（`PasteboardTextWriter`） | 同样按 changeCount 只恢复自己写的内容；另外保存全部 item 和类型，写入时带 `org.nspasteboard.TransientType`，剪贴板管理器不记录；`targetPid` 不在前台就不粘贴；粘贴后可以按任意键（`press`） | 剪贴板里的图片、文件不会因为恢复而丢掉；不会粘贴到别的窗口 | ✅ |
+| 4.6 | 读 URL：直接跑 AppleScript，失败（-1743）后 5 分钟内不再尝试，再退回 AX（`BrowserContextResolver`）；每次都重新编译脚本 | 先不弹窗地探测自动化状态，只有 `granted` 才跑 AppleScript，否则直接用 AX；编译好的脚本缓存起来；浏览器切到前台时刷新状态 | 未授权时跑 AppleScript 会在用户不知情时弹窗；编译每次多 50–500 ms（spike S5） | ✅ |
+| 4.7 | 浏览器授权：权限设置页请求；浏览器没开时直接失败（`PermissionsSettingsView.requestBrowserAutomationPermission`，appNotRunning） | 权限页的“请求授权”在浏览器没开时先在后台打开它再请求 | macOS 只对正在运行的 App 弹授权窗（spike S5：-600） | ✅ |
+| 4.8 | 浮窗是普通窗口，插入前重新激活目标 App | 录音浮窗用 MyGo 补丁 0003 的 `NonActivating`：点击不激活 Auralink，目标 App 保持焦点；需要打字的窗口才走重新激活（`macx.Activate`） | spike S3：非激活 panel 7/7 生效；重新激活会让焦点闪一下 | ◐ 补丁和封装完成；浮窗 ○ M3 |
+
+## 5. 待补（按里程碑）
 
 每节在对应里程碑落地时补上。下面先列出方案里已经确定的差异。
 
 | 模块 | Voxt 怎么做 | Auralink 计划怎么做 | 为什么 | 里程碑 |
 |---|---|---|---|---|
 | 应用增强：匹配顺序 | URL 分组 → 浏览器没有命中任何 URL 时直接回到全局（`EnhancementPromptResolver.resolve`） | URL 分组 → **浏览器 App 本身所在的分组** → App 分组 → 全局 | 用户把 Chrome 放进“工作”分组时，没写 URL 规则的网站也应该按“工作”处理 | M5 |
-| 应用增强：上下文快照 | 停止录音时读取前台 App 和 URL | **按下热键时**记下前台 App（helper 的 `hotkey.event` 自带 `app`），同时在后台开始读 URL | AppleScript 要 50–300 ms；用户中途切走窗口也不影响匹配 | M3/M5 |
+| 应用增强：上下文快照 | 停止录音时读取前台 App 和 URL | **按下热键时**记下前台 App（helper 的 `hotkey.event` 自带 `front`），同时在后台开始读 URL | AppleScript 要 50–300 ms；用户中途切走窗口也不影响匹配 | M3/M5 |
 | Prompt 变量 | 用户 prompt 里用 `{{RAW_TRANSCRIPTION}}` 把识别文本拼进 system | 输入文本永远放在 user 消息里；变量只有 `{{USER_MAIN_LANGUAGE}}`、`{{USER_OTHER_LANGUAGES}}`、`{{TARGET_LANGUAGE}}`、`{{APP_NAME}}` | 避免 prompt 注入，也便于缓存 system | M3 |
 | 翻译兜底 | 结果“看起来没翻译”时用更严格的规则重试 | 保留 | 实测有效 | M4 |
-| 录音设备 | 1.2 s 看门狗，指定设备失败时回到默认设备 | 保留，放在 helper 的 `capture.start` 里，结果中写明是否回退（`fallback`） | 蓝牙耳机常常没有声音 | M0/M3 |
+| 录音设备 | 1.2 s 看门狗，指定设备失败时回到默认设备 | 保留，放在 helper 的 `capture.start` 里，`capture.started` 写明是否回退（`fellBack`），见 §4 | 蓝牙耳机常常没有声音 | ✅ helper；会话 M3 |
 | 热键 | 默认 preset：fn 转录、fn+Shift 翻译、fn+Control 改写、Control+Command+V 粘贴最近结果（`docs/HotkeyRules.zh-CN.md`） | 同样的默认值（方案 D2，`settings.Defaults`）；判定在 helper，规则表和冲突检查在 Go | 用户已经习惯 | M3 |
 | 剪贴板恢复 | 用 changeCount 判断剪贴板是不是自己写的 | 保留 | 避免覆盖用户在这期间复制的内容 | M3 |
