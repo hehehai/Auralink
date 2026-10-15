@@ -858,10 +858,9 @@ func (a *app) translateSettings(c *ui.Context) {
 		})
 }
 
-// rewriteSettings are Rewrite's own: the instruction's clean-up and when
-// an answer goes to the card.
+// rewriteSettings are Rewrite's own: the instruction's clean-up. Every
+// answer shows in the answer card (Voxt's), nothing to choose there.
 func (a *app) rewriteSettings(c *ui.Context) {
-	t := c.Theme()
 	f := &a.prefs.Features.Rewrite
 	sectionTitle(c, i18n.T("Rewriting"))
 	settingRow(c, "rw-cleanup", i18n.T("Clean up the instruction"),
@@ -869,14 +868,6 @@ func (a *app) rewriteSettings(c *ui.Context) {
 			if ui.Switch(c.Key("rw-cleanup-switch"), &f.Cleanup).Label(i18n.T("Clean up the instruction")).Changed() {
 				on := f.Cleanup
 				a.updateSettings(func(s *settings.Settings) { s.Features.Rewrite.Cleanup = on })
-			}
-		})
-	settingRow(c, "rw-card", i18n.T("Long answers in the card"),
-		i18n.T("With nothing selected, an answer longer than this many characters shows in the answer card instead of being typed; 0 types every answer. A rewritten selection always replaces it, unless it cannot be edited."), func() {
-			v := float64(f.CardChars)
-			if numberInput(c.Key("rw-card-chars"), &v, 0, 5000, 50, numOpts{Label: i18n.T("Characters"), Width: px(t, 160)}) {
-				n := int(v)
-				a.updateSettings(func(s *settings.Settings) { s.Features.Rewrite.CardChars = n })
 			}
 		})
 }

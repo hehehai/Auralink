@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/deliver"
@@ -61,14 +60,13 @@ func (r *run) write(raw, selection string) {
 		f := r.settings.Features.Rewrite
 		in.Task, in.TaskPrompt, in.Cleanup, in.Instruction, in.Text = compose.Rewrite, f.Prompt, f.Cleanup, raw, selection
 		in.Previous = r.req.Previous
-		if selection != "" {
-			o.needEditable = true
-		} else {
-			answer = true
-		}
-		if len(in.Previous) > 0 {
-			o.card = deliver.ReasonCard // a follow-up stays in the card
-		}
+		// Written from an instruction: an answer with a title; a follow-up
+		// answers in plain text, as a conversation does (Voxt's).
+		answer = selection == "" && len(in.Previous) == 0
+		// Every answer goes to the answer card, which inserts it (or
+		// replaces the selection) when asked, and takes follow-ups (Voxt's:
+		// a Rewrite result always shows in the card).
+		o.card = deliver.ReasonCard
 	}
 	in.Answer = answer
 	if r.req.Card {
@@ -88,21 +86,17 @@ func (r *run) write(raw, selection string) {
 		}
 	}
 
-	limit := 0 // Rewrite writing from scratch: longer answers go to the card
-	if kind == store.KindRewrite && selection == "" && o.card == "" {
-		limit = r.settings.Features.Rewrite.CardChars
-	}
 	source := in.Text
 	if kind == store.KindRewrite {
 		source = selection
 	}
 	llmStart := r.now()
-	res, profile, err := r.ask(in, limit)
+	res, profile, err := r.ask(in)
 	if err == nil && kind == store.KindTranslate && compose.Untranslated(source, res.Content, in.TargetLanguage) && r.ctx.Err() == nil {
 		r.logf("warning", "the translation looks untranslated: asking again, strictly")
 		r.m.update(r, func(s *Snapshot) { s.Retried, s.Draft = true, "" })
 		in.Strict = true
-		if again, p, err2 := r.ask(in, 0); err2 == nil {
+		if again, p, err2 := r.ask(in); err2 == nil {
 			res, profile = again, p
 		} else if r.ctx.Err() == nil {
 			r.logf("warning", "the strict retry failed, keeping the first answer: %v", err2)
@@ -129,17 +123,13 @@ func (r *run) write(raw, selection string) {
 		return
 	}
 	r.m.update(r, func(s *Snapshot) { s.Title, s.Draft = res.Title, res.Content })
-	if o.card == "" && limit > 0 && utf8.RuneCountInString(res.Content) > limit {
-		o.card = deliver.ReasonLong
-	}
 	r.finish(Done, nil, res.Content, o)
 }
 
-// ask sends one request and streams its answer into the snapshot; limit
-// (> 0) moves a longer answer into the card while it streams. It returns
-// the answer (Content only, but for a JSON answer) and the composition's
-// profile.
-func (r *run) ask(in compose.Input, limit int) (compose.Answer, string, error) {
+// ask sends one request and streams its answer into the snapshot. It
+// returns the answer (Content only, but for a JSON answer) and the
+// composition's profile.
+func (r *run) ask(in compose.Input) (compose.Answer, string, error) {
 	cfg := r.m.cfg
 	out, err := compose.Build(in)
 	if err != nil {
@@ -155,7 +145,6 @@ func (r *run) ask(in compose.Input, limit int) (compose.Answer, string, error) {
 	}
 	var buf strings.Builder
 	var last time.Time
-	carded := false
 	publish := func(force bool) {
 		now := time.Now()
 		if !force && now.Sub(last) < draftEvery {
@@ -168,16 +157,7 @@ func (r *run) ask(in compose.Input, limit int) (compose.Answer, string, error) {
 		} else {
 			a.Content = strings.TrimSpace(buf.String())
 		}
-		toCard := limit > 0 && !carded && utf8.RuneCountInString(a.Content) > limit && !r.req.Try
-		if toCard {
-			carded = true
-		}
-		r.m.update(r, func(s *Snapshot) {
-			s.Draft, s.Title = a.Content, a.Title
-			if toCard {
-				s.Card = true
-			}
-		})
+		r.m.update(r, func(s *Snapshot) { s.Draft, s.Title = a.Content, a.Title })
 	}
 	req := llm.Request{
 		Messages: msgs, Skill: skill, Timeout: cfg.WriteTimeout,

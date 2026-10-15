@@ -178,7 +178,6 @@ func normalize(s Settings) Settings {
 	if f.PasteLast.Keys != "" {
 		f.PasteLast = normalizeHotkey(f.PasteLast)
 	}
-	f.Rewrite.CardChars = max(f.Rewrite.CardChars, 0)
 	for _, f := range []*Feature{&f.Transcribe.Feature, &f.Translate.Feature, &f.Rewrite.Feature} {
 		f.ASR, f.LLM = strings.TrimSpace(f.ASR), strings.TrimSpace(f.LLM)
 	}

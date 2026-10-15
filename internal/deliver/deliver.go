@@ -48,10 +48,11 @@ const (
 	// ReasonFailed: the helper failed (Result.Err).
 	ReasonFailed Reason = "failed"
 	// ReasonCard: the result goes to the answer card by choice (Translate's
-	// "Show the result in a card"); ReasonLong: it is longer than the
-	// answer card's limit (Rewrite). The session sets these, not Insert.
+	// "Show the result in a card"), or always (Rewrite, Voxt's); ReasonLong
+	// was 0.1.0's: an answer longer than the card's limit. The session sets
+	// these, not Insert.
 	ReasonCard Reason = "card"
-	ReasonLong Reason = "long"
+	ReasonLong Reason = "long" // 0.1.0's (the history may hold it)
 )
 
 // Request is one insert.

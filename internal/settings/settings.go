@@ -263,11 +263,9 @@ type Translate struct {
 type Rewrite struct {
 	Feature
 	// Cleanup reads past fillers and self-corrections in the spoken
-	// instruction (never applied to the selection).
+	// instruction (never applied to the selection). Every answer shows in
+	// the answer card (Voxt's; the field cardChars of 0.1.0 is dropped).
 	Cleanup bool `json:"cleanup"`
-	// CardChars: an answer written from scratch that is longer than this
-	// shows in the answer card instead of being inserted (0: never).
-	CardChars int `json:"cardChars"`
 }
 
 // AppEnhancement: scene rules by app and URL (M5). The groups are the
@@ -314,7 +312,7 @@ func Defaults() Settings {
 		Features: Features{
 			Transcribe: Transcribe{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn", Trigger: TriggerTap}}}, Enhance: true, Cleanup: true},
 			Translate:  Translate{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn+Shift", Trigger: TriggerTap}}}, Cleanup: true},
-			Rewrite:    Rewrite{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn+Control", Trigger: TriggerTap}}}, Cleanup: true, CardChars: 400},
+			Rewrite:    Rewrite{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn+Control", Trigger: TriggerTap}}}, Cleanup: true},
 			PasteLast:  Hotkey{Keys: "Control+Command+V", Trigger: TriggerTap},
 		},
 		AppEnhancement: AppEnhancement{Enabled: true},

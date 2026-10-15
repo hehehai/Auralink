@@ -284,8 +284,10 @@ func (a *app) openAnswer(s session.Snapshot) {
 				card.why = a.answer.why
 			}
 		}
-		if card.problem == nil && s.Selection == "" {
-			card.turns = append(card.turns, compose.Turn{Instruction: s.Raw, Answer: compose.Answer{Title: s.Title, Content: s.Result}})
+		if card.problem == nil {
+			// Any answer takes follow-ups, a rewritten selection's too
+			// (Voxt's): the selection goes with its turn.
+			card.turns = append(card.turns, compose.Turn{Instruction: s.Raw, Selection: s.Selection, Answer: compose.Answer{Title: s.Title, Content: s.Result}})
 		} else if card.problem != nil && len(card.turns) > 0 {
 			card.input.Raw = s.Raw // Try again asks the same follow-up
 		}

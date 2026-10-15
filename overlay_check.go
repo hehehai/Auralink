@@ -143,7 +143,7 @@ func cardCheckSteps(lang string) []ovCheckStep {
 		{"card-long", end(tr(lang+"-t3", session.Done, long, long, lang)), true},
 		{"card-rewrite", func(a *app) {
 			a.answer = answerCard{}
-			end(session.Snapshot{ID: lang + "-r1", Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonLong, Target: arc,
+			end(session.Snapshot{ID: lang + "-r1", Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonCard, Target: arc,
 				Raw: "write that I am late", Title: "Running late", Result: short})(a)
 		}, true},
 		{"card-follow-up", func(a *app) {

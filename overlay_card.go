@@ -133,7 +133,7 @@ func (a *app) cardNow() cardView {
 		// A fresh answer the model writes into the card.
 		v := cardView{kind: s.Kind, text: s.Draft, streaming: true, lang: s.TargetLanguage, target: s.Target.Name,
 			why: whyInCard(s.Delivery, s.Selection != "", s.Target.Name), placeholder: workingText(s)}
-		v.title = cardTitle(s.Kind, s.Title, s.Selection != "")
+		v.title = cardTitle(s.Kind, s.Title)
 		if s.Retried {
 			v.msg = i18n.T("The first answer was not translated: asking again.")
 		}
@@ -145,7 +145,7 @@ func (a *app) cardNow() cardView {
 	follow := own && !redo
 	v := cardView{kind: card.kind, text: card.text, failed: card.problem, msg: card.msg, why: card.why, lang: card.lang,
 		target: card.target.Name, copied: card.copied, busy: own, conversation: card.conversation || follow}
-	v.title = cardTitle(card.kind, card.title, card.input.Selection != "")
+	v.title = cardTitle(card.kind, card.title)
 	if redo {
 		v.lang = card.redoLang
 	}
@@ -206,7 +206,7 @@ func cmpOr(a, b string) string {
 
 // cardTitle is the card's heading: a Rewrite answer's own title, else
 // what the card holds.
-func cardTitle(kind store.Kind, title string, selection bool) string {
+func cardTitle(kind store.Kind, title string) string {
 	if t := strings.TrimSpace(title); t != "" {
 		return t
 	}
@@ -214,10 +214,7 @@ func cardTitle(kind store.Kind, title string, selection bool) string {
 	case store.KindTranslate:
 		return i18n.T("Translation")
 	case store.KindRewrite:
-		if selection {
-			return i18n.T("Rewritten text")
-		}
-		return i18n.T("Answer")
+		return i18n.T("AI Answer") // Voxt's, a rewritten selection's too
 	}
 	return i18n.T("Transcription")
 }

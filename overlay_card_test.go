@@ -67,7 +67,7 @@ func cardSteps() []cardStep {
 		{name: "rewrite", apply: func(a *app) {
 			a.closeAnswer()
 			snap(a, session.Snapshot{ID: "r1", Kind: store.KindRewrite, State: session.Recording})
-			snap(a, session.Snapshot{ID: "r1", Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonLong, Raw: "write that I am late",
+			snap(a, session.Snapshot{ID: "r1", Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonCard, Raw: "write that I am late",
 				Title: "Running late", Result: "Sorry, I am running about ten minutes late: please start without me."})
 		}, insert: true, copy: true, followUp: true},
 		{name: "follow-up-recording", apply: func(a *app) {

@@ -752,33 +752,12 @@ func TestTranslateFailureRetry(t *testing.T) {
 	}
 }
 
-// TestRewriteSelectionEndToEnd: the spoken instruction rewrites the
-// selected text, which the answer replaces.
-func TestRewriteSelectionEndToEnd(t *testing.T) {
-	chat := &fakeChat{text: "Team: the release moves to Friday."}
-	set, keys, _ := fileSetup(t, "make it formal", chat)
-	ev := script(t, hotkeyLine(0, "rewrite/0", proto.PhaseTrigger), hotkeyLine(500, "rewrite/0", proto.PhaseTrigger))
-	a := newSessionApp(t, helpertest.Opt("selection", "hey all, ship friday")+","+ev, set, keys)
-	a.pump("the end", func() bool { return a.sess.State.Ended() })
-	if a.sess.State != session.Done || a.sess.Result != "Team: the release moves to Friday." || !a.sess.Inserted {
-		t.Fatalf("end %+v", a.sess)
-	}
-	msgs := chatMessages(chat.requests()[0])
-	if msgs[1][1] != "<instruction>\nmake it formal\n</instruction>\n\n<selected_text>\nhey all, ship friday\n</selected_text>" {
-		t.Errorf("user message %q", msgs[1][1])
-	}
-	es := a.history()
-	if len(es) != 1 || es[0].Kind != store.KindRewrite || es[0].PromptText != "make it formal" || es[0].SourceText != "hey all, ship friday" {
-		t.Errorf("history %+v", es)
-	}
-}
-
 // TestRewriteAnswerFollowUp: nothing selected and nothing takes text: the
 // JSON answer streams into the card with its title; the Rewrite shortcut
 // on the card records a follow-up, sent with the conversation so far,
-// whose answer replaces the card's.
+// answered in plain text into the card's conversation.
 func TestRewriteAnswerFollowUp(t *testing.T) {
-	chat := &fakeChat{texts: []string{`{"title":"Late","content":"Sorry, I am running late."}`, `{"title":"Later","content":"Running late."}`}}
+	chat := &fakeChat{texts: []string{`{"title":"Late","content":"Sorry, I am running late."}`, "Running late."}}
 	set, keys, tr := fileSetup(t, "write that I am late", chat)
 	ev := script(t, hotkeyLine(0, "rewrite/0", proto.PhaseTrigger), hotkeyLine(500, "rewrite/0", proto.PhaseTrigger))
 	a := newSessionApp(t, "readonly,"+ev, set, keys)
@@ -800,11 +779,12 @@ func TestRewriteAnswerFollowUp(t *testing.T) {
 	}
 	time.Sleep(400 * time.Millisecond)
 	a.hotkeyFired(proto.HotkeyEventParams{Binding: "rewrite/0", Phase: proto.PhaseTrigger, Behavior: proto.BehaviorTap, Front: &front})
-	a.pump("the follow-up's end", func() bool { return a.sess.State.Ended() && a.answer.title == "Later" })
+	a.pump("the follow-up's end", func() bool { return a.sess.State.Ended() && a.answer.text == "Running late." })
 	if a.answer.text != "Running late." || len(a.answer.turns) != 2 || !a.answer.open || !a.answer.conversation || len(a.pasted()) != 0 {
 		t.Errorf("card %+v", a.answer)
 	}
-	if v := a.cardNow(); len(v.bubbles) != 4 || !v.bubbles[2].user || v.bubbles[2].text != "shorter" || v.bubbles[3].title != "Later" || !v.canFollowUp {
+	// A follow-up answers in plain text, without a title (Voxt's).
+	if v := a.cardNow(); len(v.bubbles) != 4 || !v.bubbles[2].user || v.bubbles[2].text != "shorter" || v.bubbles[3].title != "" || v.bubbles[3].text != "Running late." || !v.canFollowUp {
 		t.Errorf("the conversation %+v", v.bubbles)
 	}
 	msgs := chatMessages(chat.requests()[1])

@@ -383,10 +383,10 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 			Result: "goroutine 是由 Go 运行时管理的轻量级线程。"}, nil, func(string) {
 			a.answer.msg = deliveryText(deliver.Result{Reason: deliver.ReasonNotFront}, proto.App{Name: "Arc"})
 		}},
-		{"overlay-rewrite-card", session.Snapshot{Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonLong,
+		{"overlay-rewrite-card", session.Snapshot{Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonCard,
 			Raw: "写一段两百字的自我介绍，用于技术分享会的开场", Title: "技术分享开场自我介绍",
 			Result: "大家好，我是关伟，一名专注于桌面应用和语音交互的工程师。过去几年，我主要在做跨平台的原生界面框架，也参与了几个语音输入工具的设计和开发。\n\n今天想和大家聊聊：怎样让语音输入真正融入日常的写作流程——从按下快捷键的那一刻，到文字出现在光标处，中间发生了什么，又有哪些地方值得打磨。"}, nil, nil},
-		{"overlay-rewrite-conversation-recording", session.Snapshot{Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonLong,
+		{"overlay-rewrite-conversation-recording", session.Snapshot{Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonCard,
 			Raw: "写一句话告诉同事我会晚到十分钟", Title: "晚到通知", Result: "大家好，我这边路上有点堵，大概会晚到十分钟，会议请先开始，不用等我。"}, nil, func(id string) {
 			a.followUp, a.answer.conversation = id, true
 			snap(a, session.Snapshot{ID: id + "-f", Kind: store.KindRewrite, State: session.Recording, StartedAt: now, HeardAt: now, Levels: wave(), Partial: "再正式一点"})

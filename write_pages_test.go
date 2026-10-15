@@ -82,7 +82,7 @@ func TestRewritePage(t *testing.T) {
 	a, tt := pageTester(t, "/rewrite")
 	for _, s := range []string{
 		"Rewrite", "fn ⌃", "No speech service is ready: set one up to rewrite.", "No language model is ready: set one up to rewrite.",
-		"Rewriting", "Clean up the instruction", "Long answers in the card",
+		"Rewriting", "Clean up the instruction",
 		"While the answer card shows an answer, the shortcut records a follow-up that changes it (\"shorter\", \"in English\").",
 	} {
 		if !has(tt, s) {
@@ -93,9 +93,8 @@ func TestRewritePage(t *testing.T) {
 	if a.lib.settings.Get().Features.Rewrite.Cleanup {
 		t.Error("clean-up not saved")
 	}
-	click(t, tt, "Increase")
-	if n := a.lib.settings.Get().Features.Rewrite.CardChars; n != 450 {
-		t.Errorf("card chars %d", n)
+	if has(tt, "Long answers in the card") {
+		t.Error("the card's length setting is back: every answer goes to the card")
 	}
 	click(t, tt, "Show the full prompt")
 	if !has(tt, "With a selection, as below; with nothing selected the model writes from the instruction and answers with a title and the text.") {
@@ -171,7 +170,7 @@ func TestOverlayWriting(t *testing.T) {
 	}
 	tt := cardTester(a)
 	frames(tt)
-	for _, s := range []string{"Rewritten text", "Try again", "shorter", "a long text"} {
+	for _, s := range []string{"AI Answer", "Try again", "shorter", "a long text"} {
 		if !has(tt, s) {
 			t.Errorf("failure card: no %q in %q", s, firstTexts(tt))
 		}
@@ -183,7 +182,7 @@ func TestOverlayWriting(t *testing.T) {
 
 	// A Rewrite answer: its title, and the shortcut follows up.
 	snap(a, session.Snapshot{ID: "r2", Kind: store.KindRewrite, State: session.Recording})
-	snap(a, session.Snapshot{ID: "r2", Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonLong, Raw: "write a note",
+	snap(a, session.Snapshot{ID: "r2", Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonCard, Raw: "write a note",
 		Title: "A note", Result: "Long note."})
 	if len(a.answer.turns) != 1 || a.answer.turns[0].Answer != (compose.Answer{Title: "A note", Content: "Long note."}) {
 		t.Fatalf("turns %+v", a.answer.turns)
