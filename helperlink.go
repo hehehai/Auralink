@@ -95,6 +95,13 @@ func (a *app) helperChanged(st helper.Status) {
 		a.hotkeysSent = ""     // a new helper has no shortcuts yet
 		a.syncHotkeys()        // sessionlink.go
 		a.loadLast()
+		// The app in front until the first app.activated: the target of a
+		// session started from the menu bar.
+		helperCall(a, proto.MethodAppFrontmost, nil, 5*time.Second, func(front proto.App, err error) {
+			if err == nil && a.front.PID == 0 {
+				a.front = front
+			}
+		})
 	}
 	if st.State != helper.Ready && was == helper.Ready {
 		a.hotkeys = proto.HotkeyStatus{} // its tap went with it
