@@ -1,6 +1,6 @@
 # Auralink architecture
 
-*State: M1, the skeleton (2026-10-15). Product plan: the project's `plan/auralink-plan.md` (§4 architecture, §5 data, §8 engineering). Behaviour compared with Voxt: [behavior.md](behavior.md). Helper wire format: [helper-protocol.md](helper-protocol.md).*
+*State: M2, the remote model layer (2026-10-15). Product plan: the project's `plan/auralink-plan.md` (§4 architecture, §5 data, §8 engineering). Behaviour compared with Voxt: [behavior.md](behavior.md). Helper wire format: [helper-protocol.md](helper-protocol.md).*
 
 Auralink is a Go app on MyGo (native UI, no cgo) with one small Swift helper process. It reuses AudioSmith's engineering (AudioSmith @f171c86, Apache-2.0): its window shell, UI kit and tokens, settings, store, i18n, logs and notification code, and its engine supervisor reduced to one helper. What it took and how it changed is in §5.
 
@@ -24,12 +24,22 @@ github.com/hehehai/Auralink
 │   ├── lang/             the language table, 652 languages                                     (leaf)
 │   ├── secrets/          API keys in the Keychain, service "Auralink"                          (leaf)
 │   ├── netx/             the proxy (settings.Network) and the HTTP client every provider uses  (leaf)
-│   └── permission/       Microphone and Accessibility (purego on darwin; Fake for tests)       (leaf)
+│   ├── permission/       Microphone and Accessibility (purego on darwin; Fake for tests)       (leaf)
+│   ├── asr/              remote speech recognition: FileTranscriber, Streamer/Stream, error kinds,
+│   │   │                 endpoint policy, WebSocket dial through the proxy, WAV/PCM helpers
+│   │   ├── openai/       OpenAI-compatible /audio/transcriptions (multipart upload)
+│   │   ├── doubao/       Volcengine big-model streaming ASR (binary frames, gzip)
+│   │   ├── aliyun/       Model Studio: inference (fun-asr, paraformer) and realtime (qwen3-asr) WebSockets
+│   │   └── asrtest/      loopback WebSocket server, golden files, E2E switches (tests only)
+│   ├── llm/              chat models (from AudioSmith): presets, OpenAI/Anthropic transports, retries,
+│   │                     JSON repair, usage, skills and routing, Probe
+│   └── providers/        settings.Providers ↔ asr/llm: presets of the Models page, readiness, the
+│                         service a feature uses, building clients, connection tests
 ├── helper/               the Swift helper (to come: helper/README.md), Fixtures/, Support/
 └── third_party/mygo/     MyGo 0.4.8 with two patches (scripts/vendor-mygo.sh)
 ```
 
-Later milestones add, as the plan's §4.1 lists: `internal/asr` and the `internal/llm` taken from AudioSmith (M2), `internal/session`, `compose`, `deliver`, `textio`, `hotkey` (M3), `appctx` (M5).
+Later milestones add, as the plan's §4.1 lists: `internal/session`, `compose`, `deliver`, `textio`, `hotkey` (M3), `appctx` (M5).
 
 ### Import rules
 
@@ -40,6 +50,8 @@ main ──▶ every internal package
 store ──▶ core                 store/sqlitestore ──▶ core, store
 helper ──▶ core, helper/proto  helper/helpertest ──▶ helper/proto
 notify, logs ──▶ core
+asr ──▶ core, netx            asr/openai, doubao, aliyun ──▶ asr, netx     asr/asrtest ──▶ (nothing internal)
+llm ──▶ core                  providers ──▶ asr (+ its providers), llm, settings, netx
 core, settings, helper/proto, i18n, lang, secrets, netx, permission ──▶ (nothing internal)
 icons ──▶ mygo/ui
 ```
@@ -96,6 +108,7 @@ There is no job queue (plan §5): a session (M3) lives in memory, owned by one s
 | `a.helperStatus()`, `helperCall[T](a, method, params, timeout, then)`, `a.helperNotified(m)`, `a.restartHelper()` | helperlink.go | status bar, permissions, Diagnostics; sessions (M3) |
 | `a.permSys` (`permission.System`), `a.recheckPermissions()`, `a.probeAutomation(prompt, ids)`, `a.browsers()` | permissions.go | Permissions page, Diagnostics, onboarding (M6) |
 | `a.toast(msg)`, `a.notify(…)`, `a.post(fn)`, `a.async(fn)` | app.go, shell_status.go | everyone |
+| `a.keys` (`keyring`: the Keychain; memory in tests), `a.keyMasks`, `a.hasKey(account)`, `a.providerSummary()`, `providerName(kind, p)`, `providerErrorText(err)` | providers_page.go | Model services page, status bar; sessions (M3) read keys through `a.keys` off the main thread |
 | `hotkeyGlyphs(keys)` | shell_commands.go | ? sheet, menu bar, feature pages |
 | Design tokens: `tok(t)`, `px`, `fs*`, `sp*`, `radius*`; `accentName` (teal) | ui_tokens.go | every view |
 | UI kit (AudioSmith 0.3): buttons by rank, `pageHeader`, `card`, `formRow`, `settingRow`, `emptyState`, `notice`, `sidePanel`, `dialogFrame`… | ui_kit.go, shell_settings.go | every view |
@@ -130,7 +143,9 @@ There is no job queue (plan §5): a session (M3) lives in memory, owned by one s
 | `internal/i18n`, `icons`, `logs`, `notify`, `lang` | same | zh-Hans rebuilt from what Auralink uses (304 strings); 38 icons; log file `auralink.log` |
 | `third_party/mygo`, `scripts/vendor-mygo.sh`, `scripts/mac.sh`, CI | same | renamed |
 
-Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services, dsp, translate, text, doc, dub, api, mcp, workflow, telephony, watermark, gallery, voicedesign, audio. `internal/llm` and the dictation's paste and clipboard code come in M2 and M3.
+| `internal/llm` | `llm` | no engine backend, no dubbing skills, no Ollama/LM Studio presets; skills `transcribe_enhance`, `translate_text`, `rewrite`; Volcengine Ark, MiniMax, StepFun, MiMo presets; `extraBody` (thinking off); https-only base URLs; `Probe` (its README) |
+
+Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services, dsp, translate, text, doc, dub, api, mcp, workflow, telephony, watermark, gallery, voicedesign, audio. The dictation's paste and clipboard code comes in M3.
 
 ## 6. Testing
 
@@ -142,4 +157,6 @@ Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services,
 | Snapshots | `AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .` | every page, the settings sections and the overlays, light/dark, en/zh-Hans, 2×; `AURALINK_SNAPSHOTS_SIZE=820x520` for the smallest window |
 | Mac checks | `scripts/mac.sh 'AURALINK_MAC=1 go test -run "TestMacKeychain|TestNative" -v ./internal/secrets ./internal/permission'` | the Keychain and the permission calls |
 | Packaged app | `scripts/mac.sh 'scripts/stage-fake-helper.sh && go tool mygo build'` | until the Swift helper exists, with the fake one |
+| Provider protocols | `go test ./internal/asr/... ./internal/llm ./internal/providers` | golden files of what each client sends (`testdata/*.golden`; `AURALINK_UPDATE_GOLDEN=1` rewrites them) against loopback servers replaying recorded answers |
+| Real services | `AURALINK_E2E=1 go test -run 'TestE2E' -v ./internal/asr/... ./internal/providers` | keys from the environment or `~/.config/auralink-dev/keys.env` (`DOUBAO_APP_ID`, `DOUBAO_ACCESS_TOKEN`, `DASHSCOPE_API_KEY`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`); speech sample `testdata/speech/sample-zh-en.wav`; each test skips without its key |
 | Text fit | `AURALINK_TEXTFIT_PROBE=1` / `AURALINK_TEXTFIT_AUDIT=1 go test -run 'TestTextFits|TestTranslationsFit' .` | meaningful on macOS (Core Text) |
