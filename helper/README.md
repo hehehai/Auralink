@@ -22,6 +22,7 @@ helper/
     Wire.swift, WireTypes.swift   the protocol (mirror of internal/helper/proto)
     HotkeyRecognizer.swift        chords, taps, double taps, long presses, swallowing
     PCMFramer.swift               PCM16 frames and levels
+    CaptureSource.swift           downmix and resampling; the test-only file input
     Apps.swift                    app.list's merge; the web area around the focus
   Sources/AuralinkHelper/    the executable:
     main.swift, Server.swift      stdin/stdout, hello, routing, the capture job, slow-request lines
@@ -31,8 +32,8 @@ helper/
     TextIO.swift                  focus, selection, paste
     Browser.swift                 browser URLs (AX), app.list
     Permissions.swift             Microphone, Accessibility
-  Tests/AuralinkHelperKitTests/  FixtureTests (helper/Fixtures), the recognizer, the framer
-  Fixtures/                  golden transcripts, shared with Go
+  Tests/AuralinkHelperKitTests/  FixtureTests (helper/Fixtures), the recognizer, the framer, the file input
+  Fixtures/                  golden transcripts, shared with Go; audio/ for the file input's tests
   Support/                   Info.plist (linked into the binary), helper.entitlements
 ```
 
@@ -49,6 +50,16 @@ cd helper && swift test                  # the Kit: fixtures, recognizer, framer
 `go tool mygo build` ships `resources/darwin-arm64/helper/auralink-helper` as `Auralink.app/Contents/Resources/helper/auralink-helper`, signed with `Support/helper.entitlements` (mygo.json `macos.helperEntitlements`: the microphone under the hardened runtime). The version in `Support/Info.plist` follows mygo.json's (the build script checks).
 
 Without Xcode, the fake helper stands in (it records a tone): `go build -o /tmp/fakehelper ./internal/helper/helpertest/cmd/fakehelper`, then `AURALINK_HELPER=/tmp/fakehelper`.
+
+## Recording a file instead of the microphone (tests only)
+
+`AURALINK_HELPER_CAPTURE_FILE=<audio file>` makes `capture.start` play that file (any rate and channels) through the capture path a microphone takes — downmix, resampling, framing, `capture.level` and `capture.pcm`, the same endings — at a microphone's pace (`AURALINK_HELPER_CAPTURE_SPEED=4` plays it four times as fast), then silence until `capture.stop`. The microphone is never asked for, so it runs on a Mac nobody sits at, from an ssh session. It exists for the headless Mac tests (`scripts/mac-e2e.sh`, `mac_e2e_test.go`; docs/helper-protocol.md §4); the app never sets it.
+
+```sh
+printf '%s\n' '{"id":"1","method":"helper.hello","params":{"protocol":1,"app":"cli"}}' \
+  '{"id":"s1","method":"capture.start","params":{"maxSeconds":2}}' \
+  | AURALINK_HELPER_CAPTURE_FILE=testdata/speech/sample-zh-en.wav helper/.build/debug/auralink-helper | cut -c1-120
+```
 
 ## Trying it by hand
 

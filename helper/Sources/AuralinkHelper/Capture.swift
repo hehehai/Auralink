@@ -22,6 +22,10 @@ import Foundation
 //   rebuilds the engine; the chosen device going away ends the recording
 //   (deviceLost), unless it was the default input, which follows the new
 //   default.
+// - Tests only: AURALINK_HELPER_CAPTURE_FILE names an audio file that
+//   stands in for the microphone (CaptureFileConfig): the same conversion,
+//   framing, notifications and endings, at a microphone's pace, without
+//   asking for the microphone.
 
 // MARK: Devices (Core Audio)
 
@@ -123,25 +127,33 @@ func cpuSeconds() -> Double {
 /// Runs one recording at a time.
 final class CaptureManager: @unchecked Sendable {
     let out: Writer
+    /// The test-only file input (AURALINK_HELPER_CAPTURE_FILE), else nil.
+    let file: CaptureFileConfig?
     private let lock = NSLock()
     private var run: CaptureRun?
 
-    init(out: Writer) { self.out = out }
+    init(out: Writer, file: CaptureFileConfig? = CaptureFileConfig.from(environment: ProcessInfo.processInfo.environment)) {
+        self.out = out
+        self.file = file
+        if let file { log("capture reads \(file.path) at \(file.speed)× instead of the microphone (\(CaptureFileConfig.fileVariable): tests only)") }
+    }
 
     /// Starts the capture.start job: the run answers it when it ends.
     func start(job: String, _ p: CaptureParams, clock: RequestClock) async throws {
-        switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .authorized: break
-        case .notDetermined:
-            if !(await AVCaptureDevice.requestAccess(for: .audio)) {
+        if file == nil {
+            switch AVCaptureDevice.authorizationStatus(for: .audio) {
+            case .authorized: break
+            case .notDetermined:
+                if !(await AVCaptureDevice.requestAccess(for: .audio)) {
+                    throw RPCError.denied(PermissionName.microphone, "Auralink may not use the microphone")
+                }
+            default:
                 throw RPCError.denied(PermissionName.microphone, "Auralink may not use the microphone")
             }
-        default:
-            throw RPCError.denied(PermissionName.microphone, "Auralink may not use the microphone")
         }
         let r: CaptureRun = try lock.withLock {
             if let cur = run { throw RPCError(Code.busy, "A recording is running already (\(cur.job))") }
-            let r = CaptureRun(out: out, job: job, params: p, t0: clock.received) { [weak self] ended in
+            let r = CaptureRun(out: out, job: job, params: p, file: file, t0: clock.received) { [weak self] ended in
                 self?.lock.withLock { if self?.run === ended { self?.run = nil } }
             }
             run = r
@@ -182,6 +194,7 @@ private final class CaptureRun: @unchecked Sendable {
     let out: Writer
     let job: String
     let params: CaptureParams
+    let file: CaptureFileConfig?
     let onEnd: (CaptureRun) -> Void
     private let rate: Int
     private let maxSamples: Int?
@@ -194,11 +207,12 @@ private final class CaptureRun: @unchecked Sendable {
     private var usingDefault = true
     private var fellBack = false
     private var fallbackReason: String?
-    private var converter: AVAudioConverter?
-    private var monoFormat: AVAudioFormat?
+    private var resampler: MonoResampler?
     private var inputFormat: AVAudioFormat?
-    private let outFormat: AVAudioFormat
     private var framer: PCMFramer
+    /// The file input's name and its pacing timer (tests only).
+    private var sourceName: String?
+    private var fileTimer: DispatchSourceTimer?
     private var generation = 0
     private var callbacksThisEngine = 0
     private var restarts = 0
@@ -213,20 +227,23 @@ private final class CaptureRun: @unchecked Sendable {
     private var configObserver: NSObjectProtocol?
     private var watcher: DispatchSourceTimer?
 
-    init(out: Writer, job: String, params: CaptureParams, t0: Double, onEnd: @escaping (CaptureRun) -> Void) {
+    init(out: Writer, job: String, params: CaptureParams, file: CaptureFileConfig?, t0: Double, onEnd: @escaping (CaptureRun) -> Void) {
         self.out = out
         self.job = job
         self.params = params
+        self.file = file
         self.t0 = t0
         self.onEnd = onEnd
         rate = max(8000, params.sampleRate ?? 16000)
-        outFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Double(rate), channels: 1, interleaved: false)!
         framer = PCMFramer(sampleRate: rate, frameMs: params.frameMs ?? 100, levelHz: params.levelHz ?? 20)
         if let m = params.maxSeconds, m > 0 { maxSamples = Int(m * Double(rate)) } else { maxSamples = nil }
     }
 
     /// Starts on the first device that starts, else the default input.
     func begin() throws {
+        if let file {
+            return try startFile(file)
+        }
         var reasons: [String] = []
         for uid in params.devices ?? [] where !uid.isEmpty {
             do {
@@ -279,11 +296,9 @@ private final class CaptureRun: @unchecked Sendable {
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw RPCError(Code.deviceUnavailable, "\(deviceName(device)) has no usable format")
         }
-        let mono = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: format.sampleRate, channels: 1, interleaved: false)!
-        guard let conv = AVAudioConverter(from: mono, to: outFormat) else {
+        guard let res = MonoResampler(inputRate: format.sampleRate, rate: rate) else {
             throw RPCError(Code.deviceUnavailable, "cannot convert \(Int(format.sampleRate)) Hz")
         }
-        conv.sampleRateConverterQuality = AVAudioQuality.medium.rawValue
         let gen: Int = lock.withLock {
             generation += 1
             callbacksThisEngine = 0
@@ -291,9 +306,8 @@ private final class CaptureRun: @unchecked Sendable {
             deviceID = device
             deviceUID = stringProperty(device, kAudioDevicePropertyDeviceUID) ?? ""
             usingDefault = uid == nil
-            monoFormat = mono
+            resampler = res
             inputFormat = format
-            converter = conv
             return generation
         }
         input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
@@ -308,6 +322,38 @@ private final class CaptureRun: @unchecked Sendable {
             throw RPCError(Code.deviceUnavailable, "\(deviceName(device)) did not start (\((error as NSError).code))")
         }
         armWatchdog(generation: gen)
+    }
+
+    /// The test-only file input: the file's buffers go through receive()
+    /// like the tap's, paced by a timer; no watchdog or device watcher.
+    private func startFile(_ fc: CaptureFileConfig) throws {
+        let player: CaptureFilePlayer
+        do {
+            player = try CaptureFilePlayer(path: fc.path, speed: fc.speed)
+        } catch {
+            throw RPCError(Code.deviceUnavailable, "\(fc.name) cannot be read: \(errorMessage(error))",
+                           data: .object(["device": .string("file:" + fc.name)]))
+        }
+        guard let res = MonoResampler(inputRate: player.format.sampleRate, rate: rate) else {
+            throw RPCError(Code.deviceUnavailable, "cannot convert \(Int(player.format.sampleRate)) Hz")
+        }
+        let gen: Int = lock.withLock {
+            generation += 1
+            deviceID = 0
+            deviceUID = "file:" + fc.name
+            sourceName = fc.name
+            usingDefault = false
+            resampler = res
+            inputFormat = player.format
+            return generation
+        }
+        let t = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "auralink.capture.file", qos: .userInteractive))
+        t.schedule(deadline: .now(), repeating: .milliseconds(10), leeway: .milliseconds(2))
+        t.setEventHandler { [weak self] in
+            for b in player.due(now: monotonicMs()) { self?.receive(b, generation: gen) }
+        }
+        lock.withLock { fileTimer = t }
+        t.resume()
     }
 
     private func armWatchdog(generation gen: Int) {
@@ -379,44 +425,29 @@ private final class CaptureRun: @unchecked Sendable {
     }
 
     private func stopEngine() {
-        let e: AVAudioEngine? = lock.withLock {
+        let (e, t): (AVAudioEngine?, DispatchSourceTimer?) = lock.withLock {
             let e = engine
+            let t = fileTimer
             engine = nil
-            return e
+            fileTimer = nil
+            return (e, t)
         }
+        t?.cancel()
         guard let e else { return }
         e.inputNode.removeTap(onBus: 0)
         e.stop()
         e.reset()
     }
 
-    /// The tap: downmix to mono at the device rate, then convert on the queue.
+    /// The tap (or the file input): downmix to mono at the input's rate,
+    /// then convert on the queue.
     private func receive(_ buffer: AVAudioPCMBuffer, generation gen: Int) {
         let mono: AVAudioFormat? = lock.withLock {
             guard gen == generation, !ended else { return nil }
             callbacksThisEngine += 1
-            return monoFormat
+            return resampler?.mono
         }
-        guard let mono, let data = buffer.floatChannelData else { return }
-        let n = Int(buffer.frameLength)
-        let channels = Int(buffer.format.channelCount)
-        guard n > 0, let copy = AVAudioPCMBuffer(pcmFormat: mono, frameCapacity: AVAudioFrameCount(n)), let dst = copy.floatChannelData?[0] else { return }
-        copy.frameLength = AVAudioFrameCount(n)
-        if buffer.format.isInterleaved {
-            for i in 0 ..< n {
-                var v: Float = 0
-                for c in 0 ..< channels { v += data[0][i * channels + c] }
-                dst[i] = v / Float(channels)
-            }
-        } else if channels == 1 {
-            dst.update(from: data[0], count: n)
-        } else {
-            for i in 0 ..< n {
-                var v: Float = 0
-                for c in 0 ..< channels { v += data[c][i] }
-                dst[i] = v / Float(channels)
-            }
-        }
+        guard let mono, let copy = MonoResampler.downmix(buffer, into: mono) else { return }
         let at = monotonicMs()
         queue.async { [weak self] in self?.process(copy, generation: gen, at: at) }
     }
@@ -424,21 +455,9 @@ private final class CaptureRun: @unchecked Sendable {
     /// On the queue: capture.started at the first audio, then convert and frame.
     private func process(_ buffer: AVAudioPCMBuffer, generation gen: Int, at: Double) {
         // Not "ended": finish() lets the buffers already queued through.
-        guard let conv = lock.withLock({ gen == generation ? converter : nil }) else { return }
+        guard let res = lock.withLock({ gen == generation ? resampler : nil }) else { return }
         sendStarted(at: at)
-        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * Double(rate) / buffer.format.sampleRate + 64)
-        guard let converted = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: capacity) else { return }
-        let given = OnceFlag()
-        var error: NSError?
-        conv.convert(to: converted, error: &error) { _, status in
-            if given.take() {
-                status.pointee = .haveData
-                return buffer
-            }
-            status.pointee = .noDataNow
-            return nil
-        }
-        guard let samples = converted.floatChannelData?[0], converted.frameLength > 0 else { return }
+        guard let converted = res.convert(buffer), let samples = converted.floatChannelData?[0] else { return }
         let (fs, levels) = framer.push(UnsafeBufferPointer(start: samples, count: Int(converted.frameLength)))
         emit(fs, levels)
         if let maxSamples, framer.samplesSeen >= maxSamples {
@@ -450,7 +469,7 @@ private final class CaptureRun: @unchecked Sendable {
         let started: CaptureStartedParams? = lock.withLock {
             guard !startedSent else { return nil }
             startedSent = true
-            return CaptureStartedParams(job: job, device: deviceUID, deviceName: deviceName(deviceID), fellBack: fellBack,
+            return CaptureStartedParams(job: job, device: deviceUID, deviceName: sourceName ?? deviceName(deviceID), fellBack: fellBack,
                                         fallbackReason: fellBack ? fallbackReason : nil,
                                         deviceSampleRate: Int(inputFormat?.sampleRate ?? 0), deviceChannels: Int(inputFormat?.channelCount ?? 0),
                                         sampleRate: rate, startMs: ((at - t0) * 10).rounded() / 10)
@@ -528,16 +547,6 @@ private final class CaptureRun: @unchecked Sendable {
         guard markEnded() else { return false }
         teardown()
         out.fail(job, RPCError(Code.cancelled, "The recording was cancelled"))
-        return true
-    }
-}
-
-/// True the first time take() is called (the converter's input block).
-private final class OnceFlag: @unchecked Sendable {
-    private var done = false
-    func take() -> Bool {
-        if done { return false }
-        done = true
         return true
     }
 }
