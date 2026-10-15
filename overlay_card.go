@@ -19,8 +19,8 @@ package main
 //	line     a small one under it, when there is something to say (why
 //	         Insert did not work, another language that did not come)
 //
-// 480 wide (Voxt's card is 560, measured on the Mac: it fills its 560
-// window; the user found it too wide, 10-15), 18 of padding on the sides and 16 under the text: as high as its text,
+// 440 wide (Voxt's card is 560, measured on the Mac: it fills its 560
+// window; the user found it too wide, then 480 too, 10-15), 18 of padding on the sides and 16 under the text: as high as its text,
 // so a short answer leaves no empty space (Voxt's card is always 220 of
 // text high, 295 in all). It grows and shrinks about the overlay's anchor,
 // as the pill does (overlay.go). It does not move, and nothing in it takes
@@ -45,9 +45,12 @@ import (
 // Sizes of the answer card, in DIPs: Voxt's (WaveformAnswerCard.swift,
 // WaveformView.swift).
 const (
-	// ovAnswerW is the card's width: 480. Voxt's card fills its 560
-	// window (measured on the Mac, 10-15); the user found that too wide.
-	ovAnswerW = 480
+	// ovAnswerW is the card's width, every card's: 440, the least that
+	// holds the widest header (Translation, the language's name at its
+	// widest, Insert, Copy, Close). Voxt's card fills its 560 window
+	// (measured on the Mac, 10-15); the user found it too wide, then 480
+	// too (10-15, third round).
+	ovAnswerW = 440
 	ovCardPadX = 18
 	ovCardPadY = 16 // under the text (Voxt's)
 	// The header: ovCardPadTop over it, ovCardRuleTop under it to the
@@ -105,12 +108,10 @@ type cardView struct {
 	kind  store.Kind
 	title string
 	text  string
-	// placeholder shows while there is no text yet (what it does).
-	placeholder string
-	// streaming: the model writes the answer into it; busy: another
-	// language, or a follow-up, is on its way (the spinner, or the
-	// conversation's waveform).
-	streaming, busy bool
+	// busy: another language, or a follow-up, is on its way (the
+	// spinner, or the conversation's waveform). A first answer is written
+	// in the pill: the card comes with it.
+	busy bool
 	// recording: a follow-up records (the conversation's waveform moves).
 	recording bool
 	levels    []float64
@@ -141,14 +142,7 @@ type cardBubble struct {
 func (a *app) cardNow() cardView {
 	s := a.sess
 	if !a.answer.open {
-		// A fresh answer the model writes into the card.
-		v := cardView{kind: s.Kind, text: s.Draft, streaming: true, lang: s.TargetLanguage, target: s.Target.Name,
-			why: whyInCard(s.Delivery, s.Selection != "", s.Target.Name), placeholder: workingText(s)}
-		v.title = cardTitle(s.Kind, s.Title)
-		if s.Retried {
-			v.msg = i18n.T("The first answer was not translated: asking again.")
-		}
-		return v
+		return cardView{} // no card: the pill shows the session
 	}
 	card := a.answer
 	own := a.cardSessionLive()
@@ -287,11 +281,8 @@ func cardBlocks(v cardView) []cardBlock {
 		}
 		return out
 	}
-	text, color := strings.TrimSpace(v.text), ovCardText
-	if text == "" {
-		text, color = v.placeholder, ovText2
-	}
-	return []cardBlock{{text: ovSized{text, ovCardTextSize, ovCardTextWeight, ovCardBodyW}, color: color, selectable: !v.streaming && v.text != ""}}
+	text := strings.TrimSpace(v.text)
+	return []cardBlock{{text: ovSized{text, ovCardTextSize, ovCardTextWeight, ovCardBodyW}, color: ovCardText, selectable: text != ""}}
 }
 
 // cardTexts are the texts the card's height depends on.
@@ -391,10 +382,10 @@ func (a *app) cardHeader(c *ui.Context, v cardView) {
 		ui.Spacer(c)
 	} else {
 		ui.Text(c, v.title).FontSize(ovCardTitleSize).FontWeight(600).TextColor(ui.RGB(255, 255, 255)).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
-		if v.streaming || v.busy {
+		if v.busy {
 			// Voxt's spinner: an arc turning once in 0.9 s, 88 %.
 			ui.Icon(c, icons.VoxtSpinner.Linear).Size(12, 12).TextColor(ui.RGBA(255, 255, 255, 0.88)).Shrink(0).
-				Rotate(float32(math.Mod(a.overlayPhase()*400, 360))).Label(cmpOr(v.placeholder, i18n.T("Translating…")))
+				Rotate(float32(math.Mod(a.overlayPhase()*400, 360))).Label(i18n.T("Translating…"))
 		}
 		ui.Box(c).Grow(1).MinWidth(0) // Voxt's Spacer(minLength: 12): the gap
 	}
@@ -455,7 +446,7 @@ func ovCardIconA(v cardView) float32 {
 }
 
 // cardSpinning says whether the card shows a spinner (it turns).
-func (v cardView) spinning() bool { return !v.conversation && (v.streaming || v.busy) }
+func (v cardView) spinning() bool { return !v.conversation && v.busy }
 
 // cardIconButton is one of the header's round buttons (Voxt's
 // AnswerHeaderActionButton): 24, white 8 % (16 % and a hairline under

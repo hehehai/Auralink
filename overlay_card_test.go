@@ -35,7 +35,8 @@ type cardStep struct {
 }
 
 // cardSteps walk the answer card through its states, as one Translate
-// card and one Rewrite conversation would.
+// card and one Rewrite conversation would (while the model writes, the
+// pill shows the answer: overlay_flows_test.go).
 func cardSteps() []cardStep {
 	arc := proto.App{PID: 77, BundleID: "company.thebrowser.Browser", Name: "Arc"}
 	sel := "A goroutine is a lightweight thread managed by the Go runtime."
@@ -44,9 +45,6 @@ func cardSteps() []cardStep {
 			Selection: sel, TargetLanguage: "zh-Hans", Result: result, Draft: draft}
 	}
 	return []cardStep{
-		{name: "translating", apply: func(a *app) { snap(a, tr(session.Composing, "", "")) }, busy: true},
-		{name: "streaming", apply: func(a *app) { snap(a, tr(session.Composing, "", "goroutine 是由 Go 运行时管理的")) }},
-		{name: "streaming-long", apply: func(a *app) { snap(a, tr(session.Composing, "", cardLong)) }, body: ovCardBodyMax},
 		{name: "short", apply: func(a *app) { snap(a, tr(session.Done, "goroutine 是由 Go 运行时管理的轻量级线程。", "goroutine 是由 Go 运行时管理的轻量级线程。")) },
 			insert: true, copy: true, lang: true},
 		{name: "redo", apply: func(a *app) {
@@ -129,7 +127,7 @@ func TestAnswerCardStates(t *testing.T) {
 					t.Errorf("%s: %d high, want %d (line %q)", st.name, a.ov.h, want, v.msg)
 				}
 				anchored(t, st.name, a.prefs.Overlay, a.ov.frame)
-				got := []bool{v.canInsert, v.canCopy, v.canFollowUp, v.canStop, v.canRetry, v.canLang, v.busy || v.streaming && v.text == "", v.conversation}
+				got := []bool{v.canInsert, v.canCopy, v.canFollowUp, v.canStop, v.canRetry, v.canLang, v.busy, v.conversation}
 				exp := []bool{st.insert, st.copy, st.followUp, st.stop, st.retry, st.lang, st.busy, st.convo}
 				for i := range got {
 					if got[i] != exp[i] {
@@ -180,9 +178,7 @@ func TestAnswerCardInteraction(t *testing.T) {
 	a, _, _ := newTestApp(t)
 	ft := new(fakeTimers).install(a)
 	steps := cardSteps()
-	for _, i := range []int{0, 3} { // translating, then the short answer
-		steps[i].apply(a)
-	}
+	steps[0].apply(a) // the short answer
 	tt := cardTester(a)
 	frames(tt)
 	for _, s := range []string{"Translation", "goroutine 是由 Go 运行时管理的轻量级线程。", "Simplified Chinese", "Insert", "Copy", "Close"} {
@@ -241,7 +237,7 @@ func TestAnswerCardInteraction(t *testing.T) {
 
 	// A Rewrite answer: Continue follows up (here the model is missing:
 	// a notice, the card stays as it was).
-	steps[9].apply(a)
+	steps[6].apply(a) // a Rewrite answer
 	frames(tt)
 	click(t, tt, "Continue")
 	if !a.answer.open || a.answer.conversation || a.notice == nil || a.notice.text != "No speech service is set up." {
@@ -249,7 +245,7 @@ func TestAnswerCardInteraction(t *testing.T) {
 	}
 	// A follow-up records in the card: Done stops it; Escape cancels it,
 	// the card staying with its answer; a second Escape closes it.
-	steps[10].apply(a)
+	steps[7].apply(a) // its follow-up, recording
 	frames(tt)
 	if !has(tt, "Done") || !has(tt, "shorter") || !has(tt, "You") || has(tt, "Continue") {
 		t.Errorf("recording: %q", firstTexts(tt))
@@ -300,7 +296,7 @@ func TestLanguageMenuPlace(t *testing.T) {
 			a, _, _ := newTestApp(t)
 			// Saved, so that a later save (Setup.Tried) keeps it.
 			a.updateSettings(func(s *settings.Settings) { s.Overlay.Position = pos })
-			cardSteps()[3].apply(a) // a translation in the card
+			cardSteps()[0].apply(a) // a translation in the card
 			a.overlaySync()
 			card := a.ov.frame
 			a.toggleLangMenu()

@@ -102,7 +102,7 @@ func ovCheckSteps(lang string) []ovCheckStep {
 }
 
 // cardCheckSteps are the answer card's states (overlay_card.go): a
-// translation streaming in, short, into another language, copied, Insert
+// translation being written (in the pill), short, into another language, copied, Insert
 // that did not work, long (it scrolls), a Rewrite answer, a follow-up
 // recording in its conversation, the conversation, a failure; then gone.
 func cardCheckSteps(lang string) []ovCheckStep {
@@ -123,7 +123,9 @@ func cardCheckSteps(lang string) []ovCheckStep {
 		return func(a *app) { a.sess = s; a.openAnswer(s) }
 	}
 	return []ovCheckStep{
-		{"card-streaming", func(a *app) {
+		// The model writes: the pill, its draft one line (the card comes
+		// with the result).
+		{"draft", func(a *app) {
 			a.answer, a.followUp = answerCard{}, ""
 			a.sess = tr(lang+"-t1", session.Composing, "", string([]rune(short)[:len([]rune(short))/2]), lang)
 		}, true},

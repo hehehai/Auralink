@@ -709,7 +709,6 @@
   "The app in front (with App enhancement).": "最前面的应用（配合应用增强）。",
   "The data was not moved: %v": "数据未移动：%v",
   "The dictionary is off: its terms go nowhere.": "词典已关闭：词条不会发送到任何地方。",
-  "The first answer was not translated: asking again.": "第一次的结果没有翻译：正在重试。",
   "The helper is not running.": "辅助进程没有运行。",
   "The helper is not running: add an app by its bundle ID.": "辅助进程没有运行：请用 Bundle ID 添加应用。",
   "The helper is not running: the address cannot be read.": "辅助进程没有运行：无法读取网址。",

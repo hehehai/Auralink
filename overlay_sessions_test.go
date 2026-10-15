@@ -241,6 +241,7 @@ func TestOverlayCheckSteps(t *testing.T) {
 		if st.name != "card-gone" {
 			want[st.name] = ovAnswer
 		}
+		want["draft"] = ovWorking
 	}
 	var first mygo.Rectangle
 	for _, lang := range []string{"en", "zh-Hans"} {

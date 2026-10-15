@@ -660,13 +660,16 @@ func TestTranslateSpeechCard(t *testing.T) {
 		s.Features.Translate.Cleanup = true
 		s.General.MainLanguage = "zh" // the target is English
 	}, keys)
-	streamed := false
+	// The draft shows in the pill while the model writes; the card comes
+	// with the result, not before.
+	streamed, early := false, false
 	a.pump("the end", func() bool {
-		streamed = streamed || a.sess.State == session.Composing && a.ov.mode == ovAnswer
+		streamed = streamed || a.sess.State == session.Composing && a.ov.mode == ovWorking && liveLineText(a.sess) == strings.TrimSpace(a.sess.Draft) && a.sess.Draft != ""
+		early = early || a.sess.State.Live() && a.ov.mode == ovAnswer
 		return a.sess.State.Ended()
 	})
-	if !streamed {
-		t.Error("the answer did not stream into the card")
+	if !streamed || early {
+		t.Errorf("the draft in the pill %v, a card before the end %v", streamed, early)
 	}
 	if a.sess.Result != "See you on Thursday." || a.sess.Raw != "周四见" || a.sess.Inserted || !a.answer.open || a.answer.lang != "en" || a.ov.mode != ovAnswer {
 		t.Fatalf("end %+v, card %+v", a.sess, a.answer)

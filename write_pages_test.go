@@ -141,11 +141,10 @@ func TestOverlayWriting(t *testing.T) {
 		t.Errorf("draft %s %d", a.ov.mode, a.ov.w)
 	}
 	snap(a, session.Snapshot{ID: "t1", Kind: store.KindTranslate, State: session.Composing, Selection: "Hi", Draft: "你好", Card: true, TargetLanguage: "zh-Hans"})
-	if a.ov.mode != ovAnswer || a.answer.open {
-		t.Errorf("streaming card %s %+v", a.ov.mode, a.answer)
-	}
-	if v := a.cardNow(); !v.streaming || v.text != "你好" || v.title != "Translation" || v.lang != "zh-Hans" {
-		t.Errorf("card view %+v", v)
+	// Bound for the card, it is written in the pill all the same: the card
+	// comes with the result.
+	if a.ov.mode != ovWorking || a.answer.open || liveLineText(a.sess) != "你好" {
+		t.Errorf("the draft of a card's answer: %s %+v", a.ov.mode, a.answer)
 	}
 	snap(a, session.Snapshot{ID: "t1", Kind: store.KindTranslate, State: session.Done, Selection: "Hi", Result: "你好", Card: true, Delivery: deliver.ReasonNotEditable, TargetLanguage: "zh-Hans"})
 	if !a.answer.open || a.answer.input.Selection != "Hi" || a.answer.lang != "zh-Hans" {

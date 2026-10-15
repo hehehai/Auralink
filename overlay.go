@@ -20,7 +20,7 @@ package main
 //	           inserting
 //	notice     an error (or a warning) in the waveform's place: an icon and
 //	           one line, for 5 s; a click opens where to fix it
-//	answer     the answer card (overlay_card.go, Voxt's): 480 wide, as
+//	answer     the answer card (overlay_card.go, Voxt's): 440 wide, as
 //	           high as its text up to Voxt's 220 for it; the result that
 //	           was not inserted, its actions in the header
 //
@@ -219,9 +219,14 @@ func (a *app) later(d time.Duration, fn func()) {
 }
 
 // overlayModeNow decides what the overlay shows: the answer card (an
-// ended session's, with its own session on its way, a follow-up or
-// another language; or one the model writes into), a live session (not a
-// try: the page shows those), a notice, or nothing. A session that ended
+// ended session's result, with its own session on its way: a follow-up,
+// another language), a live session in the pill (not a try: the page
+// shows those), a notice, or nothing. A session that will end in the card
+// stays in the pill until it ends, its answer one line under the row as
+// the model writes it (Voxt's: the card comes with the result; 10-15:
+// the answer streaming into a card of its own width was one more way to
+// show text, and the card grew line by line); a session that ended shows
+// nothing of its own: not the insert, which the text in place says. A session that ended
 // shows nothing of its own: not the insert, which the text in place says.
 func (a *app) overlayModeNow() overlayMode {
 	s := a.sess
@@ -231,8 +236,6 @@ func (a *app) overlayModeNow() overlayMode {
 	case card && a.answer.inserting:
 		return ovHidden // Insert pastes: the card comes back if it could not (Voxt's)
 	case card:
-		return ovAnswer
-	case live && s.Card && s.State == session.Composing:
 		return ovAnswer
 	case live && s.State == session.Recording:
 		return ovRecording
