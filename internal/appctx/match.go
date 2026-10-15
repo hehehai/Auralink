@@ -174,6 +174,22 @@ func Browsers(custom []settings.Browser) []Browser {
 	return out
 }
 
+// TreeOnDemand are the browsers whose pages the helper must ask for an
+// accessibility tree (app.configure's manualAccessibility): the built-in
+// Chromium ones and the user's (their engine is unknown; most are
+// Chromium, and the attribute is harmless elsewhere). Chromium builds a
+// page's tree only when a client asks: without it, Arc shows browser.url
+// no web area.
+func TreeOnDemand(custom []settings.Browser) []string {
+	var out []string
+	for _, b := range Browsers(custom) {
+		if b.Engine == Chromium || b.Engine == "" {
+			out = append(out, b.BundleID)
+		}
+	}
+	return out
+}
+
 // IsBrowser reports whether bundleID is a built-in browser or one of the
 // user's.
 func IsBrowser(bundleID string, custom []settings.Browser) bool {

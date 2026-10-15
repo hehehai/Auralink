@@ -14,6 +14,13 @@ import Foundation
 //     Safari name the front tab's address there;
 //  3. the AXURL of the window's first AXWebArea, breadth first (Arc).
 //
+// Chromium builds a page's tree only when a client asks for it
+// (AXManualAccessibility, set by FrontApps as a Chromium browser comes to
+// the front). When none of the three finds a web area in one of those
+// browsers, the attribute is set (once per process), and after a short
+// wait the address is read once more (retried in the result): Arc, in
+// front before the helper started, had no web area at all.
+//
 // Every browser goes the same way: Safari, the Chromium family (Chrome,
 // Edge, Brave, Arc, Vivaldi, Opera), Firefox, and the browsers the user
 // adds. The calls run on a queue of their own (Accessibility is
@@ -45,10 +52,36 @@ enum Browser {
             return BrowserURLResult(bundleId: bundleID, ms: round1(monotonicMs() - t0), error: "Accessibility is not allowed")
         }
         let pid = app.processIdentifier
-        let (url, via, err) = await withCheckedContinuation { k in
+        var r = await read(pid)
+        var retried: Bool?
+        if r.url == nil, r.searched,
+           front.manual.wants(bundleId: app.bundleIdentifier, electron: app.bundleURL.map(front.isElectron) ?? false),
+           front.manual.claim(pid: Int(pid), .retry) {
+            front.setManualAccessibility(pid: pid, bundleId: app.bundleIdentifier, why: "no web area")
+            try? await Task.sleep(nanoseconds: retryWaitMs * 1_000_000)
+            r = await read(pid)
+            retried = true
+        }
+        return BrowserURLResult(bundleId: bundleID, url: r.url, via: r.via, ms: round1(monotonicMs() - t0),
+                                error: r.url == nil ? r.error : nil, retried: retried)
+    }
+
+    /// How long the retry waits for Chromium to build the tree.
+    static let retryWaitMs: UInt64 = 150
+
+    private static func read(_ pid: pid_t) async -> Read {
+        await withCheckedContinuation { k in
             queue.async { k.resume(returning: read(pid: pid)) }
         }
-        return BrowserURLResult(bundleId: bundleID, url: url, via: via, ms: round1(monotonicMs() - t0), error: url == nil ? err : nil)
+    }
+
+    /// One read: the URL and how, else why not; searched: the window's
+    /// web areas were looked for and none had an address.
+    private struct Read: Sendable {
+        var url: String?
+        var via: String
+        var error: String
+        var searched = false
     }
 
     private static func attribute(_ e: AXUIElement, _ name: String) -> CFTypeRef? {
@@ -72,7 +105,7 @@ enum Browser {
         return nil
     }
 
-    private static func read(pid: pid_t) -> (String?, String, String) {
+    private static func read(pid: pid_t) -> Read {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, 0.3)
         // 1. Around the focus.
@@ -88,15 +121,15 @@ enum Browser {
                 e = element(attribute(cur, kAXParentAttribute))
             }
             if let i = outermost(roles, role: "AXWebArea"), let url = webURL(chain[i]) {
-                return (url, URLVia.axFocus, "")
+                return Read(url: url, via: URLVia.axFocus, error: "")
             }
         }
         // 2. The window's document.
         guard let win = element(attribute(app, kAXFocusedWindowAttribute)) ?? element(attribute(app, kAXMainWindowAttribute)) else {
-            return (nil, URLVia.none, "no focused window")
+            return Read(via: URLVia.none, error: "no focused window")
         }
         if let s = attribute(win, kAXDocumentAttribute) as? String, !s.isEmpty {
-            return (s, URLVia.axDocument, "")
+            return Read(url: s, via: URLVia.axDocument, error: "")
         }
         // 3. The first web area, breadth first.
         var queue: [AXUIElement] = [win]
@@ -105,14 +138,14 @@ enum Browser {
             let e = queue.removeFirst()
             seen += 1
             if role(e) == "AXWebArea" {
-                if let url = webURL(e) { return (url, URLVia.axWebURL, "") }
+                if let url = webURL(e) { return Read(url: url, via: URLVia.axWebURL, error: "") }
                 continue
             }
             if let kids = attribute(e, kAXChildrenAttribute) as? [AXUIElement] {
                 queue.append(contentsOf: kids)
             }
         }
-        return (nil, URLVia.none, "no AXDocument or web area URL (visited \(seen))")
+        return Read(via: URLVia.none, error: "no AXDocument or web area URL (visited \(seen))", searched: true)
     }
 }
 

@@ -24,15 +24,16 @@ helper/
     PCMFramer.swift               PCM16 frames and levels
     CaptureSource.swift           downmix and resampling; the test-only file input
     Apps.swift                    app.list's merge; the web area around the focus
+    ManualAccessibility.swift     which apps get AXManualAccessibility, once per process
   Sources/AuralinkHelper/    the executable:
     main.swift, Server.swift      stdin/stdout, hello, routing, the capture job, slow-request lines
     Capture.swift                 AVAudioEngine, devices, watchdog
     Hotkey.swift                  the event tap
-    FrontApps.swift               the app in front, AXManualAccessibility for Electron apps
+    FrontApps.swift               the app in front, AXManualAccessibility (Electron apps, app.configure's browsers)
     TextIO.swift                  focus, selection, paste
     Browser.swift                 browser URLs (AX), app.list
     Permissions.swift             Microphone, Accessibility
-  Tests/AuralinkHelperKitTests/  FixtureTests (helper/Fixtures), the recognizer, the framer, the file input
+  Tests/AuralinkHelperKitTests/  FixtureTests (helper/Fixtures), the recognizer, the framer, the file input, ManualAccessibility
   Fixtures/                  golden transcripts, shared with Go; audio/ for the file input's tests
   Support/                   Info.plist (linked into the binary), helper.entitlements
 ```

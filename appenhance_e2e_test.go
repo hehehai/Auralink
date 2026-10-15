@@ -31,6 +31,8 @@ func e2eRules() appctx.Rules {
 			AutoKey: "Return", Features: appctx.DefaultFeatures},
 		{ID: "g-chrome", Name: "Chrome", Enabled: true, Prompt: "Browsing.", Apps: []appctx.App{{BundleID: "com.google.Chrome", Name: "Chrome"}},
 			Features: appctx.DefaultFeatures},
+		{ID: "g-linear", Name: "Issues", Enabled: true, Prompt: "An issue tracker.", URLs: []string{"linear.app"},
+			Features: appctx.DefaultFeatures},
 	}}
 }
 
@@ -52,6 +54,8 @@ func TestSessionAppEnhancement(t *testing.T) {
 			[]proto.KeyPress{{Key: 36, Modifiers: []string{proto.ModCommand}}}},
 		{"browser app", "com.google.Chrome", "no-url", "g-chrome", appctx.SourceBrowserApp, "", "Browsing.", nil},
 		{"app", "com.tinyspeck.slackmacgap", "", "g-chat", appctx.SourceApp, "", "A chat message: short.", []proto.KeyPress{{Key: 36}}},
+		// Arc builds its pages' tree only once app.configure listed it.
+		{"arc tree", "company.thebrowser.Browser", "no-tree=company.thebrowser.Browser", "g-linear", appctx.SourceURL, "linear.app", "An issue tracker.", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			chat := &fakeChat{text: "Hello."}

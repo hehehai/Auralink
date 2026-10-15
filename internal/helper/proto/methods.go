@@ -33,7 +33,8 @@ const (
 	MethodTextSelection = "textio.selection" // request: the selected text (Accessibility, else ⌘C when allowed)
 	MethodTextPaste     = "textio.paste"     // request: insert text through the clipboard and ⌘V, then restore it
 
-	MethodAppList = "app.list" // request: running (and installed) apps, to pick from
+	MethodAppList      = "app.list"      // request: running (and installed) apps, to pick from
+	MethodAppConfigure = "app.configure" // request: which apps get AXManualAccessibility as they come to the front
 
 	MethodBrowserURL = "browser.url" // request: the front tab's URL of a browser (Accessibility only)
 
@@ -468,6 +469,10 @@ type BrowserURLResult struct {
 	// Error says why none was read, for the log and the App enhancement
 	// page ("no focused window", "no web area").
 	Error string `json:"error,omitempty"`
+	// Retried: the first read found no web area in a Chromium browser, so
+	// the helper set AXManualAccessibility on it (once per process) and
+	// read again after a short wait; URL is the second read's.
+	Retried bool `json:"retried,omitempty"`
 }
 
 // How a URL was read.
@@ -477,6 +482,19 @@ const (
 	URLViaAXWebURL   = "ax-weburl"   // the AXURL of the window's first web area
 	URLViaNone       = "none"
 )
+
+// ---- app.configure ----
+
+// AppConfigureParams says which apps the helper gives Chromium's
+// AXManualAccessibility as they come to the front (once per process),
+// besides the Electron apps it finds itself: Chromium builds a page's
+// accessibility tree only when asked, and only a moment later, so
+// browser.url and textio find it when a shortcut comes. The app sends its
+// Chromium browsers (internal/appctx) while app enhancement is on; it
+// replaces the last list, and a new helper has none. The result is Empty.
+type AppConfigureParams struct {
+	ManualAccessibility []string `json:"manualAccessibility,omitempty"` // bundle ids
+}
 
 // ---- app.list ----
 
@@ -528,6 +546,8 @@ func ParamsFor(method string) any {
 		return new(BrowserURLParams)
 	case MethodAppList:
 		return new(AppListParams)
+	case MethodAppConfigure:
+		return new(AppConfigureParams)
 	case MethodCaptureStarted:
 		return new(CaptureStartedParams)
 	case MethodCaptureLevel:
@@ -553,7 +573,7 @@ func ResultFor(method string) any {
 	switch method {
 	case MethodHello:
 		return new(HelloResult)
-	case MethodShutdown:
+	case MethodShutdown, MethodAppConfigure:
 		return new(Empty)
 	case MethodJobCancel:
 		return new(CancelResult)
@@ -591,7 +611,7 @@ var (
 		MethodPermissionsStatus, MethodPermissionsRequest,
 		MethodCaptureDevices, MethodCaptureStart, MethodCaptureStop,
 		MethodHotkeyConfigure, MethodHotkeyStatus,
-		MethodAppFrontmost, MethodAppList,
+		MethodAppFrontmost, MethodAppList, MethodAppConfigure,
 		MethodTextFocus, MethodTextSelection, MethodTextPaste,
 		MethodBrowserURL,
 	}

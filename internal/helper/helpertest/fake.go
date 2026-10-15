@@ -19,7 +19,8 @@
 // time as capture.pcm frames and capture.level; hotkey.configure installs
 // a pretend tap and can play a script of notifications (events=, press=);
 // textio.* read a scripted selection and log what they paste (paste-log=);
-// browser.url answers from Browsers, app.list from Apps and Installed.
+// browser.url answers from Browsers, app.list from Apps and Installed;
+// app.configure keeps its list (no-tree=).
 // (From AudioSmith's engine/enginetest, with the helper's methods.)
 package helpertest
 
@@ -52,6 +53,8 @@ package helpertest
 //	paste-log=PATH   append each textio.paste's params to PATH (JSON lines)
 //	delay=METHOD:MS  answer METHOD MS ms late (slow calls)
 //	no-url[=BUNDLE]  browser.url reads no URL (of BUNDLE, or of every browser)
+//	no-tree=BUNDLE   browser.url reads BUNDLE's URL only once app.configure listed
+//	                 it (Chromium builds no tree without AXManualAccessibility)
 //	replay=PATH      replay a fixture transcript (helper/Fixtures/*.jsonl)
 //
 // A capture.start whose first device is "crash" exits 3 after its first
@@ -156,6 +159,7 @@ type fake struct {
 	installed bool
 	scripted  bool // the events= script and press= ran
 	hkActive  bool
+	manual    []string                 // app.configure's manualAccessibility
 	running   map[string]bool          // capture jobs
 	cancel    map[string]bool          // asked to stop by job.cancel
 	stop      map[string]chan struct{} // closed by capture.stop
@@ -370,10 +374,19 @@ func (f *fake) serve(m proto.Message) {
 			res.Error = "no AXDocument or web area URL (visited 12)"
 		case f.has("no-url") && (f.opts["no-url"] == "" || f.opts["no-url"] == p.BundleID):
 			res.Error = "no AXDocument or web area URL (visited 27)"
+		case f.opts["no-tree"] == p.BundleID && !f.listed(p.BundleID):
+			res.Error = "no AXDocument or web area URL (visited 400)"
 		default:
 			res.URL, res.Via = u, proto.URLViaAXDocument
 		}
 		f.result(m.ID, res)
+	case proto.MethodAppConfigure:
+		var p proto.AppConfigureParams
+		m.DecodeParams(&p)
+		f.mu.Lock()
+		f.manual = p.ManualAccessibility
+		f.mu.Unlock()
+		f.result(m.ID, proto.Empty{})
 	case proto.MethodAppList:
 		var p proto.AppListParams
 		m.DecodeParams(&p)
@@ -389,6 +402,13 @@ func (f *fake) serve(m proto.Message) {
 	default:
 		f.fail(m.ID, proto.CodeMethodNotFound, "Unknown method %s", m.Method)
 	}
+}
+
+// listed reports whether app.configure named bundleID.
+func (f *fake) listed(bundleID string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.ContainsFunc(f.manual, func(id string) bool { return strings.EqualFold(id, bundleID) })
 }
 
 func (f *fake) permissions() proto.PermissionsResult {

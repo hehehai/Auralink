@@ -19,6 +19,7 @@ import (
 
 	"github.com/hehehai/Auralink/internal/appctx"
 	"github.com/hehehai/Auralink/internal/core"
+	"github.com/hehehai/Auralink/internal/helper"
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/store"
@@ -105,6 +106,9 @@ type appEnhanceState struct {
 	aePrev    aePreview
 	aeSaveSeq int
 	aePage    aePageState // appenhance_page.go
+	// treesSent is the app.configure last sent (its bundle ids), so the
+	// same list is not sent twice; "" after a helper (re)start.
+	treesSent string
 }
 
 // openAppEnhancement reads the groups (once, while the app starts).
@@ -193,6 +197,33 @@ func readURL(ctx context.Context, sup interface {
 		err = json.Unmarshal(raw, &out)
 	}
 	return out, err
+}
+
+// syncTrees tells the helper which browsers need Chromium's accessibility
+// tree turned on (app.configure): the Chromium ones while app
+// enhancement is on, so browser.url finds the tab's web area; none while
+// it is off (a tree costs the browser memory and time).
+func (a *app) syncTrees() {
+	if !a.helperReady() {
+		a.treesSent = ""
+		return
+	}
+	var ids []string
+	if a.prefs.AppEnhancement.Enabled {
+		ids = appctx.TreeOnDemand(a.prefs.AppEnhancement.Browsers)
+	}
+	key := "[" + strings.Join(ids, ",") + "]"
+	if key == a.treesSent {
+		return
+	}
+	a.treesSent = key
+	helperCall(a, proto.MethodAppConfigure, proto.AppConfigureParams{ManualAccessibility: ids}, 5*time.Second,
+		func(_ proto.Empty, err error) {
+			if err != nil {
+				a.treesSent = ""
+				a.logs.Append(core.LogEntry{Time: time.Now(), Level: core.SeverityWarning, Source: helper.LogSource, Message: "app.configure: " + err.Error()})
+			}
+		})
 }
 
 // isSelf reports whether app is Auralink.

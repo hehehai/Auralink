@@ -120,6 +120,9 @@ func (a *app) settingsChanged(old, new settings.Settings) {
 	if old.General.MenuBar != new.General.MenuBar {
 		a.applyTray() // tray.go
 	}
+	if !reflect.DeepEqual(old.AppEnhancement, new.AppEnhancement) {
+		a.syncTrees() // appenhance.go
+	}
 	if !reflect.DeepEqual(old.Features, new.Features) {
 		a.syncHotkeys()   // sessionlink.go
 		a.buildTrayMenu() // the shortcuts it shows

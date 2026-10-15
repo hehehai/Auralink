@@ -422,14 +422,29 @@ public struct BrowserURLResult: Codable, Sendable {
     public var via: String
     public var ms: Double
     public var error: String?
+    /// The first read found no web area, so the helper set
+    /// AXManualAccessibility on the process and read again.
+    public var retried: Bool?
 
-    public init(bundleId: String, url: String? = nil, via: String = URLVia.none, ms: Double = 0, error: String? = nil) {
+    public init(bundleId: String, url: String? = nil, via: String = URLVia.none, ms: Double = 0, error: String? = nil, retried: Bool? = nil) {
         self.bundleId = bundleId
         self.url = url
         self.via = via
         self.ms = ms
         self.error = error
+        self.retried = retried
     }
+}
+
+// MARK: app.configure
+
+public struct AppConfigureParams: Codable, Sendable {
+    /// Bundle ids that get AXManualAccessibility as they come to the front
+    /// (the app's Chromium browsers), besides Electron apps; replaces the
+    /// last list.
+    public var manualAccessibility: [String]?
+
+    public init(manualAccessibility: [String]? = nil) { self.manualAccessibility = manualAccessibility }
 }
 
 // MARK: app.list
@@ -478,6 +493,7 @@ public enum WireTypes {
         case Method.textPaste: PasteParams.self
         case Method.browserURL: BrowserURLParams.self
         case Method.appList: AppListParams.self
+        case Method.appConfigure: AppConfigureParams.self
         case Method.captureStarted: CaptureStartedParams.self
         case Method.captureLevel: LevelParams.self
         case Method.capturePCM: PCMParams.self
@@ -494,7 +510,7 @@ public enum WireTypes {
     public static func result(_ method: String) -> (Codable & Sendable).Type? {
         switch method {
         case Method.hello: HelloResult.self
-        case Method.shutdown: Empty.self
+        case Method.shutdown, Method.appConfigure: Empty.self
         case Method.jobCancel: CancelResult.self
         case Method.permissionsStatus, Method.permissionsRequest: PermissionsResult.self
         case Method.captureDevices: DevicesResult.self

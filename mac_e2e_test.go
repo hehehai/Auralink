@@ -10,7 +10,10 @@ package main
 //   - text I/O is macText: the real, read-only textio.focus, and a paste
 //     that only keeps the text;
 //   - hotkey.status only: no hotkey.configure;
-//   - browser.url only for browsers already running, by pid.
+//   - browser.url only for browsers already running, by pid, three times;
+//     once app.configure lists the app's Chromium browsers, one without a
+//     page tree gets AXManualAccessibility, as in the app (an attribute,
+//     no change of the app in front).
 //
 // TestMacHelperReadOnly and TestMacHelperCaptureFile reach no service;
 // TestMacE2ESessionReal (StepFun's step-asr and DeepSeek: one call each)
@@ -35,6 +38,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hehehai/Auralink/internal/appctx"
 	"github.com/hehehai/Auralink/internal/asr"
 	"github.com/hehehai/Auralink/internal/asr/asrtest"
 	"github.com/hehehai/Auralink/internal/core"
@@ -190,29 +194,39 @@ func TestMacHelperReadOnly(t *testing.T) {
 		t.Logf("  %s (%d ch, %d Hz, %s, default %v)", d.Name, d.Channels, d.SampleRate, d.Transport, d.Default)
 	}
 
-	// Browsers already running, by pid; never one that is not.
-	for _, id := range []string{"company.thebrowser.Browser", "com.google.Chrome", "com.apple.Safari", "com.microsoft.edgemac", "com.brave.Browser"} {
-		var app *proto.AppInfo
-		for i := range running.Apps {
-			if running.Apps[i].BundleID == id {
-				app = &running.Apps[i]
-				break
+	// Browsers already running, by pid; never one that is not. As the
+	// helper starts (no list yet: a Chromium browser without a page tree
+	// reads none), after app.configure (it is retried after
+	// AXManualAccessibility), and once more (the tree is there).
+	browsers := []string{"company.thebrowser.Browser", "com.google.Chrome", "com.apple.Safari", "com.microsoft.edgemac", "com.brave.Browser"}
+	for round := 1; round <= 3; round++ {
+		if round == 2 {
+			macCall[proto.Empty](t, h, proto.MethodAppConfigure, proto.AppConfigureParams{ManualAccessibility: appctx.TreeOnDemand(nil)})
+		}
+		for _, id := range browsers {
+			var app *proto.AppInfo
+			for i := range running.Apps {
+				if running.Apps[i].BundleID == id {
+					app = &running.Apps[i]
+					break
+				}
 			}
-		}
-		if app == nil {
-			t.Logf("browser.url %s: not running, not asked", id)
-			continue
-		}
-		r := macCall[proto.BrowserURLResult](t, h, proto.MethodBrowserURL, proto.BrowserURLParams{PID: app.PID})
-		host := ""
-		if u, err := url.Parse(r.URL); err == nil && r.URL != "" {
-			host = u.Scheme + "://" + u.Host // the address's path stays private
-		}
-		t.Logf("browser.url %s (pid %d, in front %v): via %s, %s in %.1f ms %s", id, app.PID, app.PID == front.PID, r.Via, host, r.MS, r.Error)
-		if perms.Accessibility && r.URL == "" && app.PID == front.PID {
-			// Not a failure of the test: Chromium builds its tree only for
-			// an assistive client, and the window may have no focus.
-			t.Logf("FINDING browser.url %s is in front but gave no URL (%s)", id, r.Error)
+			if app == nil {
+				if round == 1 {
+					t.Logf("browser.url %s: not running, not asked", id)
+				}
+				continue
+			}
+			r := macCall[proto.BrowserURLResult](t, h, proto.MethodBrowserURL, proto.BrowserURLParams{PID: app.PID})
+			host := ""
+			if u, err := url.Parse(r.URL); err == nil && r.URL != "" {
+				host = u.Scheme + "://" + u.Host // the address's path stays private
+			}
+			t.Logf("browser.url #%d %s (pid %d, in front %v): via %s, %s in %.1f ms, retried %v %s", round, id, app.PID, app.PID == front.PID, r.Via, host, r.MS, r.Retried, r.Error)
+			if perms.Accessibility && r.URL == "" && app.PID == front.PID {
+				// Not a failure of the test: the window may have no focus.
+				t.Logf("FINDING browser.url %s is in front but gave no URL (%s)", id, r.Error)
+			}
 		}
 	}
 

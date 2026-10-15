@@ -3,6 +3,7 @@ package appctx
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/hehehai/Auralink/internal/helper/proto"
@@ -312,5 +313,21 @@ func TestBrowsers(t *testing.T) {
 	}
 	if !IsBuiltin("com.apple.Safari") || IsBuiltin("org.example.browser") {
 		t.Error("IsBuiltin")
+	}
+}
+
+func TestTreeOnDemand(t *testing.T) {
+	ids := TreeOnDemand([]settings.Browser{{BundleID: "org.example.browser"}, {BundleID: "com.google.chrome"}})
+	for _, want := range []string{"com.google.Chrome", "com.google.Chrome.canary", "org.chromium.Chromium", "com.microsoft.edgemac",
+		"com.brave.Browser", "company.thebrowser.Browser", "company.thebrowser.dia", "com.vivaldi.Vivaldi", "com.operasoftware.Opera",
+		"org.example.browser"} {
+		if !slices.Contains(ids, want) {
+			t.Errorf("TreeOnDemand lacks %s: %v", want, ids)
+		}
+	}
+	for _, not := range []string{"com.apple.Safari", "org.mozilla.firefox", "app.zen-browser.zen", "com.google.chrome"} {
+		if slices.Contains(ids, not) {
+			t.Errorf("TreeOnDemand has %s", not)
+		}
 	}
 }
