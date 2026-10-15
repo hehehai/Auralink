@@ -204,6 +204,7 @@ func newSessionApp(t *testing.T, opts string, set func(*settings.Settings), keys
 	t.Cleanup(func() { newKeyring = old })
 	pasteLog := filepath.Join(t.TempDir(), "paste.jsonl")
 	a := newApp(lib, &helperHost{bin: self, env: helpertest.Env("frame-ms=20," + helpertest.Opt("paste-log", pasteLog) + "," + opts)})
+	a.measureHook = guessWidth
 	s := &sessionApp{app: a, t: t, queue: make(chan func(), 4096), pasteLog: pasteLog}
 	a.postQueue = func(fn func()) { s.queue <- fn }
 	a.connectHelper()

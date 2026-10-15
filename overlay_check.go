@@ -17,14 +17,20 @@ package main
 // step-N-window.png (the window alone) and step-N-screen.png (the
 // backdrop with the overlay on it). frames.txt records each step: the
 // frame the overlay asked for, the window's own, whether it shows, the app
-// in front; a line starting FAIL when the anchor moved (the bottom edge
-// or the centre, from the first pill), the window is not where it was
-// asked to be, or the check came to the front. sheet.png puts the
+// in front, and what the window's capture shows of the face (its ink,
+// overlay_ink.go); a line starting FAIL when the anchor moved (the bottom
+// edge or the centre, from the first pill), the window is not where it was
+// asked to be, the check came to the front, or the face's ink is not
+// where it should be: the pill not 148×48, its icon's side and its
+// waveform's more than a point apart, their middles more than a point
+// apart, short text not centred or the face not as wide as it, long text
+// not at 300 and scrolled to its end. sheet.png puts the
 // screens side by side, the anchor drawn over them. Then it quits.
 
 import (
 	"bytes"
 	"fmt"
+	"image"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -159,8 +165,10 @@ func (a *app) overlayCheck(dir string) {
 			var visible, shown bool
 			var asked mygo.Rectangle
 			var mode overlayMode
+			var ink ovInkWant
 			onMain(func() {
 				shown, asked, mode = a.ov.shown, a.ov.frame, a.ov.mode
+				ink = a.overlayInkWant()
 				if a.ov.win != nil {
 					got, visible = a.ov.win.Bounds(), a.ov.win.IsVisible()
 					wid = macx.WindowNumber(a.ov.win.NativeHandle())
@@ -197,6 +205,16 @@ func (a *app) overlayCheck(dir string) {
 						break
 					}
 				}
+				// The face's ink, from the window's capture.
+				if img, err := ovCheckImage(filepath.Join(dir, fmt.Sprintf("step-%d-window.png", n))); err != nil {
+					logf("FAIL %s: the capture: %v", name, err)
+				} else {
+					k, bad := checkOverlayInk(img, float64(img.Bounds().Dx())/float64(got.Width), ink)
+					logf("  ink %s", k)
+					for _, b := range bad {
+						logf("FAIL %s: %s", name, b)
+					}
+				}
 				column = append(column, ovCheckShot{name: name, file: filepath.Join(dir, fmt.Sprintf("step-%d-screen.png", n)), region: region, anchor: anchor})
 			}
 			n++
@@ -216,6 +234,34 @@ func (a *app) overlayCheck(dir string) {
 }
 
 func abs(v int) int { return max(v, -v) }
+
+// overlayInkWant is what the face shows now, for the ink check: the
+// waveform's row even on both sides; the text under it, scrolled when it
+// is wider than its line. A notice's icon is coloured, not ink: only its
+// size is checked.
+func (a *app) overlayInkWant() ovInkWant {
+	w := ovInkWant{w: a.ov.w, h: a.ov.h}
+	if a.ov.mode != ovRecording && a.ov.mode != ovWorking {
+		return w
+	}
+	w.row = true
+	w.even = a.ov.mode == ovRecording && !a.prefs.Overlay.ShowTime && sceneShort(a.sess) == ""
+	if text := liveLineText(a.sess); text != "" {
+		tw, _ := a.ovTextWidth(liveTextKey(text))
+		w.text, w.scrolled = true, tw > ovLiveTextW
+	}
+	return w
+}
+
+// ovCheckImage decodes a capture.
+func ovCheckImage(path string) (image.Image, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return png.Decode(f)
+}
 
 // ovCheckBackdrop is the backdrop: a page of text lines, light or dark.
 func ovCheckBackdrop(c *ui.Context, dark bool) {

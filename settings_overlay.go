@@ -127,13 +127,11 @@ func (a *app) overlaySettings(c *ui.Context) {
 }
 
 // previewSession is the recording the preview shows: Transcribe, seven
-// seconds in, a word on the waveform.
+// seconds in, a few words on the waveform (bars 4 to 20 high, as speech
+// moves them).
 func previewSession() session.Snapshot {
 	t0 := time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)
-	levels := make([]float64, session.Bars)
-	for i := range levels {
-		levels[i] = 0.45 + 0.4*math.Abs(math.Sin(float64(i)*0.8))
-	}
+	levels := []float64{0.22, 0.38, 0.52, 0.66, 0.3, 0.2, 0.36, 0.6, 0.76, 0.42, 0.22, 0.4, 0.58, 0.32, 0.24, 0.48}
 	return session.Snapshot{Kind: store.KindTranscribe, State: session.Recording, StartedAt: t0, HeardAt: t0, StoppedAt: t0.Add(7 * time.Second), Levels: levels}
 }
 
@@ -166,10 +164,7 @@ const (
 func (a *app) overlayPreview(c *ui.Context) {
 	t := c.Theme()
 	o := a.prefs.Overlay
-	w := ovPillW
-	if o.ShowTime {
-		w += ovTimeW
-	}
+	w := rowWidth(o.ShowTime, 0) + 2*ovPillPadX
 	cardH := px(t, ovPreviewH)
 	// The distance from the edge, from none to ovMaxMargin, across the
 	// card's room.

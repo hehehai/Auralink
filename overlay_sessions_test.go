@@ -97,7 +97,7 @@ func TestOverlaySessionsStartSmall(t *testing.T) {
 			}
 			// A streaming service's partial: one line under the row.
 			snap(a, session.Snapshot{ID: "A", State: session.Recording, StartedAt: now, HeardAt: now, Partial: "hello"})
-			grown := overlayFrame(ovTestArea, o, ovPillW, ovLiveH)
+			grown := overlayFrame(ovTestArea, o, ovRowW+2*ovLivePadX, ovLiveH) // "hello" is narrower than the row
 			check("A hears", ovStep{ovRecording, grown, true, true, "hello"})
 			long := "So the plan for the release is to finish the onboarding first, then the history page"
 			snap(a, session.Snapshot{ID: "A", State: session.Recording, StartedAt: now, HeardAt: now, Partial: long})
@@ -133,7 +133,7 @@ func TestOverlaySessionsStartSmall(t *testing.T) {
 			snap(a, session.Snapshot{ID: "C", State: session.Recording, StartedAt: now})
 			check("C starts", ovStep{ovRecording, pill, true, true, ""})
 			snap(a, session.Snapshot{ID: "C", State: session.Failed, Problem: &session.Problem{Code: session.ProblemASR, Err: &asr.Error{Kind: asr.KindAuth}}})
-			nf := overlayFrame(ovTestArea, o, noticeWidth(a.notice), ovPillH)
+			nf := overlayFrame(ovTestArea, o, noticeWidth(guessWidth(noticeText(a.notice.text)), true), ovPillH)
 			check("C's notice", ovStep{ovNotice, nf, true, false, ""})
 			// D starts while the notice shows: the pill, the notice gone.
 			snap(a, session.Snapshot{ID: "D", State: session.Recording, StartedAt: now})

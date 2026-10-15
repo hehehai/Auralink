@@ -6,13 +6,15 @@ package main
 // app the user dictates into in front, with its caret. It always uses the
 // dark tokens, whatever the appearance.
 //
-//	recording  150×48: the feature's icon and a 16-bar waveform; the
-//	           recording's time when Overlay.ShowTime says so; the matched
-//	           app enhancement group, short ("Team chat"); with live text
-//	           (a streaming service's, the text being cleaned up, the
-//	           answer as the model writes it) 72 high, one line of it under
-//	           them, as wide as it takes up to 340, then scrolled to its
-//	           newest words, the start fading out at the left edge (Voxt's)
+//	recording  148×48 (Voxt's compact card): the feature's icon and a
+//	           16-bar waveform; the recording's time when Overlay.ShowTime
+//	           says so; the matched app enhancement group, short ("Team
+//	           chat"); with live text (a streaming service's, the text
+//	           being cleaned up, the answer as the model writes it) 76
+//	           high, one line of it under them, the face as wide as the
+//	           text (measured) up to 260 and its padding, then the text
+//	           scrolled to its newest words, the start fading out at the
+//	           left edge (Voxt's)
 //	working    the same pill with a five-dot loader in the waveform's
 //	           place: recognising, cleaning up, translating, writing,
 //	           inserting
@@ -79,29 +81,59 @@ const (
 	ovPad        = ovShadowBlur + ovShadowY + 2
 )
 
-// Sizes of the overlay's face, in DIPs.
+// Sizes of the overlay's face, in DIPs: Voxt's (WaveformView.swift).
 const (
-	ovPillH     = 48
-	ovPillPadX  = 16
-	ovIconSize  = 16
-	ovGap       = 10
-	ovWaveW     = 92 // 16 bars of 3.2 with 2.5 between them, and air
-	ovWaveH     = 28
-	ovPillW     = 2*ovPillPadX + ovIconSize + ovGap + ovWaveW
-	ovTimeW     = 8 + 34 // the time, when it shows
-	ovSceneW    = 8 + 88 // the group's name, when one matched
-	ovLiveMaxW  = 340 // with live text, at most this wide…
-	ovLiveH     = 72  // …and this high: one line of it under the pill's row
-	ovLiveTop   = 10  // the row's place in it: (ovPillH − ovWaveH)/2 as in the pill
-	ovLiveGap   = 4   // between the row and the line
-	ovLineH     = 18  // the line
-	ovLiveSize  = 13  // its font size
-	ovLiveStep  = 16  // the face grows by this much at a time
-	ovFadeW     = 22  // the line's left edge fades out over this, scrolled
-	ovNoticeW   = 200    // a notice's least width…
-	ovNoticeW2  = 420    // …and most
-	ovAnswerW   = 560
-	ovAnswerH   = 340
+	// ovBorder is the face's hairline. MyGo's boxes are border boxes: it
+	// takes this much from each side of the face's content, so the
+	// paddings inside the face are Voxt's less it. (10-15: they were not,
+	// and the pill's row overflowed its content box to the right and
+	// down, a point each: the icon's side looked wider than the
+	// waveform's.)
+	ovBorder = 1
+	// The row: the feature's icon (ovIconSize) centred in its slot, ovGap,
+	// the waveform (its 16 bars, waveW wide) or the loader centred in its
+	// slot; ovRowH high.
+	ovIconSlot = 16
+	ovIconSize = 14
+	ovGap      = 10
+	ovWaveW    = 94
+	ovRowH     = 28
+	ovRowW     = ovIconSlot + ovGap + ovWaveW
+	// The pill, without text: the row, ovPillPadX and ovPillPadY around
+	// it: 148 × 48.
+	ovPillPadX = 14
+	ovPillPadY = 10
+	ovPillW    = ovRowW + 2*ovPillPadX
+	ovPillH    = ovRowH + 2*ovPillPadY
+	// With live text: the row, ovLiveGap, one line of the text (ovLiveSize,
+	// medium, ovLineH high) as wide as it is up to ovLiveTextW, the two
+	// centred, ovLivePadX and ovLivePadY around them: as wide as the wider
+	// of the two, at most 300, and 76 high.
+	ovLivePadX   = 20
+	ovLivePadY   = 12
+	ovLiveGap    = 8
+	ovLineH      = 16
+	ovLiveSize   = 12
+	ovLiveWeight = 500
+	ovLiveTextW  = 260
+	ovLiveMaxW   = ovLiveTextW + 2*ovLivePadX
+	ovLiveH      = ovRowH + ovLiveGap + ovLineH + 2*ovLivePadY
+	ovFadeW      = 16 // the line's left edge fades out over this, scrolled
+	// After the waveform in the row, ovGap before each, when they show:
+	// the time, and the matched group's name (ovSceneSize, at most
+	// ovSceneMaxW wide).
+	ovTimeW     = 30
+	ovSceneSize = 11
+	ovSceneMaxW = 88
+	// A notice: the icon's slot, ovGap, its line (ovNoticeSize), the
+	// arrow of an action, in the pill's padding; ovNoticeW to ovNoticeW2
+	// wide.
+	ovNoticeSize = 13
+	ovArrowW     = 8 + 14
+	ovNoticeW    = 200
+	ovNoticeW2   = 420
+	ovAnswerW    = 560
+	ovAnswerH    = 340
 	// ovFrame paces the waveform and the loader (Voxt's 20 per second);
 	// ovFadeStep the fade after an insert (two steps, then hidden).
 	ovFrame    = 50 * time.Millisecond
@@ -131,6 +163,11 @@ type overlayState struct {
 			id string
 			w  int
 		}
+		// textW holds the widths of the texts the face's size depends on
+		// (the live text, the group's name, a notice's line), as the
+		// overlay's view measured them (overlayMeasure); a text not there
+		// yet is guessed (textWidth) until it is.
+		textW map[ovSized]float32
 		// area is the work area of the display it shows on, chosen when
 		// it appears (the display under the pointer); a resize stays there.
 		area mygo.Rectangle
@@ -156,6 +193,9 @@ type overlayState struct {
 	// laterHook replaces the timers of later in tests (nil: none run
 	// without a window).
 	laterHook func(time.Duration, func())
+	// measureHook measures the face's texts in tests, which build no view
+	// (nil: the view measures them, overlayMeasure).
+	measureHook func(ovSized) float32
 }
 
 // overlayNative says whether the overlay has a real window: in the app,
@@ -197,53 +237,146 @@ func (a *app) overlayModeNow() overlayMode {
 	return ovHidden
 }
 
-// overlaySize is the face's size for mode.
-func (a *app) overlaySize(mode overlayMode) (int, int) {
+// overlaySize is the face's size for mode, and whether its width is the
+// measured texts' (not guessed).
+func (a *app) overlaySize(mode overlayMode) (w, h int, exact bool) {
 	switch mode {
 	case ovAnswer:
-		return ovAnswerW, ovAnswerH
+		return ovAnswerW, ovAnswerH, true
 	case ovNotice:
-		return noticeWidth(a.notice), ovPillH
+		if a.notice == nil {
+			return ovNoticeW, ovPillH, true
+		}
+		tw, exact := a.ovTextWidth(noticeText(a.notice.text))
+		return noticeWidth(tw, a.notice.action != actionNone), ovPillH, exact
 	case ovRecording, ovWorking:
-		w := ovPillW
-		if mode == ovRecording && a.prefs.Overlay.ShowTime {
-			w += ovTimeW
+		scene, exact := float32(0), true
+		if name := sceneShort(a.sess); name != "" {
+			scene, exact = a.ovTextWidth(sceneText(name))
 		}
-		if sceneShort(a.sess) != "" {
-			w += ovSceneW
+		row := rowWidth(mode == ovRecording && a.prefs.Overlay.ShowTime, scene)
+		text := liveLineText(a.sess)
+		if text == "" {
+			return row + 2*ovPillPadX, ovPillH, exact
 		}
-		if text := liveText(a.sess); text != "" {
-			w = liveWidth(w, text)
-			if a.ov.live.id == a.sess.ID {
-				w = max(w, a.ov.live.w)
-			}
-			return w, ovLiveH
+		tw, known := a.ovTextWidth(liveTextKey(text))
+		w := liveWidth(row, tw)
+		if a.ov.live.id == a.sess.ID {
+			// Within a session the face only grows: a revised text, or the
+			// model's draft after the speech, does not make it jump back.
+			w = max(w, a.ov.live.w)
 		}
-		return w, ovPillH
+		return w, ovLiveH, exact && known
 	}
-	return ovPillW, ovPillH
+	return ovPillW, ovPillH, true
 }
 
-// liveWidth is the face's width with live text: the pill's row (base),
-// widened to the text as textWidth guesses it, in steps of ovLiveStep,
-// at most ovLiveMaxW.
-func liveWidth(base int, text string) int {
-	w := textWidth(text, ovLiveSize) + 2*ovPillPadX + 2
-	w = (w + ovLiveStep - 1) / ovLiveStep * ovLiveStep
-	return max(base, min(w, ovLiveMaxW))
+// rowWidth is the width of the pill's row: the icon and the waveform, the
+// time when it shows, the group's name when one matched (scene DIPs
+// wide, at most ovSceneMaxW; 0 for none).
+func rowWidth(showTime bool, scene float32) int {
+	w := ovRowW
+	if showTime {
+		w += ovGap + ovTimeW
+	}
+	if scene > 0 {
+		w += ovGap + int(math.Ceil(float64(min(scene, ovSceneMaxW))))
+	}
+	return w
 }
 
-// noticeWidth fits a notice's line: its text (as wide as it may be
-// guessed without laying it out), the icon, the arrow of an action.
-func noticeWidth(n *sessionNotice) int {
-	if n == nil {
-		return ovNoticeW
-	}
-	w := 2*ovPillPadX + ovIconSize + ovGap + textWidth(n.text, 13)
-	if n.action != actionNone {
-		w += 8 + 14
+// liveWidth is the face's width with live text text DIPs wide under a
+// row row DIPs wide: the wider of the two, the text at most
+// ovLiveTextW, and the padding (Voxt's).
+func liveWidth(row int, text float32) int {
+	line := int(math.Ceil(float64(min(text, ovLiveTextW))))
+	return max(row, line) + 2*ovLivePadX
+}
+
+// noticeWidth fits a notice's line, text DIPs wide: the pill's padding,
+// the icon, the text, the arrow of an action; at least ovNoticeW, at most
+// ovNoticeW2.
+func noticeWidth(text float32, action bool) int {
+	w := 2*ovPillPadX + ovIconSlot + ovGap + int(math.Ceil(float64(text)))
+	if action {
+		w += ovArrowW
 	}
 	return min(max(w, ovNoticeW), ovNoticeW2)
+}
+
+// ovSized is a text the face's size depends on, as it draws.
+type ovSized struct {
+	text   string
+	size   float32
+	weight int
+}
+
+func (k ovSized) span() ui.Span {
+	return ui.Span{Text: k.text, Size: k.size, Weight: k.weight}
+}
+
+func liveTextKey(text string) ovSized { return ovSized{text, ovLiveSize, ovLiveWeight} }
+func sceneText(name string) ovSized   { return ovSized{name, ovSceneSize, 0} }
+func noticeText(text string) ovSized  { return ovSized{text, ovNoticeSize, 0} }
+
+// ovTextWidth is how wide k draws: as measured, or guessed (false)
+// until the overlay's view measured it.
+func (a *app) ovTextWidth(k ovSized) (float32, bool) {
+	if a.measureHook != nil {
+		return a.measureHook(k), true
+	}
+	if w, ok := a.ov.textW[k]; ok {
+		return w, true
+	}
+	return float32(textWidth(k.text, float64(k.size))), false
+}
+
+// overlayTexts are the texts the face's size depends on in its mode.
+func (a *app) overlayTexts() []ovSized {
+	var out []ovSized
+	switch a.ov.mode {
+	case ovNotice:
+		if a.notice != nil {
+			out = append(out, noticeText(a.notice.text))
+		}
+	case ovRecording, ovWorking:
+		if name := sceneShort(a.sess); name != "" {
+			out = append(out, sceneText(name))
+		}
+		if text := liveLineText(a.sess); text != "" {
+			out = append(out, liveTextKey(text))
+		}
+	}
+	return out
+}
+
+// overlayMeasure measures, in the overlay's build, the texts the face's
+// size was guessed from; the next turn of the main loop keeps their
+// widths and fits the face to them (the build pass resizes nothing).
+// A window that shows again stays transparent until then: the fitting
+// is posted before the reveal.
+func (a *app) overlayMeasure(c *ui.Context) {
+	var keys []ovSized
+	var widths []float32
+	for _, k := range a.overlayTexts() {
+		if _, ok := a.ov.textW[k]; ok {
+			continue
+		}
+		w, _ := c.MeasureText(0, k.span())
+		keys, widths = append(keys, k), append(widths, w)
+	}
+	if len(keys) == 0 {
+		return
+	}
+	a.post(func() {
+		if a.ov.textW == nil || len(a.ov.textW) > 256 {
+			a.ov.textW = map[ovSized]float32{}
+		}
+		for i, k := range keys {
+			a.ov.textW[k] = widths[i]
+		}
+		a.overlayRestyle()
+	})
 }
 
 // textWidth guesses how wide text is at size DIPs: a wide (CJK) letter
@@ -307,12 +440,7 @@ func (a *app) overlaySync() {
 		}
 		return
 	}
-	w, h := a.overlaySize(mode)
-	if h == ovLiveH && mode != ovAnswer {
-		a.ov.live.id, a.ov.live.w = a.sess.ID, w
-	} else if a.ov.live.id != a.sess.ID {
-		a.ov.live.id, a.ov.live.w = "", 0
-	}
+	w, h := a.overlayFace(mode)
 	if !was {
 		a.ov.area = a.overlayArea()
 	}
@@ -438,13 +566,33 @@ func overlayPlace(wa mygo.Rectangle, o settings.Overlay, w, h int) (int, int) {
 	return x, y
 }
 
-// overlayRestyle applies a change of settings.Overlay to the overlay
-// while it shows: its place, its size (the time) and its face.
+// overlayFace is the face's size in mode, kept as the session's live
+// width when it is a measured one with live text (a guess may be wider
+// than the text: the face would never fit it).
+func (a *app) overlayFace(mode overlayMode) (int, int) {
+	w, h, exact := a.overlaySize(mode)
+	switch {
+	case h == ovLiveH && mode != ovAnswer:
+		if a.ov.live.id != a.sess.ID {
+			a.ov.live.id, a.ov.live.w = a.sess.ID, 0
+		}
+		if exact {
+			a.ov.live.w = max(a.ov.live.w, w)
+		}
+	case a.ov.live.id != a.sess.ID:
+		a.ov.live.id, a.ov.live.w = "", 0
+	}
+	return w, h
+}
+
+// overlayRestyle applies a change of settings.Overlay, or of the measured
+// texts, to the overlay while it shows: its place, its size (the time,
+// the texts) and its face.
 func (a *app) overlayRestyle() {
 	if !a.ov.shown {
 		return
 	}
-	w, h := a.overlaySize(a.ov.mode)
+	w, h := a.overlayFace(a.ov.mode)
 	frame := overlayFrame(a.ov.area, a.prefs.Overlay, w, h)
 	moved := frame != a.ov.frame
 	a.ov.w, a.ov.h, a.ov.frame = w, h, frame
@@ -494,6 +642,7 @@ func (a *app) overlayView(c *ui.Context) {
 	// built: the kit's ink buttons swap the theme while they build
 	// (AudioSmith's pill).
 	defer c.Root().Background(ui.Transparent)
+	a.overlayMeasure(c)
 	if a.ov.reveal {
 		// This frame draws the new face: opaque from the next one.
 		a.ov.reveal = false
@@ -526,12 +675,15 @@ func (a *app) overlayView(c *ui.Context) {
 	})
 }
 
-// Colours of the face.
+// Colours of the face; the live text's is Voxt's: white, 85 %.
 var (
-	ovText  = ui.RGB(245, 245, 247)
-	ovText2 = ui.RGBA(235, 235, 245, 0.62)
-	ovIcon  = ui.RGBA(255, 255, 255, 0.92)
+	ovText      = ui.RGB(245, 245, 247)
+	ovText2     = ui.RGBA(235, 235, 245, 0.62)
+	ovIcon      = ui.RGBA(255, 255, 255, 0.92)
+	ovLiveColor = ui.RGBA(255, 255, 255, ovLiveAlpha)
 )
+
+const ovLiveAlpha = 0.85
 
 // faceRadius is the face's corner radius in mode, h DIPs high: the
 // setting's, at most a capsule for the pill.
@@ -564,37 +716,48 @@ type pillLook struct {
 	w      int
 }
 
-// overlayPill is the recording and working pill of s in mode: the
-// feature's icon, the waveform or the loader, the time and the matched
-// group when they show, and the live text under them.
+// overlayPill is the recording and working pill of s in mode, look.w
+// wide: the feature's icon, the waveform or the loader, the time and the
+// matched group when they show, in a row centred in the pill (Voxt's
+// compact card); with live text the row and the text's line under it,
+// both centred, in the wider padding of Voxt's card with text.
 func overlayPill(c *ui.Context, s session.Snapshot, mode overlayMode, look pillLook) {
-	text := strings.Join(strings.Fields(liveText(s)), " ")
-	col := ui.Column(c).Fill().Padding(0, ovPillPadX)
-	rowH := float32(ovPillH)
+	text := liveLineText(s)
+	// The face's border takes ovBorder of its padding (MyGo's border box).
+	col := ui.Column(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Padding(ovPillPadY-ovBorder, ovPillPadX-ovBorder)
 	if text != "" {
-		col.Padding(ovLiveTop, ovPillPadX, 0, ovPillPadX)
-		rowH = ovWaveH
+		col.Padding(ovLivePadY-ovBorder, ovLivePadX-ovBorder).Gap(ovLiveGap)
 	}
 	col.Children(func() {
-		ui.Row(c).Height(rowH).Shrink(0).Gap(ovGap).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-			ui.Icon(c, kindIcon(s.Kind).Bold).Size(ovIconSize, ovIconSize).TextColor(ovIcon).Shrink(0).Label(kindTitle(s.Kind))
+		ui.Row(c).Height(ovRowH).Shrink(0).Gap(ovGap).AlignItems(ui.Center).Children(func() {
+			ui.Box(c).Size(ovIconSlot, ovRowH).Shrink(0).Center().Children(func() {
+				ui.Icon(c, kindIcon(s.Kind).Bold).Size(ovIconSize, ovIconSize).TextColor(ovIcon).Shrink(0).Label(kindTitle(s.Kind))
+			})
 			if mode == ovRecording {
 				waveform(c, s.Levels, !s.HeardAt.IsZero(), look)
 				if look.time {
-					ui.Text(c, clock(s.Elapsed(time.Now()))).FontSize(12).Font("monospace").TextColor(ovText2).Shrink(0).Margin(0, 0, 0, -2)
+					ui.Box(c).Size(ovTimeW, ovRowH).Shrink(0).Center().Children(func() {
+						ui.Text(c, clock(s.Elapsed(time.Now()))).FontSize(12).Font("monospace").TextColor(ovText2).SingleLine().Shrink(0)
+					})
 				}
 			} else {
 				overlayLoader(c, workingText(s), look)
 			}
 			if name := sceneShort(s); name != "" {
-				ui.Text(c, name).FontSize(11).TextColor(ovText2).SingleLine().Ellipsis("…").MaxWidth(88).MinWidth(0).Shrink(1).
+				ui.Text(c, name).FontSize(ovSceneSize).TextColor(ovText2).SingleLine().Ellipsis("…").MaxWidth(ovSceneMaxW).MinWidth(0).Shrink(1).
 					Label(i18n.T("App enhancement: %s", sceneLabel(s)))
 			}
 		})
 		if text != "" {
-			liveLine(c.Key("ov-live-"+s.ID), text, float32(max(look.w, ovPillW)-2*ovPillPadX), look.motion)
+			liveLine(c.Key("ov-live-"+s.ID), text, float32(max(look.w, ovPillW)-2*ovLivePadX), look.motion)
 		}
 	})
+}
+
+// liveLineText is the live text as its line shows it: its spaces and
+// line breaks one space each.
+func liveLineText(s session.Snapshot) string {
+	return strings.Join(strings.Fields(liveText(s)), " ")
 }
 
 // liveLine is the live text on one line, width DIPs wide: centred while
@@ -603,8 +766,8 @@ func overlayPill(c *ui.Context, s session.Snapshot, mode overlayMode, look pillL
 // letters at the left edge fading out to say that more came before. The
 // key is the session's: a new one starts where its text is, not sliding.
 func liveLine(c *ui.Context, text string, width float32, motion bool) {
-	measure := func(t string) float32 { w, _ := c.MeasureText(0, ui.Span{Text: t, Size: ovLiveSize}); return w }
-	box := ui.Row(c).Width(width).Height(ovLineH).Margin(ovLiveGap, 0, 0, 0).Shrink(0).AlignItems(ui.Center).Clip().Label(text)
+	measure := func(t string) float32 { w, _ := c.MeasureText(0, liveTextKey(t).span()); return w }
+	box := ui.Row(c).Width(width).Height(ovLineH).Shrink(0).AlignItems(ui.Center).Clip().Label(text)
 	// Centred under the row while it fits; else its end at the right edge.
 	target := width - measure(text)
 	if target > 0 {
@@ -614,7 +777,7 @@ func liveLine(c *ui.Context, text string, width float32, motion bool) {
 	if motion {
 		x = box.AnimateTo("x", target, ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut})
 	}
-	shown, at, spans := text, x, []ui.Span{{Text: text, Size: ovLiveSize, Color: ovText}}
+	shown, at, spans := text, x, []ui.Span{{Text: text, Size: ovLiveSize, Weight: ovLiveWeight, Color: ovLiveColor}}
 	if x < 0 {
 		shown, at, spans = fadeSpans(text, -x, measure)
 		at = x + at
@@ -647,12 +810,12 @@ func fadeSpans(text string, off float32, measure func(string) float32) (string, 
 	for ; i < len(r) && start < ovFadeW; i++ {
 		end := measure(string(r[:i+1])) - off
 		mid := max(0, (start+end)/2)
-		a := 0.1 + 0.9*min(mid/ovFadeW, 1)
-		spans = append(spans, ui.Span{Text: string(r[i]), Size: ovLiveSize, Color: ui.RGBA(245, 245, 247, a)})
+		a := min(mid/ovFadeW, 1)
+		spans = append(spans, ui.Span{Text: string(r[i]), Size: ovLiveSize, Weight: ovLiveWeight, Color: ui.RGBA(255, 255, 255, ovLiveAlpha*(0.1+0.9*a))})
 		start = end
 	}
 	if i < len(r) {
-		spans = append(spans, ui.Span{Text: string(r[i:]), Size: ovLiveSize, Color: ovText})
+		spans = append(spans, ui.Span{Text: string(r[i:]), Size: ovLiveSize, Weight: ovLiveWeight, Color: ovLiveColor})
 	}
 	return string(r[lo:]), from, spans
 }
@@ -738,35 +901,41 @@ func kindTitle(k store.Kind) string {
 	return i18n.T("Transcribe")
 }
 
-// Bars of the waveform (Voxt's proportions).
+// Bars of the waveform (Voxt's): waveW wide in all, centred in the
+// waveform's slot.
 const (
 	waveBarW    = 3.2
 	waveBarGap  = 2.5
+	waveBarR    = 1.5
 	waveBarMinH = 3.2
 	waveBarMaxH = 22
+	waveW       = session.Bars*waveBarW + (session.Bars-1)*waveBarGap // 88.7
 )
 
 // waveform draws the input levels as 16 rounded bars, newest on the
-// right: smoothed (waveBars), and, where it is quiet, breathing a little
-// about their least height while look moves. Dim until the first audio.
+// right, in the waveform's slot (ovWaveW, ovRowH), centred (Voxt's):
+// smoothed (waveBars), and, where it is quiet, breathing a little about
+// their least height while look moves. Dim until the first audio.
 func waveform(c *ui.Context, levels []float64, heard bool, look pillLook) {
 	bars := waveBars(levels)
-	ui.Row(c.Key("ov-wave")).Width(ovWaveW).Height(ovWaveH).Shrink(0).Gap(waveBarGap).AlignItems(ui.Center).Justify(ui.Center).
-		Label(i18n.T("Input level")).Children(func() {
-		for i, v := range bars {
-			h := waveBarMinH + (waveBarMaxH-waveBarMinH)*float32(v)
-			if look.motion {
-				h += float32(waveIdle(i, v, look.phase))
+	ui.Row(c.Key("ov-wave")).Width(ovWaveW).Height(ovRowH).Shrink(0).Center().Children(func() {
+		ui.Row(c).Width(waveW).Height(ovRowH).Shrink(0).Gap(waveBarGap).AlignItems(ui.Center).Label(i18n.T("Input level")).Children(func() {
+			for i, v := range bars {
+				h := waveBarMinH + (waveBarMaxH-waveBarMinH)*float32(v)
+				if look.motion {
+					h += float32(waveIdle(i, v, look.phase))
+				}
+				// Voxt's fill: white, 98 % at the top to 80 % at the bottom.
+				top, bottom := float32(0.98), float32(0.8)
+				if !heard {
+					top, bottom = 0.34, 0.28
+				}
+				bar := ui.Box(c).Width(waveBarW).Height(h).Radius(waveBarR).Gradient(ui.RGBA(255, 255, 255, top), ui.RGBA(255, 255, 255, bottom), 180).Shrink(0)
+				if g := waveGlow(v); g > 0 && heard {
+					bar.Shadow(0, 0, 3, 0, ui.RGBA(255, 255, 255, float32(g)))
+				}
 			}
-			alpha := float32(0.92)
-			if !heard {
-				alpha = 0.32
-			}
-			bar := ui.Box(c).Width(waveBarW).Height(h).Radius(waveBarW / 2).Background(ui.RGBA(255, 255, 255, alpha)).Shrink(0)
-			if g := waveGlow(v); g > 0 && heard {
-				bar.Shadow(0, 0, 3, 0, ui.RGBA(255, 255, 255, float32(g)))
-			}
-		}
+		})
 	})
 }
 
@@ -819,11 +988,12 @@ func waveGlow(v float64) float64 {
 	return min(0.24, 0.26*a)
 }
 
-// overlayLoader is the working pill's loader in the waveform's place:
-// five dots that swell and brighten in turn (Voxt's: 1.2 s, 0.12 s
-// apart); still, all half bright, without motion.
+// overlayLoader is the working pill's loader in the waveform's place,
+// centred in its slot: five dots of 5, 4 apart, that swell and brighten
+// in turn (Voxt's: 1.2 s, 0.12 s apart); still, all half bright, without
+// motion.
 func overlayLoader(c *ui.Context, label string, look pillLook) {
-	ui.Row(c.Key("ov-loader")).Width(ovWaveW).Height(ovWaveH).Shrink(0).Gap(4).AlignItems(ui.Center).Justify(ui.Center).
+	ui.Row(c.Key("ov-loader")).Width(ovWaveW).Height(ovRowH).Shrink(0).Gap(4).AlignItems(ui.Center).Justify(ui.Center).
 		Label(label).Children(func() {
 		for i := range 5 {
 			scale, alpha := 1.0, 0.7
@@ -871,13 +1041,17 @@ func (a *app) overlayNotice(c *ui.Context) {
 	}
 	label := noticeActionLabel(n.action)
 	content := func() {
-		ui.Row(c).Fill().Padding(0, ovPillPadX).Gap(ovGap).AlignItems(ui.Center).Children(func() {
+		// Centred, as the pill's row: a notice narrower than ovNoticeW
+		// keeps its sides even. The border takes ovBorder of the padding.
+		ui.Row(c).Fill().Padding(0, ovPillPadX-ovBorder).Gap(ovGap).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			ic, col := icons.DangerCircle, tok(t).Danger
 			if n.warn {
 				ic, col = icons.DangerTriangle, tok(t).Warning
 			}
-			ui.Icon(c, ic.Bold).Size(ovIconSize, ovIconSize).TextColor(col).Shrink(0)
-			ui.Text(c, n.text).FontSize(13).TextColor(ovText).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
+			ui.Box(c).Size(ovIconSlot, ovRowH).Shrink(0).Center().Children(func() {
+				ui.Icon(c, ic.Bold).Size(ovIconSize, ovIconSize).TextColor(col).Shrink(0)
+			})
+			ui.Text(c, n.text).FontSize(ovNoticeSize).TextColor(ovText).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 			if label != "" {
 				ui.Icon(c, icons.AltArrowRight.Linear).Size(14, 14).TextColor(ovText2).Shrink(0).Margin(0, 0, 0, -2)
 			}
