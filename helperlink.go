@@ -2,7 +2,7 @@ package main
 
 // The helper as the UI sees it: main makes its supervisor
 // (newHelperHost, connectHelper), the window's start starts it, and the
-// status bar, Settings → Permissions and Diagnostics read the snapshot of
+// sidebar's cards, Home, Settings → Permissions and Diagnostics read the snapshot of
 // its status kept here from helper.StatusChanged. Requests go from a
 // goroutine (helperCall); notifications that belong to no request
 // (hotkey.event) arrive in helperNotified and start sessions
@@ -77,7 +77,7 @@ func (a *app) stopHelper() {
 	}
 }
 
-// restartHelper restarts it (the status bar's popover, the palette).
+// restartHelper restarts it (its card, Home, the palette).
 func (a *app) restartHelper() {
 	sup := a.host.sup
 	a.async(func() { sup.Restart() })
@@ -111,6 +111,7 @@ func (a *app) helperChanged(st helper.Status) {
 		a.hotkeys = proto.HotkeyStatus{} // its tap went with it
 		a.syncHotkeys()
 	}
+	a.checkHelper() // shell_notices.go: a card while it does not run
 }
 
 // helperNotified handles a notification of no request: a shortcut

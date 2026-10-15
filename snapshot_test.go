@@ -122,14 +122,26 @@ func TestSnapshots(t *testing.T) {
 		a.sheetOpen = true
 		save("shortcuts")
 		a.sheetOpen = false
-		a.notes.Post(core.Notification{Severity: core.SeverityWarning, Title: i18n.T("Helper out of date"), Link: "/settings/about"})
-		a.helperOpen = true
-		save("helper")
-		a.helperOpen = false
-		a.noticesOpen = true
 		a.logsPanel = true
-		save("notifications")
-		a.noticesOpen, a.logsPanel = false, false
+		save("logs-panel")
+		a.logsPanel = false
+
+		// The foot of the sidebar (shell_notices.go): no notification,
+		// one, three stacked; then the rail's dot and its popover.
+		a.clearNotices()
+		save("sidebar-notices-0")
+		a.problemDismissed = nil
+		a.checkServices()
+		save("sidebar-notices-1")
+		a.notify(core.SeveritySuccess, i18n.T("%s saved", "DeepSeek"), "", "")
+		fs.set(helper.Status{State: helper.Failed, Reason: helper.FailCrashed, Err: "exit status 2"})
+		save("sidebar-notices-3")
+		a.setRail(true)
+		save("rail-notices-dot")
+		a.noticesOpen = true
+		save("rail-notices")
+		a.noticesOpen = false
+		a.setRail(false)
 		fs.set(helper.Status{State: helper.Failed, Reason: helper.FailMissing, Err: "auralink-helper was not found"})
 		a.navigate("/settings/permissions")
 		save("permissions-no-helper")

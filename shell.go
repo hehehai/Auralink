@@ -1,13 +1,14 @@
 package main
 
 // The window shell (from AudioSmith): the window, the sidebar and the
-// router of pages, the status bar and the overlays every page shares
-// (command palette, the shortcut sheet, notifications, the settings
-// dialog), and the theme. Its parts live in shell_*.go:
+// router of pages and the overlays every page shares (command palette,
+// the shortcut sheet, the settings dialog), and the theme; no status bar:
+// notifications are cards at the foot of the sidebar. Its parts live in
+// shell_*.go:
 //
 //	shell_nav.go       the sidebar and the icon rail
 //	shell_commands.go  command registry, ⌘K palette, ? sheet, native menu, deep links
-//	shell_status.go    status bar, notification centre, the helper's popover
+//	shell_notices.go   notification cards, the problems they report
 //	shell_logs.go      logs page and panel
 //	shell_settings.go  settings service wiring, the settings dialog, language, theme
 //	pages.go           the pages of the sidebar
@@ -42,9 +43,8 @@ const (
 )
 
 const (
-	titleBarHeight  = 52
-	sidebarWidth    = 200
-	statusBarHeight = 26
+	titleBarHeight = 52
+	sidebarWidth   = 200
 )
 
 // baseFontSize is the platform's text size at 100 %: px scales sizes
@@ -74,14 +74,18 @@ type shellState struct {
 	notices  []core.Notification // newest first
 	logs     *logs.Ring
 
-	version string // the app's, for the status bar; "" in tests
+	// problemCode: the form of each problem shown (setProblem);
+	// problemDismissed: the forms the user dismissed, not shown again
+	// this run while they last.
+	problemCode, problemDismissed map[string]string
+
+	version string // the app's, beside Settings in the sidebar; "" in tests
 
 	paletteOpen  bool
 	paletteQuery string
 	paletteSel   int
 	sheetOpen    bool
-	helperOpen   bool // the status bar's helper popover
-	noticesOpen  bool
+	noticesOpen  bool // the rail's popover of notifications
 	logsPanel    bool
 	logsSource   string
 	logsQuery    string
@@ -351,7 +355,6 @@ var (
 	dictionaryIcon     = icons.NotebookBookmark
 	permissionsIcon    = icons.ShieldKeyhole
 	logsIcon           = icons.ClipboardList
-	bellIcon           = icons.Bell
 	searchIcon         = icons.Magnifer
 )
 
@@ -377,15 +380,13 @@ func (a *app) view(c *ui.Context) {
 				// At most half the window: the page keeps its header and
 				// its first controls (at 680×440 too).
 				_, wh := c.Size()
-				ph := min(px(t, a.logsHeight), max(px(t, 120), (wh-px(t, statusBarHeight))/2-px(t, sp6)))
+				ph := min(px(t, a.logsHeight), max(px(t, 120), wh/2-px(t, sp6)))
 				ui.Divider(c)
 				ui.Column(c.Key("logs-panel")).Height(ph).Shrink(0).Children(func() {
 					a.logsView(c, true)
 				})
 			}
 		})
-		ui.Divider(c)
-		a.statusBar(c)
 	})
 	a.settingsDialog(c)     // shell_settings.go
 	a.onboarding(c)         // onboarding.go
@@ -398,9 +399,9 @@ func (a *app) view(c *ui.Context) {
 // toastsView gives the toasts their place and look: small ink toasts in
 // the middle of the page's header (between its title and its actions,
 // where it is empty), centred over the page; more stack under it. At the
-// window's bottom (MyGo's place) they covered the bars and cards there
-// and the status bar. While the Settings dialog shows, they go to the
-// foot of the dialog instead.
+// window's bottom (MyGo's place) they covered the bars and cards there.
+// While the Settings dialog shows, they go to the foot of the dialog
+// instead.
 func (a *app) toastsView(c *ui.Context) {
 	t := c.Theme()
 	k := tok(t)
@@ -410,7 +411,7 @@ func (a *app) toastsView(c *ui.Context) {
 		vp.AlignItems(ui.Center).Gap(px(t, sp2))
 		if a.settingsOpen {
 			// Over the Settings dialog's foot: its title row is at the top.
-			vp.Justify(ui.End).Padding(0, px(t, sp4), px(t, statusBarHeight+sp8))
+			vp.Justify(ui.End).Padding(0, px(t, sp4), px(t, sp6+sp8))
 		} else {
 			vp.Justify(ui.Start).Padding(max(px(t, 4), (titleBarHeight-px(t, 36))/2), px(t, sp4), 0, w-page+px(t, sp4))
 		}
@@ -503,11 +504,18 @@ func (a *app) sidebar(c *ui.Context) {
 		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(px(t, 20)).Gradient(k.Sidebar.Alpha(0), k.Sidebar, 180).PassThrough()
 	})
 	a.saveClosedSections()
+	// The notifications, over Settings (shell_notices.go).
+	if len(a.notices) > 0 {
+		ui.Column(c).Shrink(0).Padding(px(t, sp1), px(t, 10), px(t, sp2)).Children(func() { a.noticeStack(c) })
+	}
 	ui.Column(c).Shrink(0).Padding(px(t, 6), px(t, 10), px(t, 8)).BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
 		b := ghostBase(c.Key("nav-settings")).Padding(px(t, 6), px(t, sp2)).Gap(px(t, sp2)).Justify(ui.Start).Label(i18n.T("Settings")).Tooltip(i18n.T("Settings") + " (⌘,)")
 		b.Children(func() {
 			ui.Icon(c, icons.Settings.Get(a.settingsOpen)).Size(px(t, 16), px(t, 16)).TextColor(k.Text2)
-			ui.Text(c, i18n.T("Settings")).TextColor(k.G[8]).SingleLine().Grow(1)
+			ui.Text(c, i18n.T("Settings")).TextColor(k.G[8]).SingleLine().Grow(1).MinWidth(0)
+			if a.version != "" {
+				ui.Text(c, "v"+a.version).FontSize(px(t, fsMicro)).TextColor(k.Text3).SingleLine().Shrink(0)
+			}
 		})
 		if b.Clicked() {
 			a.navigate("/settings")

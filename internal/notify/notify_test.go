@@ -44,6 +44,16 @@ func TestCenter(t *testing.T) {
 			t.Error("unread after MarkRead(\"\")", n)
 		}
 	}
+	// Dismiss removes one; again, or one never there, is no error.
+	if err := c.Dismiss(ctx, "disk"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Dismiss(ctx, "disk"); err != nil {
+		t.Error(err)
+	}
+	if list, _ = c.List(ctx); len(list) != 2 || list[0].Title != "third" {
+		t.Fatalf("after Dismiss %+v", list)
+	}
 	for range Max + 5 {
 		c.Post(core.Notification{Title: "x"})
 	}
@@ -96,6 +106,12 @@ func TestCenterPersists(t *testing.T) {
 	list, _ := c2.List(ctx)
 	if len(list) != 2 || list[0].Title != "warning" || !list[0].Read || list[1].Title != "info" {
 		t.Fatalf("after restart %+v", list)
+	}
+	c2.Dismiss(ctx, "w")
+	c2.Close()
+	c2b, _ := Open(ctx, docs, nil)
+	if list, _ := c2b.List(ctx); len(list) != 1 || list[0].Title != "info" {
+		t.Fatalf("dismissed, yet %+v", list)
 	}
 	c2.Clear(ctx)
 	c2.Close()

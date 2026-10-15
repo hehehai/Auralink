@@ -39,6 +39,7 @@ func readyServices(a *app) {
 	a.keyMasks["asr.doubao"] = "tok…abcd"
 	a.keyMasks["llm.deepseek"] = "sk-…wxyz"
 	a.keyMasks["llm.dashscope"] = "sk-…qrst"
+	a.checkServices() // as reading the keys does: the services' card goes
 }
 
 func TestHotkeyText(t *testing.T) {

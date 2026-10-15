@@ -143,6 +143,10 @@ func (a *app) settingsChanged(old, new settings.Settings) {
 	if old.Overlay != new.Overlay {
 		a.overlayRestyle() // overlay.go
 	}
+	// The problems' cards: the services may have changed, or the language
+	// of their text (shell_notices.go).
+	a.checkServices()
+	a.checkHelper()
 	a.loadSettingsForm()
 }
 

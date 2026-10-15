@@ -1,7 +1,8 @@
 // Package notify is the notification centre: core.NotificationService in
 // memory. Posting stores the notification (newest first, at most Max) and
-// publishes core.NotificationPosted; the shell turns that into a toast and
-// a badge on the bell of the status bar.
+// publishes core.NotificationPosted; the shell shows the notifications as
+// a stack of cards at the foot of the sidebar (a dot on the rail's
+// Settings icon), where each is dismissed.
 //
 // A centre opened over Documents (Open) keeps its info, success and
 // warning notifications across restarts, until they are cleared; errors
@@ -152,6 +153,20 @@ func (c *Center) MarkRead(_ context.Context, id string) error {
 		return fmt.Errorf("notification %s: %w", id, core.ErrNotFound)
 	}
 	c.save()
+	return nil
+}
+
+// Dismiss removes one notification; one not there is no error (a
+// problem the shell withdraws may be gone already).
+func (c *Center) Dismiss(_ context.Context, id string) error {
+	c.mu.Lock()
+	n := len(c.items)
+	c.items = slices.DeleteFunc(c.items, func(x core.Notification) bool { return x.ID == id })
+	gone := len(c.items) != n
+	c.mu.Unlock()
+	if gone {
+		c.save()
+	}
 	return nil
 }
 

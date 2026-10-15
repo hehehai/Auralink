@@ -45,7 +45,6 @@ func (a *app) commands() []command {
 	view := i18n.T("View")
 	add("palette", view, i18n.T("Command palette"), "Command palette", "⌘K", true, a.openPalette)
 	add("logs-panel", view, i18n.T("Show or hide the logs panel"), "Show or hide the logs panel", "⇧⌘L", true, func() { a.logsPanel = !a.logsPanel })
-	add("notifications", view, i18n.T("Notifications"), "Notifications", "", true, func() { a.noticesOpen = true })
 	add("shortcuts", view, i18n.T("Keyboard shortcuts"), "Keyboard shortcuts", "?", true, func() { a.sheetOpen = true })
 	add("helper-restart", view, i18n.T("Restart the helper"), "Restart the helper", "", true, a.restartHelper)
 	add("setup-guide", view, i18n.T("Open the setup guide"), "Open the setup guide onboarding", "", true, a.openOnboarding)
@@ -339,7 +338,6 @@ func (a *app) buildMenu() {
 		{Label: i18n.T("View"), Submenu: []*mygo.MenuItem{
 			{Label: i18n.T("Command palette"), Accelerator: "CmdOrCtrl+K", Click: act(a.openPalette)},
 			{Label: i18n.T("Show or hide the logs panel"), Click: act(func() { a.logsPanel = !a.logsPanel })},
-			{Label: i18n.T("Notifications"), Click: act(func() { a.noticesOpen = true })},
 			mygo.Separator(),
 			{Role: mygo.RoleToggleFullScreen, Label: i18n.T("Enter Full Screen")},
 		}},

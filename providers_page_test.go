@@ -68,8 +68,8 @@ func TestProvidersPageSetUp(t *testing.T) {
 	if !has(tt, "Model services") || !has(tt, "Doubao (Volcengine)") || !has(tt, "No speech service is ready: set one up below to transcribe, translate and rewrite by voice.") {
 		t.Fatalf("page: %q", firstTexts(tt))
 	}
-	if !has(tt, "No provider set up") {
-		t.Error("status bar")
+	if !hasExact(tt, "No services set up") {
+		t.Errorf("no card in the sidebar: %q", firstTexts(tt))
 	}
 	click(t, tt, "Doubao (Volcengine)")
 	if !a.provDlg.open || a.provDlg.id != "doubao" || !has(tt, "Your recordings are sent to Doubao (Volcengine) to be recognised.") {
@@ -107,8 +107,8 @@ func TestProvidersPageSetUp(t *testing.T) {
 	if !has(tt, "tok…abcd") || !has(tt, "Set up") {
 		t.Errorf("card: %q", firstTexts(tt))
 	}
-	if !has(tt, "ASR Doubao (Volcengine) · LLM none") {
-		t.Errorf("status bar: %q", tt.Texts())
+	if !hasExact(tt, "No language model") || hasExact(tt, "No services set up") {
+		t.Errorf("card in the sidebar: %q", tt.Texts())
 	}
 	// The card's test, then a failure.
 	fakeTests(t, map[string]error{"asr.doubao": &asr.Error{Kind: asr.KindAuth, Provider: "doubao", Status: 401}})
@@ -172,8 +172,8 @@ func TestProvidersPageLLMAndFeatures(t *testing.T) {
 	if !has(tt, "No key saved") {
 		t.Errorf("card: %q", tt.Texts())
 	}
-	if _, llmName, _ := a.providerSummary(); llmName != "Qwen (Alibaba Cloud Model Studio)" {
-		t.Errorf("summary LLM %q", llmName)
+	if p, _ := providers.Choose(a.prefs, providers.LLM, a.prefs.Features.Transcribe.Feature.LLM, a.hasKey); providerName(providers.LLM, p) != "Qwen (Alibaba Cloud Model Studio)" {
+		t.Errorf("Transcribe's LLM %q", providerName(providers.LLM, p))
 	}
 }
 

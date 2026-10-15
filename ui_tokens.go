@@ -69,7 +69,7 @@ type tokens struct {
 	G greys
 	// Surfaces.
 	Bg      ui.Color // pages, dialogs
-	Sidebar ui.Color // the sidebar, the status bar
+	Sidebar ui.Color // the sidebar
 	Subtle  ui.Color // a card's fill (cards have a fill or a hairline, not both)
 	Hover   ui.Color // ghost buttons and rows under the pointer
 	Pressed ui.Color // … pressed; the chosen row

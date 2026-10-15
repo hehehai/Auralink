@@ -174,6 +174,12 @@ func has(tt *ui.Tester, s string) bool {
 	return tt.HasText(s) || slices.Contains(tt.Texts(), s)
 }
 
+// hasExact reports whether the view shows a text that is s.
+func hasExact(tt *ui.Tester, s string) bool {
+	frames(tt)
+	return slices.Contains(tt.Texts(), s)
+}
+
 // hasPrefix reports whether a text on screen starts with s.
 func hasPrefix(tt *ui.Tester, s string) bool {
 	for _, x := range tt.Texts() {

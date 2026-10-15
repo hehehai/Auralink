@@ -5,7 +5,8 @@ package main
 // each lists which service each feature uses, then a card per service
 // (its state, model, saved key and a connection test). A card opens the
 // service's dialog: its key, endpoint, model and, for speech, its
-// recognition prompt. The status bar shows what Transcribe uses.
+// recognition prompt. A card in the sidebar says when a feature lacks one
+// (checkServices, shell_notices.go).
 //
 // Keys live in the Keychain only (keyring, internal/secrets): the page
 // keeps their masks ("sk-…wxyz"), read in the background, never a key.
@@ -57,6 +58,8 @@ type providersState struct {
 	// keyMasks are the saved keys' masks by account, "" for none; an
 	// account not in it was not read yet.
 	keyMasks map[string]string
+	// keysKnown: the keys were read once (checkServices waits for it).
+	keysKnown bool
 	// provTests are the last connection tests, by account.
 	provTests map[string]providerTest
 	// featSel holds the "used by" selects' labels, featSeen what they
@@ -101,6 +104,11 @@ func (a *app) openProviders() {
 			accounts = append(accounts, providers.Account(kind, p.ID))
 		}
 	}
+	if len(accounts) == 0 {
+		a.keysKnown = true
+		a.checkServices() // shell_notices.go
+		return
+	}
 	a.loadKeyMasks(accounts)
 }
 
@@ -131,6 +139,8 @@ func (a *app) loadKeyMasks(accounts []string) {
 			for k, v := range masks {
 				a.keyMasks[k] = v
 			}
+			a.keysKnown = true
+			a.checkServices() // shell_notices.go
 		})
 	})
 }
@@ -745,6 +755,7 @@ func (a *app) saveProviderDialog() {
 			}
 			delete(a.provTests, acc)
 			a.updateSettings(func(s *settings.Settings) { providers.Put(s, kind, p) })
+			a.checkServices()
 			a.provDlg = providerDialog{}
 			a.toast(i18n.T("%s saved", providerName(kind, p)))
 		})
@@ -903,18 +914,4 @@ func providerErrorDetail(err error) string {
 		return strings.Join(parts, " · ")
 	}
 	return asr.Clip(err.Error(), 300)
-}
-
-// providerSummary is the status bar's: what Transcribe uses.
-func (a *app) providerSummary() (asrName, llmName string, ok bool) {
-	f := a.prefs.Features.Transcribe.Feature
-	pa, okA := providers.Choose(a.prefs, providers.ASR, f.ASR, a.hasKey)
-	pl, okL := providers.Choose(a.prefs, providers.LLM, f.LLM, a.hasKey)
-	if okA {
-		asrName = providerName(providers.ASR, pa)
-	}
-	if okL {
-		llmName = providerName(providers.LLM, pl)
-	}
-	return asrName, llmName, okA && okL
 }

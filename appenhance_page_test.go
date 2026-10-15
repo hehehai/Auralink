@@ -322,6 +322,7 @@ func TestSceneConfig(t *testing.T) {
 // appEnhanceShots renders the App enhancement page with groups, its
 // dialogs, and the whole page in a tall window (TestSnapshots).
 func appEnhanceShots(a *app, fs *fakeSupervisor, tt *ui.Tester, save func(string)) {
+	a.clearNotices() // the README shows the page without the services' card
 	browserURLs(fs, map[string]string{chromeApp.BundleID: "https://github.com/hehehai/Auralink/pulls"})
 	a.setRules(sampleRules())
 	a.urlReads["com.google.Chrome"] = urlRead{ok: true}

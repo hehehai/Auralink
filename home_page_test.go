@@ -231,6 +231,7 @@ func homeShots(a *app, tt *ui.Tester, save func(string)) {
 	a.host.sup.Start(context.Background()) // ready again (the shots before stopped it)
 	readyServices(a)
 	allowAll(a)
+	a.clearNotices() // the earlier shots' cards
 	a.navigate("/home")
 	a.historyChanged()
 	a.sessionChanged(trySnapshot(a, session.Done))

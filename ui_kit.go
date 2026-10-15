@@ -633,7 +633,7 @@ func sidePanel(c *ui.Context, key string, w float32, inline bool, label string, 
 	ui.Overlay(c, func() {
 		_, h := c.Size()
 		panel := ui.Scroll(c.Key(key+"-drawer")).Absolute().Right(0).Top(titleBarHeight).Width(w).
-			Height(h-titleBarHeight-px(t, statusBarHeight)-1).Background(k.Bg).BorderWidth(0, 0, 0, 1).BorderColor(k.Line).
+			Height(h-titleBarHeight).Background(k.Bg).BorderWidth(0, 0, 0, 1).BorderColor(k.Line).
 			Shadow(-8, 0, 24, 0, ui.RGBA(0, 0, 0, 0.12)).Label(label)
 		panel.Children(fn)
 		if close != nil && (panel.PressedOutside() || panel.OverlayShortcut(0, ui.KeyEscape)) {
@@ -705,7 +705,7 @@ func (sp *panelState) view(c *ui.Context, key, label string, inline, shown, left
 	ui.Overlay(c, func() {
 		w, h := c.Size()
 		panel := ui.Scroll(c.Key(key+"-drawer")).Absolute().Left(0).Top(titleBarHeight).Width(min(width, w-px(t, 48))).
-			Height(h-titleBarHeight-px(t, statusBarHeight)-1).Background(k.Bg).BorderWidth(0, 1, 0, 0).BorderColor(k.Line).
+			Height(h-titleBarHeight).Background(k.Bg).BorderWidth(0, 1, 0, 0).BorderColor(k.Line).
 			Shadow(8, 0, 24, 0, ui.RGBA(0, 0, 0, 0.12)).Label(label)
 		panel.Children(build)
 		if panel.PressedOutside() || panel.OverlayShortcut(0, ui.KeyEscape) {

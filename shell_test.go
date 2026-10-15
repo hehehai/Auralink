@@ -25,7 +25,10 @@ func TestSidebarAndShortcuts(t *testing.T) {
 	if got := a.router.Path(); got != "/home" {
 		t.Fatalf("starts at %s", got)
 	}
-	// Every page of the sidebar shows.
+	// Every page of the sidebar shows (no card under the list: 520 tall,
+	// the list then scrolls).
+	frames(tt)
+	a.clearNotices()
 	for _, p := range pages {
 		click(t, tt, pageTitle(p.path))
 		if a.router.Path() != p.path {
@@ -184,26 +187,73 @@ func TestMainLanguagesAreKnown(t *testing.T) {
 	}
 }
 
-func TestStatusBarFollowsTheHelper(t *testing.T) {
+// TestProblemCards: no status bar; what it showed is a card at the foot
+// of the sidebar while something is wrong, with the action that fixes
+// it, gone once solved; a card dismissed stays away until solved.
+func TestProblemCards(t *testing.T) {
 	a, fs, tt := newTestApp(t)
-	if !has(tt, "Helper ready") || !has(tt, "No provider set up") {
-		t.Fatalf("status bar: %q", firstTexts(tt))
+	frames(tt)
+	if has(tt, "Helper ready") || has(tt, "No provider set up") {
+		t.Errorf("a status bar: %q", firstTexts(tt))
 	}
-	click(t, tt, "No provider set up")
+	if !hasExact(tt, "No services set up") || !has(tt, "Set up a speech service and a language model to start.") {
+		t.Fatalf("no services card: %q", firstTexts(tt))
+	}
+	click(t, tt, "Open Model services")
 	if a.router.Path() != "/providers" {
-		t.Errorf("providers: %s", a.router.Path())
+		t.Errorf("its action: %s", a.router.Path())
 	}
+	// The helper: a card while it does not run, the newest on top.
+	fs.set(helper.Status{State: helper.Failed, Reason: helper.FailMissing, Err: "auralink-helper was not found"})
+	if !has(tt, "Helper missing") || !has(tt, "2 notifications") || a.notices[0].ID != problemHelper {
+		t.Fatalf("missing helper: %q", firstTexts(tt))
+	}
+	click(t, tt, "Clear all")
+	if len(a.notices) != 0 {
+		t.Fatalf("cleared: %+v", a.notices)
+	}
+	a.problemDismissed = nil
+	a.checkServices()
 	fs.set(helper.Status{State: helper.Failed, Reason: helper.FailMissing, Err: "auralink-helper was not found"})
 	if !has(tt, "Helper missing") {
-		t.Errorf("missing helper: %q", firstTexts(tt))
-	}
-	a.helperOpen = true
-	if !has(tt, "Restart the helper") {
-		t.Fatal("no popover")
+		t.Fatalf("missing helper again: %q", firstTexts(tt))
 	}
 	click(t, tt, "Restart the helper")
-	if a.helperStatus().State != helper.Ready {
-		t.Errorf("after restart: %+v", a.helperStatus())
+	if a.helperStatus().State != helper.Ready || has(tt, "Helper missing") {
+		t.Errorf("after restart: %+v %q", a.helperStatus(), firstTexts(tt))
+	}
+	// Dismissed: not again while the problem lasts, even as settings change.
+	click(t, tt, "Dismiss")
+	if hasExact(tt, "No services set up") || len(a.notices) != 0 {
+		t.Fatalf("dismissed: %+v", a.notices)
+	}
+	a.updateSettings(func(s *settings.Settings) { s.Appearance.Theme = "dark" })
+	if hasExact(tt, "No services set up") {
+		t.Error("came back")
+	}
+	// Solved, then wrong again: it shows again, with the new text.
+	a.keys.Set("asr.doubao", "", "tok-1")
+	a.keyMasks["asr.doubao"] = "tok…1"
+	a.updateSettings(func(s *settings.Settings) {
+		s.Providers.ASR = []settings.Provider{{ID: "doubao", Enabled: true, AppID: "1"}}
+	})
+	if !hasExact(tt, "No language model") {
+		t.Errorf("language model card: %+v", a.notices)
+	}
+	// The rail: a dot on Settings, which opens the cards.
+	a.setRail(true)
+	frames(tt)
+	click(t, tt, "Settings")
+	if !a.noticesOpen || !hasExact(tt, "No language model") {
+		t.Fatalf("rail popover: %v %q", a.noticesOpen, firstTexts(tt))
+	}
+	click(t, tt, "Dismiss")
+	if len(a.notices) != 0 || a.noticesOpen {
+		t.Errorf("dismissed: %+v", a.notices)
+	}
+	click(t, tt, "Settings")
+	if !a.settingsOpen {
+		t.Error("Settings without notifications")
 	}
 }
 
@@ -303,12 +353,13 @@ func TestPrivacyClearsHistory(t *testing.T) {
 
 func TestNotificationsAndLogs(t *testing.T) {
 	a, _, tt := newTestApp(t)
+	frames(tt)
+	a.clearNotices() // the services' card
 	a.notify(core.SeverityWarning, "Helper out of date", "Rebuild it", "/settings/about")
 	frames(tt)
-	if len(a.notices) != 1 || !has(tt, "1") {
+	if len(a.notices) != 1 || !has(tt, "Helper out of date") || !has(tt, "Rebuild it") {
 		t.Fatalf("notices %+v", a.notices)
 	}
-	a.noticesOpen = true
 	click(t, tt, "Open")
 	if a.shownPath() != "/settings/about" {
 		t.Errorf("notice link: %s", a.shownPath())

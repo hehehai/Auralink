@@ -16,7 +16,6 @@ clipboard-list          # Logs
 settings                # Settings, Settings → General
 
 # Shell.
-bell                    # notifications
 magnifer                # search, palette
 sidebar-minimalistic    # collapse / expand the sidebar
 command                 # palette rows

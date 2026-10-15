@@ -99,6 +99,7 @@ func (a *app) sidebarFrame(c *ui.Context, page func()) {
 		})
 		return
 	}
+	a.noticesOpen = false // the rail's popover
 	scale := px(t, 1)
 	if a.sideW == 0 || a.sideWScale != scale {
 		w := a.prefs.Appearance.SidebarWidth
@@ -172,8 +173,25 @@ func (a *app) navRail(c *ui.Context) {
 		})
 		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(px(t, 16)).Gradient(k.Sidebar.Alpha(0), k.Sidebar, 180).PassThrough()
 	})
+	// Settings, with a dot while there are notifications: then it opens
+	// them, with Settings under them (shell_notices.go).
 	ui.Column(c).AlignItems(ui.Center).Padding(px(t, 4), 0, px(t, 6)).Shrink(0).Children(func() {
-		a.railButton(c, "rail/settings", icons.Settings, i18n.T("Settings"), i18n.T("Settings")+" (⌘,)", a.settingsOpen, "", func() { a.navigate("/settings") })
+		tip, dot := i18n.T("Settings")+" (⌘,)", ""
+		if n := len(a.notices); n > 0 {
+			tip = i18n.N(n, "%d notification", "%d notifications", n) + " · " + tip
+			dot = "notices"
+		}
+		b := a.railButton(c, "rail/settings", icons.Settings, i18n.T("Settings"), tip, a.settingsOpen || a.noticesOpen, dot, func() {
+			if len(a.notices) > 0 {
+				a.noticesOpen = !a.noticesOpen
+				return
+			}
+			a.navigate("/settings")
+		})
+		if len(a.notices) == 0 {
+			a.noticesOpen = false
+		}
+		ui.Popover(c, b, &a.noticesOpen, func() { a.noticePopover(c) })
 	})
 }
 
@@ -189,7 +207,7 @@ func (a *app) railItem(c *ui.Context, path string, ic icons.Icon, title string) 
 
 // railButton is a button of the rail: Bold on the pressed face while
 // selected, a dot for a badge.
-func (a *app) railButton(c *ui.Context, key string, ic icons.Icon, label, tip string, selected bool, badge string, click func()) {
+func (a *app) railButton(c *ui.Context, key string, ic icons.Icon, label, tip string, selected bool, badge string, click func()) ui.Element {
 	t := c.Theme()
 	k := tok(t)
 	b := ui.ButtonBase(c.Key(key)).Size(px(t, 36), px(t, 30)).Radius(px(t, radiusControl)).Center().Tooltip(tip).Label(label)
@@ -206,10 +224,15 @@ func (a *app) railButton(c *ui.Context, key string, ic icons.Icon, label, tip st
 		}
 		ui.Icon(c, ic.Get(selected)).Size(px(t, 18), px(t, 18)).TextColor(col)
 		if badge != "" {
-			ui.Box(c).Absolute().Top(px(t, 4)).Right(px(t, 5)).Size(px(t, 7), px(t, 7)).Radius(px(t, 4)).Background(k.Accent)
+			col := k.Accent
+			if badge == "notices" {
+				col = k.Record // notifications: a red dot
+			}
+			ui.Box(c).Absolute().Top(px(t, 4)).Right(px(t, 5)).Size(px(t, 7), px(t, 7)).Radius(px(t, 4)).Background(col)
 		}
 	})
 	if b.Clicked() {
 		click()
 	}
+	return b
 }

@@ -41,6 +41,7 @@ type NotificationService interface {
 	Post(n Notification)
 	List(ctx context.Context) ([]Notification, error)
 	MarkRead(ctx context.Context, id string) error
+	Dismiss(ctx context.Context, id string) error
 	Clear(ctx context.Context) error
 }
 
