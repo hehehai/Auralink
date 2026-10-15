@@ -59,7 +59,7 @@ EOF
 front() { lsappinfo info -only bundleid "$(lsappinfo front)" 2>/dev/null | sed 's/.*="\(.*\)"/\1/'; }
 before="$(front)"
 echo "== run (in front: $before)"
-nice -n 10 open -g -n -W "$app" --args --overlay-check "$shots" &
+open -g -n -W --stdout "$out/check.log" --stderr "$out/check.log" "$app" --args --overlay-check "$shots" &
 opener=$!
 
 n=0
@@ -82,8 +82,9 @@ while [[ ! -f "$shots/finished" ]]; do
   for ((k = n + 1; k <= n + 3; k++)); do
     if [[ -f "$shots/step-$k.ready" ]]; then n=$k; continue 2; fi
   done
-  if ((SECONDS > deadline)); then
+  if ((SECONDS > deadline)) || ! kill -0 "$opener" 2>/dev/null; then
     echo "the check did not finish" >&2
+    tail -40 "$out/check.log" >&2 || true
     pkill -f "$app/Contents/MacOS/AuralinkOverlayCheck" || true
     exit 1
   fi

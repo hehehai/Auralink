@@ -3,6 +3,7 @@
 package macx
 
 import (
+	"runtime"
 	"sync"
 	"time"
 	"unsafe"
@@ -36,8 +37,13 @@ func load() error {
 	return mac.err
 }
 
-// pooled runs fn inside an autorelease pool.
+// pooled runs fn inside an autorelease pool, on one OS thread: the pool
+// is the thread's, and a goroutine may move between threads (Frontmost
+// from a goroutine popped another thread's pool and crashed, found by the
+// overlay check).
 func pooled(fn func()) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	p := mac.poolPush()
 	defer mac.poolPop(p)
 	fn()

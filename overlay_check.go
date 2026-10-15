@@ -166,7 +166,8 @@ func (a *app) overlayCheck(dir string) {
 					wid = macx.WindowNumber(a.ov.win.NativeHandle())
 				}
 			})
-			front := macx.Frontmost()
+			var front macx.App
+			onMain(func() { front = macx.Frontmost() })
 			name := fmt.Sprintf("%s/%s", bd.lang, st.name)
 			logf("%d %s %s asked=%d,%d,%d,%d window=%d,%d,%d,%d visible=%v front=%s(%d)", n, name, mode,
 				asked.X, asked.Y, asked.Width, asked.Height, got.X, got.Y, got.Width, got.Height, visible, front.BundleID, front.PID)
