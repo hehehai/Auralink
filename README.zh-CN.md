@@ -49,6 +49,8 @@ AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .   # 每个页面的�
 cd helper && swift test              # Swift 辅助进程（在 Mac 上）：协议类型对同一份 fixtures、热键识别器
 ```
 
+CI 在 Linux 上跑 Go 这一侧，在 macOS 上跑 Swift 辅助进程的测试。需要权限、界面和真实服务的部分，按 [docs/manual-test.md](docs/manual-test.md) 手动验证（约 35 分钟）。
+
 ## 许可证
 
 Apache License 2.0（[LICENSE](LICENSE)）。部分代码来自 AudioSmith；图标为 480 Design 的 Solar，以 CC BY 4.0 授权（[NOTICE](NOTICE)）。

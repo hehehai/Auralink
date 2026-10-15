@@ -49,7 +49,7 @@ AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .   # every page as PNG
 cd helper && swift test              # the Swift helper (on a Mac): its wire types against the same fixtures, the hotkey recognizer
 ```
 
-The store's tests use MyGo's SQLite plugin, which downloads its library once (checked against its SHA-256) or uses `MYGO_SQLITE_LIBRARY`. More in [docs/architecture.md](docs/architecture.md) §6.
+The store's tests use MyGo's SQLite plugin, which downloads its library once (checked against its SHA-256) or uses `MYGO_SQLITE_LIBRARY`. More in [docs/architecture.md](docs/architecture.md) §6. CI runs the Go side on Linux and the Swift helper's tests on macOS; what needs permissions, a GUI and real services is checked by hand with [docs/manual-test.md](docs/manual-test.md) (in Chinese, about 35 minutes).
 
 ## Licence
 
