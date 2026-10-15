@@ -135,4 +135,3 @@ func (h *harness) logged(s string) bool {
 	}
 	return false
 }
-

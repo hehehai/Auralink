@@ -179,7 +179,9 @@ func (a *app) overlayPreviewPill(c *ui.Context) {
 			c.SetTheme(overlayTheme())
 			ui.Box(c.Key("ov-preview-pill")).Size(float32(w), ovPillH).Shrink(0).Children(func() {
 				ui.Box(c).Absolute().Fill().Radius(radius).Material(glass.Blur{Radius: 6})
-				faceStyle(ui.Column(c.Key("ov-preview-face")), o, ovRecording, ovPillH).Children(func() {
+				// Positioned too, to paint over the blur.
+				face := ui.Column(c.Key("ov-preview-face")).Absolute().Left(0).Top(0).Right(0).Bottom(0)
+				faceStyle(face, o, ovRecording, ovPillH).Children(func() {
 					overlayPill(c, previewSession(), ovRecording, pillLook{time: o.ShowTime})
 				})
 			})
