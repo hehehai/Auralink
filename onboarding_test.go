@@ -93,6 +93,8 @@ func TestOnboardingSteps(t *testing.T) {
 		t.Error("it opened again")
 	}
 	a.navigate("/settings/general")
+	frames(tt)
+	tt.Scroll(windowWidth*0.7, windowHeight*0.6, 0, 600) // the row is under the fold
 	click(t, tt, "Open the setup guide")
 	if !a.ob.open || a.settingsOpen || a.ob.step != obWelcome {
 		t.Errorf("reopen: %v %v %d", a.ob.open, a.settingsOpen, a.ob.step)

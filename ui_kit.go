@@ -553,7 +553,7 @@ func banner(c *ui.Context, ic icons.Icon, col ui.Color, text string, trailing fu
 	return ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Padding(px(t, sp2), px(t, sp3)).Radius(px(t, radiusControl)).
 		Background(k.Subtle).Wrap().Children(func() {
 		ui.Icon(c, ic.Linear).Size(px(t, 16), px(t, 16)).TextColor(col).Shrink(0)
-		ui.Text(c, text).FontSize(px(t, fsCaption)).Grow(1).Basis(px(t, 160)).MinWidth(0)
+		ui.Text(c, text).FontSize(px(t, fsCaption)).Grow(1).Basis(px(t, 240)).MinWidth(0)
 		if trailing != nil {
 			trailing()
 		}

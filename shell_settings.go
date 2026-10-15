@@ -67,7 +67,9 @@ func settingsSections() []settingsSection {
 		{"network", i18n.T("Network"), "Network proxy"},
 		{"privacy", i18n.T("Privacy"), "Privacy history audio logs"},
 		{"storage", i18n.T("Storage"), "Storage disk data folder reset"},
-		{"about", i18n.T("Diagnostics and about"), "Diagnostics about version bug report"},
+		// "About" in English: "Diagnostics and about" does not fit the
+		// column in bold; Chinese keeps 诊断与关于, which does.
+		{"about", i18n.X("settings section", "About"), "Diagnostics about version bug report"},
 	}
 }
 
@@ -322,14 +324,14 @@ func (a *app) settingsDialog(c *ui.Context) {
 	t := c.Theme()
 	k := tok(t)
 	w, h := c.Size()
-	margin := px(t, sp6)
+	dw, dh := settingsDialogSize(t, w, h)
 	ui.DialogBase(c.Key("settings-dialog"), &a.settingsOpen, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.32))
-		panel.Width(min(w-2*margin, px(t, 900))).Height(h-2*margin).Radius(px(t, radiusCard)).Background(k.Bg).Clip().
+		panel.Width(dw).Height(dh).Radius(px(t, radiusCard)).Background(k.Bg).Clip().
 			Shadow(0, 16, 48, 0, ui.RGBA(0, 0, 0, 0.28)).Label(i18n.T("Settings"))
 		ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-			// Every section's name shows in full down to the smallest window.
-			ui.Column(c).Width(min(px(t, 252), max(px(t, 240), (w-2*margin)*0.3))).Shrink(0).Background(k.Sidebar).Children(func() {
+			// As wide as the longest name: 诊断与关于, Overlay style.
+			ui.Column(c).Width(px(t, settingsColumnW)).Shrink(0).Background(k.Sidebar).Children(func() {
 				ui.Row(c).Height(px(t, 52)).Shrink(0).AlignItems(ui.Center).Padding(0, px(t, sp4)).Children(func() {
 					ui.Text(c, i18n.T("Settings")).FontSize(px(t, fsSection)).FontWeight(600).SingleLine()
 				})
@@ -383,7 +385,7 @@ func (a *app) settingsDialog(c *ui.Context) {
 						}
 					})
 					ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
-						ui.Column(c).Padding(px(t, sp1), px(t, sp6), px(t, sp6)).Gap(px(t, sp4)).MaxWidth(px(t, 680)).Children(func() {
+						ui.Column(c).Padding(px(t, sp1), px(t, sp6), px(t, sp6)).Gap(px(t, sp4)).MaxWidth(px(t, settingsContentMaxW)).Children(func() {
 							a.settingsSection(c, r)
 						})
 					})
@@ -391,6 +393,24 @@ func (a *app) settingsDialog(c *ui.Context) {
 			})
 		})
 	})
+}
+
+// The settings dialog's size: settingsMaxW × settingsMaxH at most, and
+// at least a margin of 5% of the window (6% of its height), sp6 at the
+// least, around it: 720×458 in the 800×520 window, 612×387 in the
+// smallest. Its column of sections is settingsColumnW wide, its content
+// settingsContentMaxW at most (it is narrower in the default window).
+const (
+	settingsMaxW        = 760
+	settingsMaxH        = 600
+	settingsColumnW     = 176
+	settingsContentMaxW = 600
+)
+
+func settingsDialogSize(t *ui.Theme, w, h float32) (dw, dh float32) {
+	mx := max(px(t, sp6), w*0.05)
+	my := max(px(t, sp6), h*0.06)
+	return min(w-2*mx, px(t, settingsMaxW)), min(h-2*my, px(t, settingsMaxH))
 }
 
 // settingsSection builds the section of the settings dialog r shows.

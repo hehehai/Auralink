@@ -1,6 +1,6 @@
 package main
 
-// Settings → Diagnostics and about (AudioSmith's, for Auralink): versions
+// Settings → About (诊断与关于; AudioSmith's, for Auralink): versions
 // and the machine, a self-check (library, helper, data folder, network,
 // Keychain, permissions), "Copy diagnostics", a diagnostic bundle (a ZIP
 // of the logs, the settings and the diagnostics) and Report a bug, which
@@ -273,7 +273,7 @@ func (a *app) bugReportURL() string {
 	return issuesURL + "?" + q.Encode()
 }
 
-// aboutSettings is Settings → Diagnostics and about.
+// aboutSettings is Settings → About.
 func (a *app) aboutSettings(c *ui.Context) {
 	t := c.Theme()
 	a.loadSysInfo()

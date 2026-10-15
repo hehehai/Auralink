@@ -8,10 +8,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"image/png"
+	"math"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/helper"
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/macx"
@@ -379,5 +381,21 @@ func TestTrayRecent(t *testing.T) {
 	}
 	if found != 2 || !title || !slices.Equal(copied, []string{"hello there", long}) {
 		t.Errorf("recent items: found %d, title %v, copied %q", found, title, copied)
+	}
+}
+
+// TestSettingsDialogSize: about 720×460 in the default window, a margin
+// around it in the smallest, settingsMaxW × settingsMaxH in a large one.
+func TestSettingsDialogSize(t *testing.T) {
+	th := ui.LightTheme()
+	for _, c := range []struct{ w, h, dw, dh float32 }{
+		{windowWidth, windowHeight, 720, 457.6},
+		{windowMinWidth, windowMinHeight, 612, 387.2},
+		{1600, 1000, settingsMaxW, settingsMaxH},
+	} {
+		dw, dh := settingsDialogSize(th, c.w, c.h)
+		if math.Abs(float64(dw-c.dw)) > 0.5 || math.Abs(float64(dh-c.dh)) > 0.5 {
+			t.Errorf("%v×%v: %v×%v, want %v×%v", c.w, c.h, dw, dh, c.dw, c.dh)
+		}
 	}
 }
