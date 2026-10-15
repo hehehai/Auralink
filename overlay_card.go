@@ -5,23 +5,26 @@ package main
 // that was not inserted waits, where an answer streams while the model
 // writes it, and where a Rewrite answer takes follow-ups.
 //
-//	header   the feature's icon, the title (15, semibold) and a spinner
-//	         while it works; then its actions, 24 high: Translate's
-//	         language menu (a capsule, the system's menu), Continue (a
-//	         Rewrite follow-up), Insert, Copy, Close (24 circles); a
-//	         conversation shows a small waveform in the title's place
-//	rule     1 DIP, white 8 %, 8 under the header, 10 over the text
+//	header   Voxt's answer icon (20), the title (15, semibold) and Voxt's
+//	         arc spinner while it works; then its actions, 24 high:
+//	         Translate's language capsule (it opens our own menu,
+//	         overlay_lang.go), Continue (a Rewrite follow-up), Insert, Copy,
+//	         Close (24 circles); a conversation shows Voxt's microphone and a
+//	         small waveform in the title's place. 12 over it, 12 under it to
+//	         the rule (Voxt's 16 and 8 looked off, 10-15)
+//	rule     1 DIP, white 8 %, at 48 (Voxt's), 10 over the text
 //	text     14 medium, white 90 %, selectable, as high as it is up to
 //	         Voxt's 220, then it scrolls; a conversation's turns as
 //	         bubbles instead
 //	line     a small one under it, when there is something to say (why
 //	         Insert did not work, another language that did not come)
 //
-// 560 wide (Voxt's), 18 and 16 of padding: as high as its text, so a
-// short answer leaves no empty space (Voxt's card is always 220 of text
-// high). It grows and shrinks about the overlay's anchor, as the pill
-// does (overlay.go). It does not move, and nothing in it takes the
-// keyboard (a non-activating window): Escape (the helper's event tap)
+// 560 wide (Voxt's, measured on the Mac: its card fills its 560 window),
+// 18 of padding on the sides and 16 under the text: as high as its text,
+// so a short answer leaves no empty space (Voxt's card is always 220 of
+// text high, 295 in all). It grows and shrinks about the overlay's anchor,
+// as the pill does (overlay.go). It does not move, and nothing in it takes
+// the keyboard (a non-activating window): Escape (the helper's event tap)
 // closes it, the Rewrite shortcut follows up.
 
 import (
