@@ -32,10 +32,12 @@ import (
 const historyLimit = 500
 
 // Widths of the details panel and of the list beside it (DIPs at 100 %):
-// under both, the panel shows over the list.
+// under both, the panel shows over the list. Both fit beside the sidebar
+// in the default window (800 wide: a 600-wide page) and beside the rail in
+// the smallest (680).
 const (
-	historyPanelW   = 320
-	historyListMinW = 340
+	historyPanelW   = 290
+	historyListMinW = 300
 )
 
 // historyState is the History page's view state.

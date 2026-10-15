@@ -337,9 +337,10 @@ func (a *app) providerCards(c *ui.Context, kind providers.Kind) {
 		}
 	}
 	room := min(a.pageWidth(c), px(t, 880)) - px(t, 2*sp6) - 1 // the column's padding
-	// Cards at least 290 wide: long names ("Qwen (Model Studio
-	// international)") keep to two lines.
-	cols := max(1, int((room+px(t, sp3))/(px(t, 290)+px(t, sp3))))
+	// Cards at least 260 wide (as the setup guide's): two columns in the
+	// default window (800 wide) and the smallest; long names ("Qwen
+	// (Model Studio international)") keep to two lines.
+	cols := max(1, int((room+px(t, sp3))/(px(t, 260)+px(t, sp3))))
 	cardW := (room - px(t, sp3)*float32(cols-1)) / float32(cols)
 	grid := func(key string, list []providers.Preset) {
 		ui.Row(c.Key(key)).Wrap().Gap(px(t, sp3)).AlignItems(ui.Start).Children(func() {

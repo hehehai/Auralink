@@ -31,7 +31,7 @@ type navState struct {
 
 // autoRailWidth: below this window width (DIPs at 100 %) the automatic
 // sidebar shows icons only.
-const autoRailWidth = 820
+const autoRailWidth = 740
 
 // railMode reports whether the sidebar shows icons only: the user's
 // choice (Settings → Appearance, the sidebar's button), else automatic,
@@ -151,22 +151,28 @@ func (a *app) navRail(c *ui.Context) {
 			}
 		})
 	}
-	ui.Column(c).AlignItems(ui.Center).Padding(px(t, sp1), 0).Shrink(0).Children(func() {
+	// Spaced to hold every icon in the smallest window (680×440); a
+	// shorter one scrolls the list, with a fade at its foot as the
+	// sidebar's.
+	ui.Column(c).AlignItems(ui.Center).Padding(px(t, 2), 0).Shrink(0).Children(func() {
 		a.railButton(c, "rail-search", icons.Magnifer, i18n.T("Command palette"), i18n.T("Command palette")+" (⌘K)", false, "", a.openPalette)
 	})
-	ui.Scroll(c).Grow(1).Children(func() {
-		ui.Column(c).AlignItems(ui.Center).Gap(px(t, 2)).Padding(px(t, sp1), 0).Children(func() {
-			for gi, g := range navGroups {
-				if gi > 0 {
-					ui.Box(c).Height(1).Width(px(t, 20)).Background(k.Line).Margin(px(t, 6), 0)
+	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
+		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+			ui.Column(c).AlignItems(ui.Center).Padding(px(t, 2), 0).Children(func() {
+				for gi, g := range navGroups {
+					if gi > 0 {
+						ui.Box(c).Height(1).Width(px(t, 20)).Background(k.Line).Margin(px(t, 3), 0)
+					}
+					for _, p := range g.pages {
+						a.railItem(c, p.path, p.icon, pageTitle(p.path))
+					}
 				}
-				for _, p := range g.pages {
-					a.railItem(c, p.path, p.icon, pageTitle(p.path))
-				}
-			}
+			})
 		})
+		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(px(t, 16)).Gradient(k.Sidebar.Alpha(0), k.Sidebar, 180).PassThrough()
 	})
-	ui.Column(c).AlignItems(ui.Center).Padding(px(t, 6), 0, px(t, 10)).Children(func() {
+	ui.Column(c).AlignItems(ui.Center).Padding(px(t, 4), 0, px(t, 6)).Shrink(0).Children(func() {
 		a.railButton(c, "rail/settings", icons.Settings, i18n.T("Settings"), i18n.T("Settings")+" (⌘,)", a.settingsOpen, "", func() { a.navigate("/settings") })
 	})
 }
@@ -186,7 +192,7 @@ func (a *app) railItem(c *ui.Context, path string, ic icons.Icon, title string) 
 func (a *app) railButton(c *ui.Context, key string, ic icons.Icon, label, tip string, selected bool, badge string, click func()) {
 	t := c.Theme()
 	k := tok(t)
-	b := ui.ButtonBase(c.Key(key)).Size(px(t, 36), px(t, 32)).Radius(px(t, radiusControl)).Center().Tooltip(tip).Label(label)
+	b := ui.ButtonBase(c.Key(key)).Size(px(t, 36), px(t, 30)).Radius(px(t, radiusControl)).Center().Tooltip(tip).Label(label)
 	switch {
 	case selected:
 		b.Background(k.Pressed)

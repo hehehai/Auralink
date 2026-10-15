@@ -23,7 +23,7 @@ import (
 //
 //	AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .
 //
-// AURALINK_SNAPSHOTS_SIZE=720x480 renders at the window's smallest size
+// AURALINK_SNAPSHOTS_SIZE=680x440 renders at the window's smallest size
 // (snapshotSize).
 func TestSnapshots(t *testing.T) {
 	out := os.Getenv("AURALINK_SNAPSHOTS")
@@ -150,7 +150,7 @@ func TestSnapshots(t *testing.T) {
 }
 
 // snapshotSize is the window's size for snapshots: its default size, or
-// its smallest with AURALINK_SNAPSHOTS_SIZE=720x480 (or "min").
+// its smallest with AURALINK_SNAPSHOTS_SIZE=680x440 (or "min").
 func snapshotSize() (w, h int) {
 	switch os.Getenv("AURALINK_SNAPSHOTS_SIZE") {
 	case "min", fmt.Sprintf("%dx%d", windowMinWidth, windowMinHeight):

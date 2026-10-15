@@ -266,7 +266,7 @@ func (a *app) shortcutSheet(c *ui.Context) {
 				{"Esc", i18n.T("Close a dialog or popover")},
 			}},
 		}
-		// The list scrolls in a short window (720×480): Close stays in it.
+		// The list scrolls in a short window (680×440): Close stays in it.
 		_, h := c.Size()
 		ui.Scroll(c.Key("sheet-scroll")).MaxHeight(max(px(t, 160), h-px(t, 180))).Children(func() {
 			ui.Column(c).Gap(px(t, sp3)).Width(px(t, 440)).MaxWidth(px(t, 440)).Children(func() {

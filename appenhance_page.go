@@ -29,10 +29,12 @@ import (
 )
 
 // Widths (DIPs at 100 %): the group list, and the least the group's
-// column keeps beside it (else the list is a drawer).
+// column keeps beside it (else the list is a drawer): both fit beside
+// the sidebar in the default window (800 wide) and beside the rail in the
+// smallest (680).
 const (
-	aeListW    = 210
-	aeMainMinW = 400
+	aeListW    = 200
+	aeMainMinW = 380
 )
 
 // aePageState is the page's view state.

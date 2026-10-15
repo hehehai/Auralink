@@ -35,10 +35,10 @@ import (
 // window remembers (StateKey "main") wins over the default, so a window
 // left larger by an older version keeps its size.
 const (
-	windowWidth     = 880
-	windowHeight    = 580
-	windowMinWidth  = 720
-	windowMinHeight = 480
+	windowWidth     = 800
+	windowHeight    = 520
+	windowMinWidth  = 680
+	windowMinHeight = 440
 )
 
 const (
@@ -375,7 +375,7 @@ func (a *app) view(c *ui.Context) {
 			a.pages(c)
 			if a.logsPanel && section(a.router.Path()) != "/logs" {
 				// At most half the window: the page keeps its header and
-				// its first controls (at 720×480 too).
+				// its first controls (at 680×440 too).
 				_, wh := c.Size()
 				ph := min(px(t, a.logsHeight), max(px(t, 120), (wh-px(t, statusBarHeight))/2-px(t, sp6)))
 				ui.Divider(c)
@@ -479,7 +479,7 @@ func (a *app) sidebar(c *ui.Context) {
 						} else {
 							c.SetTheme(&side)
 						}
-						item := ui.SidebarItem(c, p.path, p.icon.Get(sel), pageTitle(p.path)).Padding(px(t, 5), px(t, sp2))
+						item := ui.SidebarItem(c, p.path, p.icon.Get(sel), pageTitle(p.path)).Padding(px(t, 4), px(t, sp2))
 						c.SetTheme(t)
 						if sel {
 							item.Background(k.Pressed).FontWeight(600)
@@ -495,9 +495,9 @@ func (a *app) sidebar(c *ui.Context) {
 					items()
 					continue
 				}
-				ui.SidebarSection(c.Key("nav-"+g.id), groupTitle(g.id), a.sectionOpen(g.id), items).Margin(px(t, 6), 0, 0, 0)
+				ui.SidebarSection(c.Key("nav-"+g.id), groupTitle(g.id), a.sectionOpen(g.id), items).Margin(px(t, 2), 0, 0, 0)
 			}
-		}).Grow(1).MinHeight(0).Background(ui.Transparent).Padding(0, px(t, 10), px(t, sp4)).Label(i18n.T("Sections")).OnChange(func() {
+		}).Grow(1).MinHeight(0).Background(ui.Transparent).Padding(0, px(t, 10), px(t, sp2)).Label(i18n.T("Sections")).OnChange(func() {
 			a.navigate(a.nav)
 		})
 		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(px(t, 20)).Gradient(k.Sidebar.Alpha(0), k.Sidebar, 180).PassThrough()

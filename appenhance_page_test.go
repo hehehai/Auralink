@@ -116,6 +116,7 @@ func TestAppEnhancementEdit(t *testing.T) {
 	tt.Type(" 2")
 	frames(tt)
 	click(t, tt, "Scene prompt of the group")
+	tt.Key(ui.Ctrl, ui.KeyEnd) // the prompt wraps: the click may land inside it
 	tt.Type(" Thanks.")
 	frames(tt)
 	g, _ := storedRules(t, a).Group("g-code")
