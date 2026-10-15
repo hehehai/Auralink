@@ -98,8 +98,11 @@ type Entry struct {
 	LLMProvider, LLMModel string
 
 	// Stage times, in milliseconds: the recording, recognition after the
-	// stop, the language model, and the whole session.
+	// stop, the language model, and the whole session. SentMS is how much
+	// of the recording the speech service got, without the silence left
+	// out (0: unknown, or none was sent).
 	AudioMS, ASRMS, LLMMS, TotalMS int64
+	SentMS                         int64
 
 	// Audio is the recording kept with the entry, a file name in
 	// History.AudioDir(); "" when none was kept.

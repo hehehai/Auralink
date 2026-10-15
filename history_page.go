@@ -399,6 +399,16 @@ func stageTime(ms int64) string {
 	return clockMS(ms)
 }
 
+// recordingTime is the recording's length and, when the speech service
+// got less of it (the silence left out), how much: "7.5 s, 2.5 s sent".
+func recordingTime(e store.Entry) string {
+	rec := stageTime(e.AudioMS)
+	if rec == "" || e.SentMS <= 0 || e.SentMS >= e.AudioMS-50 {
+		return rec
+	}
+	return i18n.T("%s, %s sent", rec, stageTime(e.SentMS))
+}
+
 // entryService is a service and its model as the details show them: the
 // service's name today, and the model it used then; "" for none.
 func (a *app) entryService(kind providers.Kind, id, model string) string {
@@ -491,7 +501,7 @@ func (a *app) historyDetail(c *ui.Context, e store.Entry) {
 		}{
 			{i18n.T("Details"), details},
 			{i18n.T("Timing"), [][2]string{
-				{i18n.T("Recording"), stageTime(e.AudioMS)},
+				{i18n.T("Recording"), recordingTime(e)},
 				{i18n.T("Recognition"), stageTime(e.ASRMS)},
 				{i18n.T("Language model"), stageTime(e.LLMMS)},
 				{i18n.T("Total"), stageTime(e.TotalMS)},

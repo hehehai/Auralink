@@ -2,9 +2,11 @@ package main
 
 // Settings → Overlay style (/settings/overlay, M6): where the recording
 // overlay shows (the bottom or the top of the display, how far from its
-// edge), how opaque its face is and how round its corners are
-// (settings.Overlay), with a preview: the overlay's own pill, drawn as
-// overlay.go draws it, and a small screen with the pill in its place.
+// edge), how opaque its face is, how round its corners are and whether it
+// shows the recording's time (settings.Overlay), with a preview: the
+// overlay's own pill, drawn as overlay.go draws it, over a window half
+// light and half dark that shows through it blurred, as the desktop does
+// through the real one, and a small screen with the pill in its place.
 // A change moves the overlay at once when it shows; it is saved once the
 // sliders rest.
 
@@ -13,6 +15,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/session"
@@ -24,6 +27,7 @@ import (
 type overlayForm struct {
 	position                int // 0 bottom, 1 top
 	opacity, radius, margin float64
+	showTime                bool
 	// saveAt is when the last change waits to be saved (zero: saved).
 	saveAt time.Time
 }
@@ -50,7 +54,7 @@ func (a *app) loadOverlayForm() {
 	if o.Position == "top" {
 		f.position = 1
 	}
-	f.opacity, f.radius, f.margin = o.Opacity, o.Radius, o.Margin
+	f.opacity, f.radius, f.margin, f.showTime = o.Opacity, o.Radius, o.Margin, o.ShowTime
 }
 
 // overlayEdited applies the controls: at once to the overlay and the
@@ -62,6 +66,7 @@ func (a *app) overlayEdited() {
 		Opacity:  math.Round(f.opacity*100) / 100,
 		Radius:   math.Round(f.radius),
 		Margin:   math.Round(f.margin),
+		ShowTime: f.showTime,
 	}
 	a.prefs.Overlay = o
 	a.overlayRestyle() // overlay.go
@@ -103,11 +108,16 @@ func (a *app) overlaySettings(c *ui.Context) {
 	settingRow(c, "ov-margin", i18n.T("Distance from the edge"), i18n.T("From the bottom or the top of the screen, above the Dock and below the menu bar."), func() {
 		slider("ov-margin-slider", i18n.T("Distance from the edge"), &f.margin, 0, ovMaxMargin, 4, fmt.Sprintf("%.0f", f.margin))
 	})
-	settingRow(c, "ov-opacity", i18n.T("Opacity"), "", func() {
+	settingRow(c, "ov-opacity", i18n.T("Opacity"), i18n.T("Of the dark face over the blurred desktop: lower lets more of what is behind show through."), func() {
 		slider("ov-opacity-slider", i18n.T("Opacity"), &f.opacity, 0.5, 1, 0.05, fmt.Sprintf("%.0f%%", f.opacity*100))
 	})
 	settingRow(c, "ov-radius", i18n.T("Corner radius"), i18n.T("The answer card takes the same corners."), func() {
 		slider("ov-radius-slider", i18n.T("Corner radius"), &f.radius, 0, ovMaxRadius, 1, fmt.Sprintf("%.0f", f.radius))
+	})
+	settingRow(c, "ov-time", i18n.T("Show the recording time"), i18n.T("Off, the overlay shows only the feature's icon and the waveform."), func() {
+		if ui.Switch(c.Key("ov-time-switch"), &f.showTime).Label(i18n.T("Show the recording time")).Changed() {
+			a.overlayEdited()
+		}
 	})
 
 	sectionTitle(c, i18n.T("Preview"))
@@ -125,22 +135,57 @@ func previewSession() session.Snapshot {
 	t0 := time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)
 	levels := make([]float64, session.Bars)
 	for i := range levels {
-		levels[i] = 0.25 + 0.6*math.Abs(math.Sin(float64(i)*0.8))
+		levels[i] = 0.45 + 0.4*math.Abs(math.Sin(float64(i)*0.8))
 	}
 	return session.Snapshot{Kind: store.KindTranscribe, State: session.Recording, StartedAt: t0, HeardAt: t0, StoppedAt: t0.Add(7 * time.Second), Levels: levels}
 }
 
+// Sizes of the preview's window behind the pill.
+const (
+	ovBackdropW = 300
+	ovBackdropH = 96
+)
+
 // overlayPreviewPill is the recording pill as the overlay draws it, at
-// its size, in its dark theme.
+// its size, in its dark theme, over a window half light and half dark
+// that shows through it blurred (the desktop does, on the Mac).
 func (a *app) overlayPreviewPill(c *ui.Context) {
 	t := c.Theme()
-	c.SetTheme(overlayTheme())
-	ui.Column(c.Key("ov-preview-pill")).Size(ovPillW, ovPillH).Shrink(0).Label(i18n.T("Preview of the overlay")).Children(func() {
-		overlayFaceFrame(c, "ov-preview-face", a.prefs.Overlay, ovRecording, ovPillH, false).Children(func() {
-			a.overlayPill(c, previewSession(), ovRecording, false)
+	o := a.prefs.Overlay
+	w := ovPillW
+	if o.ShowTime {
+		w += ovTimeW
+	}
+	radius := faceRadius(o, ovRecording, ovPillH)
+	ui.Box(c.Key("ov-preview-backdrop")).Size(px(t, ovBackdropW), px(t, ovBackdropH)).Shrink(0).Radius(px(t, 8)).Clip().
+		Border(1, tok(t).Line).Label(i18n.T("Preview of the overlay")).Children(func() {
+		backdropHalf := func(left bool, bg, line ui.Color) {
+			half := ui.Column(c).Absolute().Top(0).Bottom(0).Width(px(t, ovBackdropW/2)).Background(bg).Padding(px(t, 12)).Gap(px(t, 7))
+			if left {
+				half.Left(0)
+			} else {
+				half.Right(0)
+			}
+			half.Children(func() {
+				for i, wd := range []float32{0.9, 0.7, 0.95, 0.6, 0.8} {
+					ui.Box(c.Key(itoa(i))).Height(px(t, 5)).Width(px(t, wd*(ovBackdropW/2-24))).Radius(px(t, 2.5)).Background(line)
+				}
+			})
+		}
+		backdropHalf(true, ui.RGB(250, 250, 252), ui.RGB(120, 128, 140))
+		backdropHalf(false, ui.RGB(32, 34, 40), ui.RGB(150, 160, 178))
+		// The pill, centred: the blur of what is under it, then the face.
+		ui.Box(c).Absolute().Fill().Center().Children(func() {
+			c.SetTheme(overlayTheme())
+			ui.Box(c.Key("ov-preview-pill")).Size(float32(w), ovPillH).Shrink(0).Children(func() {
+				ui.Box(c).Absolute().Fill().Radius(radius).Material(glass.Blur{Radius: 6})
+				faceStyle(ui.Column(c.Key("ov-preview-face")), o, ovRecording, ovPillH).Children(func() {
+					overlayPill(c, previewSession(), ovRecording, pillLook{time: o.ShowTime})
+				})
+			})
+			c.SetTheme(t)
 		})
 	})
-	c.SetTheme(t)
 }
 
 // Sizes of the preview's screen: a 1440 × 900 display, scaled.
@@ -170,9 +215,12 @@ func overlayScreen(c *ui.Context, o settings.Overlay) {
 		Label(i18n.T("Where the overlay shows")).Children(func() {
 		ui.Box(c).Absolute().Left(0).Top(0).Right(0).Height(px(t, ovMenuBarH)).Background(ovMenuBar)
 		w, h := ovPillW*scale*f, ovPillH*scale*f
+		if o.ShowTime {
+			w = (ovPillW + ovTimeW) * scale * f
+		}
 		m := float32(o.Margin) * scale * f
 		pill := ui.Box(c).Absolute().Left((sw-w)/2).Size(w, h).Radius(min(float32(o.Radius), ovPillH/2) * scale * f).
-			Background(ui.RGBA(22, 22, 26, 0.96*float32(min(max(o.Opacity, 0.5), 1))))
+			Background(ui.RGBA(22, 22, 26, faceAlpha(o)))
 		if o.Position == "top" {
 			pill.Top(px(t, ovMenuBarH) + m)
 		} else {

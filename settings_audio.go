@@ -2,8 +2,10 @@ package main
 
 // Settings → Audio (/settings/audio, M6): the microphones in the user's
 // order of preference (settings.Audio.Devices: the first one connected
-// records, else the system's default input) and the sounds a recording
-// makes when it starts and stops. The helper lists the inputs
+// records, else the system's default input), whether the silence of a
+// recording is left out before a speech service gets it (Audio.VAD.Off,
+// internal/vad), and the sounds a recording makes when it starts and
+// stops. The helper lists the inputs
 // (capture.devices) when the section opens, when the helper becomes
 // ready while it shows, and with Refresh. Muting the system's output
 // while recording (Audio.MuteOutput) is P1: no switch yet.
@@ -247,6 +249,14 @@ func (a *app) audioSettings(c *ui.Context) {
 			}
 		})
 	}
+
+	sectionTitle(c, i18n.T("Recognition"))
+	settingRow(c, "audio-silence", i18n.T("Skip silence"), i18n.T("Leaves out the silence before and after you speak and shortens long pauses before the speech service gets the recording, and sends nothing when no one spoke. The history keeps the whole recording."), func() {
+		if ui.Switch(c.Key("audio-silence-switch"), &a.settingsForm.skipSilence).Label(i18n.T("Skip silence")).Changed() {
+			off := !a.settingsForm.skipSilence
+			a.updateSettings(func(s *settings.Settings) { s.Audio.VAD.Off = off })
+		}
+	})
 
 	sectionTitle(c, i18n.T("Sounds"))
 	settingRow(c, "audio-sounds", i18n.T("Play sounds"), i18n.T("A short sound when recording starts, and another when it stops."), func() {

@@ -207,3 +207,50 @@ func queuePosts(a *app) (drain func()) {
 		}
 	}
 }
+
+// fakeTimers stands for the clock of app.later: tests move it on by hand
+// (advance) and the timers due run, in order, on the test's goroutine.
+type fakeTimers struct {
+	now    time.Duration
+	seq    int
+	timers []fakeTimer
+	added  int // timers set so far
+}
+
+type fakeTimer struct {
+	at  time.Duration
+	seq int
+	fn  func()
+}
+
+// install makes a's timers run on f.
+func (f *fakeTimers) install(a *app) *fakeTimers {
+	a.laterHook = func(d time.Duration, fn func()) {
+		f.seq++
+		f.added++
+		f.timers = append(f.timers, fakeTimer{at: f.now + d, seq: f.seq, fn: fn})
+	}
+	return f
+}
+
+// advance moves the clock on by d, running the timers due (and those
+// they set that are due too).
+func (f *fakeTimers) advance(d time.Duration) {
+	end := f.now + d
+	for {
+		next := -1
+		for i, t := range f.timers {
+			if t.at <= end && (next < 0 || t.at < f.timers[next].at || t.at == f.timers[next].at && t.seq < f.timers[next].seq) {
+				next = i
+			}
+		}
+		if next < 0 {
+			break
+		}
+		t := f.timers[next]
+		f.timers = append(f.timers[:next], f.timers[next+1:]...)
+		f.now = t.at
+		t.fn()
+	}
+	f.now = end
+}

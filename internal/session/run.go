@@ -20,6 +20,7 @@ import (
 	"github.com/hehehai/Auralink/internal/llm"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/vad"
 )
 
 // run is one session. Its fields are the session goroutine's, but for
@@ -63,10 +64,13 @@ type openResult struct {
 	err error
 }
 
-// streamEnd is a stream's last event: its final result or its error.
+// streamEnd is a stream's last event: its final result or its error;
+// silent when the recording ended with no speech, so nothing was sent
+// (the gate held it all) and no result will come.
 type streamEnd struct {
-	res asr.Result
-	err error
+	res    asr.Result
+	err    error
+	silent bool
 }
 
 func (r *run) logf(level, format string, args ...any) {
@@ -401,20 +405,37 @@ func (r *run) listen() (string, bool) {
 				return "", false
 			}
 		}
+		silent := false
 		switch {
 		case early != nil:
-			res = early.res
+			res, silent = early.res, early.silent
 		default:
 			select {
 			case e := <-finals:
-				res, err = e.res, e.err
+				res, err, silent = e.res, e.err, e.silent
 			case <-actx.Done():
 				err = r.ctxErr(actx)
 			}
 		}
 		stream.Close()
+		if silent {
+			// The gate held the whole recording: no speech, nothing sent.
+			r.logf("info", "no speech in %v: nothing sent to %s", audioLen.Round(time.Millisecond), r.svc.ASRInfo.ID)
+			r.m.update(r, func(s *Snapshot) { s.Timings.Sent = 0 })
+			r.finish(Done, &Problem{Code: ProblemNoSpeech}, "", finishOpts{})
+			return "", false
+		}
 	} else if ft, ok := r.svc.ASR.(asr.FileTranscriber); ok {
-		res, err = ft.Transcribe(actx, asr.FileRequest{Audio: pcm, Format: "pcm", SampleRate: asr.SampleRate, Hints: r.hints()})
+		upload, speech := r.trim(pcm)
+		if !speech {
+			r.logf("info", "no speech in %v: not sent to %s", audioLen.Round(time.Millisecond), r.svc.ASRInfo.ID)
+			r.m.update(r, func(s *Snapshot) { s.Timings.Sent = 0 })
+			r.finish(Done, &Problem{Code: ProblemNoSpeech}, "", finishOpts{})
+			return "", false
+		}
+		sent := asr.Duration(upload, asr.SampleRate)
+		r.m.update(r, func(s *Snapshot) { s.Timings.Sent = sent })
+		res, err = ft.Transcribe(actx, asr.FileRequest{Audio: upload, Format: "pcm", SampleRate: asr.SampleRate, Hints: r.hints()})
 		if err != nil && actx.Err() != nil {
 			err = r.ctxErr(actx)
 		}
@@ -524,24 +545,45 @@ func (r *run) onAudio(ev AudioEvent) {
 // go to the snapshot. The returned channel gets the stream's end: the
 // final result or the error.
 func (r *run) feed(st asr.Stream) chan streamEnd {
-	end := make(chan streamEnd, 1)
+	// Two may come (the sender's silent end, the reader's): the first
+	// counts, the other must not block.
+	end := make(chan streamEnd, 2)
 	sendErr := make(chan error, 1)
+	gate := r.gate()
 	go func() {
-		off := 0
+		off, sent := 0, 0
 		for {
 			chunk, closed, err := r.pcm.next(r.ctx, off)
 			if err != nil {
 				return
 			}
 			if len(chunk) > 0 {
+				off += len(chunk)
+				if gate != nil {
+					chunk = gate.Push(chunk)
+				}
+				if len(chunk) == 0 {
+					continue
+				}
 				if err := st.Send(chunk); err != nil {
 					sendErr <- err
 					return
 				}
-				off += len(chunk)
+				sent += len(chunk)
 				continue
 			}
 			if closed {
+				d := pcmDuration(sent)
+				r.m.update(r, func(s *Snapshot) { s.Timings.Sent = d })
+				if gate != nil {
+					if !gate.Open() {
+						end <- streamEnd{silent: true}
+						return
+					}
+					if gate.Dropped() > 0 {
+						r.logf("info", "voice activity: held back %v of silence before the speech", pcmDuration(gate.Dropped()).Round(10*time.Millisecond))
+					}
+				}
 				if err := st.Finish(); err != nil {
 					sendErr <- err
 				}
@@ -586,6 +628,56 @@ func (r *run) feed(st asr.Stream) chan streamEnd {
 		}
 	}()
 	return end
+}
+
+// vadParams are the local voice activity detection's parameters, and
+// false when the settings turn it off (settings.VAD).
+func (r *run) vadParams() (vad.Params, bool) {
+	v := r.settings.Audio.VAD
+	if v.Off {
+		return vad.Params{}, false
+	}
+	return vad.Params{
+		OnsetDB: v.OnsetDB, OffsetDB: v.OffsetDB, MinLevelDB: v.MinLevelDB, HangoverMS: v.HangoverMS,
+		LeadMS: v.LeadMS, TailMS: v.TailMS, LongGapMS: v.LongGapMS, GapKeepMS: v.GapKeepMS,
+		PreRollMS: v.PreRollMS, MaxHoldMS: v.MaxHoldMS,
+	}.Resolved(), true
+}
+
+// trim is what a file service gets of the recording pcm: without its
+// leading and trailing silence, long pauses shortened (internal/vad), or
+// whole when the detection is off or would save little; false when there
+// is no speech in it at all (nothing is sent).
+func (r *run) trim(pcm []byte) ([]byte, bool) {
+	p, ok := r.vadParams()
+	if !ok {
+		return pcm, true
+	}
+	an := vad.Analyze(pcm, asr.SampleRate, p)
+	if !an.Speech {
+		r.logf("info", "voice activity: no speech (noise floor %.0f dBFS, loudest %.0f dBFS)", an.FloorDB, an.PeakDB)
+		return nil, false
+	}
+	c := vad.Compact(pcm, asr.SampleRate, an, p)
+	if c.Changed {
+		r.logf("info", "voice activity: %d segments, sending %v of %v", len(an.Segments), c.Kept.Round(10*time.Millisecond), c.Original.Round(10*time.Millisecond))
+	}
+	return c.PCM, true
+}
+
+// pcmDuration is how long n bytes of the recording's PCM play.
+func pcmDuration(n int) time.Duration {
+	return time.Duration(n/2) * time.Second / asr.SampleRate
+}
+
+// gate is the gate a streaming service's audio goes through (the
+// leading silence held back), nil when the detection is off.
+func (r *run) gate() *vad.Gate {
+	p, ok := r.vadParams()
+	if !ok {
+		return nil
+	}
+	return vad.NewGate(asr.SampleRate, p)
 }
 
 // compose runs the language model over raw.
@@ -743,7 +835,7 @@ func (r *run) keep(s Snapshot, status store.Status) {
 		AppBundle: s.Target.BundleID, AppName: s.Target.Name,
 		RawText: s.Raw, Result: s.Result, SourceText: s.Selection, TargetLang: s.TargetLanguage,
 		ASRProvider: s.ASR.ID, ASRModel: s.ASR.Model, LLMProvider: s.LLM.ID, LLMModel: s.LLM.Model,
-		AudioMS: s.Timings.Audio.Milliseconds(), ASRMS: s.Timings.ASR.Milliseconds(), LLMMS: s.Timings.LLM.Milliseconds(),
+		AudioMS: s.Timings.Audio.Milliseconds(), SentMS: s.Timings.Sent.Milliseconds(), ASRMS: s.Timings.ASR.Milliseconds(), LLMMS: s.Timings.LLM.Milliseconds(),
 		TotalMS: s.Timings.Total.Milliseconds(),
 	}
 	if r.req.Kind == store.KindRewrite {

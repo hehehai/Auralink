@@ -322,7 +322,7 @@ func TestSessionEndToEnd(t *testing.T) {
 	if end.State != session.Done || end.Result != "Hello, Auralink." || end.Raw != "hello aura link" || !end.Inserted || end.Target.Name != "Slack" {
 		t.Fatalf("end %+v", end)
 	}
-	if got := fmt.Sprint(modes); got != "[recording working done]" {
+	if got := fmt.Sprint(modes); got != "[recording working hidden]" { // nothing after the insert
 		t.Errorf("overlay modes %s", got)
 	}
 	a.pump("the second paste", func() bool { return len(a.pasted()) == 2 })

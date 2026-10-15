@@ -129,12 +129,12 @@ func TestWorkingTexts(t *testing.T) {
 }
 
 // TestOverlayWriting: the overlay through Translate and Rewrite: reading
-// shows the pill, a draft shows under it, the card streams, a failure
+// shows the working pill, a draft shows under it, the card streams, a failure
 // waits in the card with Try again, a follow-up records over the card.
 func TestOverlayWriting(t *testing.T) {
 	a, _, _ := newTestApp(t)
 	snap(a, session.Snapshot{ID: "t1", Kind: store.KindTranslate, State: session.Reading})
-	if a.ov.mode != ovRecording || a.hotkeyPhase() != hotkey.Busy {
+	if a.ov.mode != ovWorking || a.hotkeyPhase() != hotkey.Busy {
 		t.Errorf("reading %s", a.ov.mode)
 	}
 	snap(a, session.Snapshot{ID: "t1", Kind: store.KindTranslate, State: session.Composing, Selection: "Hi", Draft: "你"})

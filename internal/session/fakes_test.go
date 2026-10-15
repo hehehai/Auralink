@@ -2,7 +2,9 @@ package session
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -16,8 +18,24 @@ import (
 	"github.com/hehehai/Auralink/internal/store"
 )
 
-// frame is 100 ms of a 16 kHz recording.
-var frame = make([]byte, asr.BytesPerSecond/10)
+// frame is 100 ms of a 16 kHz recording of a voice (a 220 Hz tone at
+// -20 dBFS, which the voice activity detection takes for speech);
+// quietFrame 100 ms of a quiet room.
+var (
+	frame      = tone(asr.BytesPerSecond/10, 220, 0.14)
+	quietFrame = tone(asr.BytesPerSecond/10, 220, 0.0005)
+)
+
+// tone is n bytes of PCM16 of a sine of freq Hz and amplitude amp (of
+// full scale).
+func tone(n int, freq, amp float64) []byte {
+	b := make([]byte, n)
+	for i := 0; i+1 < n; i += 2 {
+		v := int16(amp * 32767 * math.Sin(2*math.Pi*freq*float64(i/2)/asr.SampleRate))
+		binary.LittleEndian.PutUint16(b[i:], uint16(v))
+	}
+	return b
+}
 
 // fakeAudio records frames every tick until Stop or ctx.
 type fakeAudio struct {
@@ -27,6 +45,10 @@ type fakeAudio struct {
 	failAt   int   // after this many frames Record fails with failErr
 	failErr  error
 	deaf     bool // ignore Stop (a capture.stop that raced its start)
+	quiet    bool // nobody speaks: quietFrame instead of frame
+	// speaks says whether the user speaks in the 100 ms frame n (nil:
+	// always, unless quiet).
+	speaks func(n int) bool
 
 	mu      sync.Mutex
 	stops   map[string]chan struct{}
@@ -64,7 +86,11 @@ func (f *fakeAudio) Record(ctx context.Context, id string, p proto.CaptureParams
 			return proto.CaptureResult{Reason: proto.CaptureStopped, Frames: n}, nil
 		case <-t.C:
 			fn(AudioEvent{Level: &proto.LevelParams{Job: id, RMS: -20}})
-			fn(AudioEvent{PCM: &proto.PCMParams{Job: id, Seq: n, Data: frame}})
+			data := frame
+			if f.quiet || f.speaks != nil && !f.speaks(n) {
+				data = quietFrame
+			}
+			fn(AudioEvent{PCM: &proto.PCMParams{Job: id, Seq: n, Data: data}})
 			n++
 			f.mu.Lock()
 			f.frames++

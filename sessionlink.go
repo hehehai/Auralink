@@ -52,8 +52,10 @@ type sessionState struct {
 	sess session.Snapshot
 	// answer is the answer card: open while a result waits there.
 	answer answerCard
-	// notice is the overlay's one-line message, when it shows one.
-	notice *sessionNotice
+	// notice is the overlay's one-line message, when it shows one;
+	// noticeSeq numbers them, so that a notice's timer hides only itself.
+	notice    *sessionNotice
+	noticeSeq int
 	// hotkeysSent is the hotkey.configure last sent (as JSON), so the
 	// same one is not sent again; carbon the accelerators registered
 	// with MyGo while the event tap is missing.
@@ -95,8 +97,9 @@ const (
 	actionHelper      = "helper"
 )
 
-// sessionNotice is a one-line message in the overlay (plan §3.2): an
-// error and a way forward, hidden after a few seconds.
+// sessionNotice is a one-line message in the overlay (plan §3.2), where
+// the pill's waveform goes: an error and a way forward (a click), hidden
+// after a few seconds.
 type sessionNotice struct {
 	text, more string
 	action     string
@@ -105,7 +108,7 @@ type sessionNotice struct {
 }
 
 // noticeTime is how long a notice shows.
-const noticeTime = 4 * time.Second
+const noticeTime = 5 * time.Second
 
 // openSessions makes the session manager; connectHelper calls it once the
 // supervisor exists.
@@ -322,22 +325,15 @@ func errText(err error) string {
 
 // showNotice shows a notice in the overlay; it hides by itself.
 func (a *app) showNotice(n sessionNotice) {
-	seq := 1
-	if a.notice != nil {
-		seq = a.notice.seq + 1
-	}
+	a.noticeSeq++
+	seq := a.noticeSeq
 	n.seq = seq
 	a.notice = &n
 	a.overlaySync()
-	if a.win == nil {
-		return // tests hide it by hand (closeNotice)
-	}
-	time.AfterFunc(noticeTime, func() {
-		a.post(func() {
-			if a.notice != nil && a.notice.seq == seq {
-				a.closeNotice()
-			}
-		})
+	a.later(noticeTime, func() {
+		if a.notice != nil && a.notice.seq == seq {
+			a.closeNotice()
+		}
 	})
 }
 
@@ -484,14 +480,14 @@ func (a *app) followUpAnswer(hold string) bool {
 	return true
 }
 
-// stopSession stops the recording (the overlay's Stop, the menu bar).
+// stopSession stops the recording (the shortcut, the menu bar).
 func (a *app) stopSession() {
 	if a.mgr != nil && a.sess.State == session.Recording {
 		a.mgr.Stop(a.sess.ID)
 	}
 }
 
-// cancelSession cancels the session (×, Escape).
+// cancelSession cancels the session (Escape, the answer card's Close).
 func (a *app) cancelSession() {
 	if a.mgr != nil && a.sess.State.Live() {
 		a.mgr.Cancel(a.sess.ID)

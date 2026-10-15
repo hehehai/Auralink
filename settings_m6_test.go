@@ -146,7 +146,7 @@ func TestOverlayStyleSettings(t *testing.T) {
 		t.Error("no preview")
 	}
 	click(t, tt, "Top centre")
-	if o := a.settings.Get().Overlay; o.Position != "top" || o.Opacity != 1 || o.Margin != 96 {
+	if o := a.settings.Get().Overlay; o.Position != "top" || o.Opacity != settings.DefaultOpacity || o.Margin != 96 || o.ShowTime {
 		t.Fatalf("top: %+v", o)
 	}
 	// A slider's change goes to the overlay and the settings.
@@ -155,9 +155,20 @@ func TestOverlayStyleSettings(t *testing.T) {
 	if o := a.settings.Get().Overlay; o.Opacity != 0.73 || o.Position != "top" {
 		t.Fatalf("opacity: %+v", o)
 	}
-	// The preview's pill has no buttons of its own.
+	// The pill has no buttons; the time shows when it is chosen.
 	if _, ok := tt.Find("Stop"); ok {
 		t.Error("the preview has a Stop button")
+	}
+	if has(tt, "0:07") {
+		t.Error("the time shows by default")
+	}
+	if _, ok := tt.Find("Show the recording time"); !ok {
+		t.Error("no time switch")
+	}
+	a.settingsForm.ovStyle.showTime = true
+	a.overlayEdited()
+	if o := a.settings.Get().Overlay; !o.ShowTime || !has(tt, "0:07") {
+		t.Errorf("show time: %+v", o)
 	}
 	// A change saved elsewhere reaches the form.
 	a.updateSettings(func(s *settings.Settings) { s.Overlay.Radius = 8 })

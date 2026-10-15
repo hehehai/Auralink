@@ -27,7 +27,7 @@ import (
 
 // Version is the schema version Defaults writes. Bump it when a field's
 // meaning changes, and migrate older documents in Migrate.
-const Version = 1
+const Version = 2
 
 // Settings is the whole document.
 type Settings struct {
@@ -117,6 +117,37 @@ type Audio struct {
 	// starts and another when it stops (M6).
 	MuteOutput bool `json:"muteOutput,omitempty"`
 	Sounds     bool `json:"sounds"`
+	// VAD is the local voice activity detection a recording goes
+	// through before a speech service hears it (10-15).
+	VAD VAD `json:"vad,omitzero"`
+}
+
+// VAD tunes the local voice activity detection (internal/vad, energy
+// over an adaptive noise floor, no model): a file service gets the
+// recording without its leading and trailing silence and with long
+// pauses shortened, a streaming service gets nothing before the speech
+// starts, and a recording without speech is not sent at all. Zero fields
+// take vad.Defaults (conservative: rather send a little silence than cut
+// a word); there is no UI for them but Off (Settings → Audio).
+type VAD struct {
+	// Off sends every recording whole.
+	Off bool `json:"off,omitempty"`
+	// Thresholds above the noise floor (dB) to start and to stay in
+	// speech, and the level (dBFS) under which nothing is speech.
+	OnsetDB    float64 `json:"onsetDB,omitempty"`
+	OffsetDB   float64 `json:"offsetDB,omitempty"`
+	MinLevelDB float64 `json:"minLevelDB,omitempty"`
+	// HangoverMS of quiet end speech; LeadMS and TailMS are kept around
+	// it; a pause over LongGapMS is shortened to GapKeepMS.
+	HangoverMS int `json:"hangoverMS,omitempty"`
+	LeadMS     int `json:"leadMS,omitempty"`
+	TailMS     int `json:"tailMS,omitempty"`
+	LongGapMS  int `json:"longGapMS,omitempty"`
+	GapKeepMS  int `json:"gapKeepMS,omitempty"`
+	// A stream gets PreRollMS from before the speech, and starts anyway
+	// after MaxHoldMS without it (services close silent connections).
+	PreRollMS int `json:"preRollMS,omitempty"`
+	MaxHoldMS int `json:"maxHoldMS,omitempty"`
 }
 
 // Overlay: the recording overlay's place and look (M6).
@@ -125,7 +156,14 @@ type Overlay struct {
 	Opacity  float64 `json:"opacity"`  // 0.5–1
 	Radius   float64 `json:"radius"`   // DIPs
 	Margin   float64 `json:"margin"`   // DIPs from the screen's edge
+	// ShowTime shows the recording's time in the pill (off: Voxt's pill,
+	// an icon and the waveform).
+	ShowTime bool `json:"showTime,omitempty"`
 }
+
+// DefaultOpacity is the overlay face's: translucent over the blurred
+// material behind it (version 2; version 1's was 1).
+const DefaultOpacity = 0.72
 
 // Providers lists the speech and language services the user set up on
 // the Model services page, in the order they were added. A preset nobody
@@ -267,7 +305,7 @@ func Defaults() Settings {
 		Appearance: Appearance{Theme: "system", Scale: 1},
 		Privacy:    Privacy{KeepHistory: true},
 		Audio:      Audio{Sounds: true},
-		Overlay:    Overlay{Position: "bottom", Opacity: 1, Radius: 16, Margin: 96},
+		Overlay:    Overlay{Position: "bottom", Opacity: DefaultOpacity, Radius: 16, Margin: 96},
 		Features: Features{
 			Transcribe: Transcribe{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn", Trigger: TriggerTap}}}, Enhance: true, Cleanup: true},
 			Translate:  Translate{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn+Shift", Trigger: TriggerTap}}}, Cleanup: true},
@@ -289,7 +327,11 @@ func Migrate(data []byte) (Settings, error) {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return Defaults(), err
 	}
-	// Version 1 is the first; later versions add their steps here.
+	if s.Version < 2 && s.Overlay.Opacity == 1 {
+		// Version 2: the overlay is translucent over a blur; 1 was version
+		// 1's default, which nobody could tell from a choice.
+		s.Overlay.Opacity = DefaultOpacity
+	}
 	s.Version = Version
 	return normalize(s), nil
 }

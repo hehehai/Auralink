@@ -43,6 +43,7 @@ type settingsForm struct {
 	keepAudio    bool
 	logText      bool
 	sounds       bool
+	skipSilence  bool        // !Audio.VAD.Off
 	sidebar      int         // automatic, names and icons, icons only (settings_appearance.go)
 	ovStyle      overlayForm // settings_overlay.go
 
@@ -59,7 +60,7 @@ func settingsSections() []settingsSection {
 	return []settingsSection{
 		{"general", i18n.T("General"), "General language menu bar login"},
 		{"permissions", i18n.T("Permissions"), "Permissions microphone accessibility privacy"},
-		{"audio", i18n.T("Audio"), "Audio microphone input device sounds"},
+		{"audio", i18n.T("Audio"), "Audio microphone input device sounds silence"},
 		{"overlay", i18n.T("Overlay style"), "Overlay style position opacity corners recording pill"},
 		{"shortcuts", i18n.T("Shortcuts"), "Shortcuts hotkeys keys fn"},
 		{"appearance", i18n.T("Appearance"), "Appearance theme size sidebar"},
@@ -261,6 +262,7 @@ func (a *app) loadSettingsForm() {
 	}
 	f.keepHistory, f.keepAudio, f.logText = s.Privacy.KeepHistory, s.Privacy.KeepAudio, s.Privacy.LogText
 	f.sounds = s.Audio.Sounds
+	f.skipSilence = !s.Audio.VAD.Off
 	f.sidebar = sidebarChoice(s.Appearance)
 	a.loadOverlayForm() // settings_overlay.go
 }

@@ -129,9 +129,12 @@ type Model struct {
 	ID, Name, Model string
 }
 
-// Timings are a session's stage times.
+// Timings are a session's stage times. Sent is how much of the
+// recording (Audio) the speech service got: less without the silence the
+// local voice activity detection left out (0 when it got none, or
+// before recognition).
 type Timings struct {
-	Audio, ASR, LLM, Deliver, Total time.Duration
+	Audio, Sent, ASR, LLM, Deliver, Total time.Duration
 }
 
 // Bars is the number of level bars a snapshot keeps (the overlay's

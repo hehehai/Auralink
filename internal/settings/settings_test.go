@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -163,5 +164,30 @@ func TestDeviceNames(t *testing.T) {
 	s.Audio.Devices, s.Audio.DeviceNames = nil, map[string]string{"x": "X"}
 	if n := normalize(clone(s)); n.Audio.DeviceNames != nil {
 		t.Errorf("names without devices: %v", n.Audio.DeviceNames)
+	}
+}
+
+// TestMigrateOverlayOpacity: version 2 makes the overlay translucent, but
+// keeps an opacity the user chose (anything but version 1's default).
+func TestMigrateOverlayOpacity(t *testing.T) {
+	for _, tc := range []struct {
+		doc  string
+		want float64
+	}{
+		{`{"version":1,"overlay":{"position":"bottom","opacity":1,"radius":16,"margin":96}}`, DefaultOpacity},
+		{`{"version":1,"overlay":{"position":"bottom","opacity":0.8,"radius":16,"margin":96}}`, 0.8},
+		{`{"version":2,"overlay":{"position":"bottom","opacity":1,"radius":16,"margin":96}}`, 1},
+		{`{"version":1}`, DefaultOpacity},
+	} {
+		s, err := Migrate([]byte(tc.doc))
+		if err != nil || s.Overlay.Opacity != tc.want || s.Version != Version || s.Overlay.ShowTime {
+			t.Errorf("%s: %+v %v", tc.doc, s.Overlay, err)
+		}
+	}
+	// The detection's settings are all zero (the package's defaults) and
+	// stay out of the document.
+	data, _ := json.Marshal(Defaults())
+	if strings.Contains(string(data), `"vad"`) {
+		t.Errorf("vad written: %s", data)
 	}
 }

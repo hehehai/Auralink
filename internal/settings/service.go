@@ -163,7 +163,7 @@ func normalize(s Settings) Settings {
 		o.Position = "bottom"
 	}
 	if o.Opacity == 0 {
-		o.Opacity = 1
+		o.Opacity = DefaultOpacity
 	}
 	o.Opacity = min(max(o.Opacity, 0.5), 1)
 	o.Radius = min(max(o.Radius, 0), 40)
