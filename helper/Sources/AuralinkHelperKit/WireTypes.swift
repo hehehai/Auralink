@@ -288,12 +288,13 @@ public struct HotkeyEventParams: Codable, Sendable {
     public var t: Double
     public var front: App?
 
+    /// The recognizer's event, with heldMs to 0.1 ms and t to 1 µs.
     public init(_ e: HotkeyEvent, front: App?) {
         binding = e.binding
         phase = e.phase
         behavior = e.behavior
-        heldMs = e.heldMs
-        t = e.t
+        heldMs = e.heldMs.map { ($0 * 10).rounded() / 10 }
+        t = (e.t * 1000).rounded() / 1000
         self.front = front
     }
 }
