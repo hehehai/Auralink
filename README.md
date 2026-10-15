@@ -3,7 +3,7 @@
 **Speak anywhere on your Mac, get text where your cursor is.** Auralink is a voice input app for macOS that uses remote models only (you bring the keys):
 
 - **Transcribe**: hold or tap a shortcut, speak, and the cleaned-up text is typed into the app in front.
-- **Translate**: what you say, or the text you select, into your language.
+- **Translate**: what you say, or the text you select, into the language you choose.
 - **Rewrite**: say how to change the selection ("shorter", "more formal"), or what to write when nothing is selected.
 - **App enhancement**: scene rules per app or website (a chat app, your mail), added on top of the clean-up.
 - **Dictionary**: names and terms you use, sent as hints to speech recognition and as a glossary to the language model.
@@ -12,7 +12,7 @@
 
 ## Status
 
-**Pre-alpha.** The skeleton (M1), the remote model layer (M2) and the Swift helper work: the window, the settings, the store, the model services page, the permissions in Settings, and the helper (recording, shortcuts, text in and out of other apps, browser addresses) with its protocol and supervisor; the features themselves do not yet. There is no release.
+**Pre-alpha.** The skeleton (M1), the remote model layer (M2), the Swift helper, Transcribe (M3), Translate and Rewrite (M4) are written and tested on Linux against a fake helper; they are not yet checked on a Mac by hand. App enhancement and the dictionary come next. There is no release.
 
 Auralink is a rewrite of what [Voxt](https://github.com/hehehai/voxt) does, with remote models only, on the engineering and UI of [AudioSmith](https://github.com/hehehai/AudioSmith) (Go + [MyGo](https://github.com/egoist/mygo), no cgo). See [docs/architecture.md](docs/architecture.md) and [docs/behavior.md](docs/behavior.md).
 

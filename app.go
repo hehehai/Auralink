@@ -19,7 +19,7 @@ import (
 //	providersState    providers_page.go  the Model services page
 //	sessionState      sessionlink.go  sessions, shortcuts, the answer card
 //	overlayState      overlay.go      the recording overlay
-//	transcribeState   transcribe_page.go  the Transcribe page
+//	transcribeState   transcribe_page.go  the feature pages (Transcribe, Translate, Rewrite)
 //	historyState      history_page.go the History page
 //
 // Add fields to your area's struct, not here.

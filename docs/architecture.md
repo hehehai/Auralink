@@ -1,6 +1,6 @@
 # Auralink architecture
 
-*State: M3, sessions and Transcribe end to end (2026-10-15). Product plan: the project's `plan/auralink-plan.md` (§4 architecture, §5 data, §8 engineering). Behaviour compared with Voxt: [behavior.md](behavior.md). Helper wire format: [helper-protocol.md](helper-protocol.md).*
+*State: M4, Translate and Rewrite end to end (2026-10-15). Product plan: the project's `plan/auralink-plan.md` (§4 architecture, §5 data, §8 engineering). Behaviour compared with Voxt: [behavior.md](behavior.md). Helper wire format: [helper-protocol.md](helper-protocol.md).*
 
 Auralink is a Go app on MyGo (native UI, no cgo) with one small Swift helper process. It reuses AudioSmith's engineering (AudioSmith @f171c86, Apache-2.0): its window shell, UI kit and tokens, settings, store, i18n, logs and notification code, and its engine supervisor reduced to one helper. What it took and how it changed is in §5.
 
@@ -36,10 +36,12 @@ github.com/hehehai/Auralink
 │   │                     JSON repair, usage, skills and routing, Probe
 │   ├── providers/        settings.Providers ↔ asr/llm: presets of the Models page, readiness, the
 │   │                     service a feature uses, building clients, connection tests
-│   ├── session/          the one owner of a voice session: the state machine (recording →
-│   │                     recognizing → composing → delivering → done/cancelled/failed), its
+│   ├── session/          the one owner of a voice session: the state machine (reading →
+│   │                     recording → recognizing → composing → delivering → done/cancelled/
+│   │                     failed), the selection, Translate's and Rewrite's streaming answer, its
 │   │                     snapshots, the history entry; adapters over the helper (helperio.go)
-│   ├── compose/          the layered prompt composer; templates/{en,zh-Hans}; 64 golden prompts
+│   ├── compose/          the layered prompt composer: Transcribe, Translate, Rewrite;
+│   │                     templates/{en,zh-Hans}; 112 golden prompts; Untranslated, ParseAnswer
 │   ├── deliver/          the insert transaction: textio.focus, then textio.paste or the answer card
 │   └── hotkey/           the shortcuts' grammar, bindings for hotkey.configure and the Carbon
 │                         fallback, conflict checks, routing an event to an action
@@ -100,14 +102,22 @@ There is no job queue (plan §5): a session lives in memory, owned by one state 
 ### A session
 
 ```
-hotkey.event (helper) ─▶ helperNotified ─▶ hotkeyFired ─▶ hotkey.Route ─▶ startTranscribe (sessionlink.go)
-   transcribeBlocker: helper ready? a speech service ready? (memory only)  ─ no ─▶ a notice in the overlay
+hotkey.event (helper) ─▶ helperNotified ─▶ hotkeyFired ─▶ hotkey.Route ─▶ startSession (sessionlink.go)
+   sessionBlocker: helper ready? the services the feature needs? (memory only)  ─ no ─▶ a notice in the overlay
+   (Rewrite's shortcut on a Rewrite answer card: followUpAnswer, the card's turns as Previous)
    session.Manager.Start ─▶ goroutine:
       capture.start (job, the session's id) ─▶ capture.pcm ─▶ memory ─▶ Stream.Send (streaming services)
       Resolver (keys from the Keychain, providers.NewASR/NewLLM) and the dictionary, meanwhile
    Stop (a shortcut, the overlay, the menu bar) ─▶ capture.stop ─▶ Finish / upload ─▶ the text
    compose.Build ─▶ one chat (8 s) ─▶ compose.Clean      (fails: the text as recognised, a warning)
    deliver.Insert: textio.focus ─▶ textio.paste {targetPid}   (or the answer card)
+Translate: textio.selection {allowCopy: session.AllowCopy(app)} first ─ text ─▶ compose (no recording)
+           ─ none ─▶ record and recognise as above ─▶ compose
+Rewrite:   textio.selection while recording; the instruction (+ the selection) ─▶ compose
+   deliver.Check ─ would not insert ─▶ the answer streams into the card
+   one streaming chat (60 s; Rewrite without a selection: JSON {title, content}) ─▶ Draft
+   Translate: compose.Untranslated? ─▶ once more with the Strict layer
+   fails ─▶ failed, in the card with Try again (retryAnswer: StartRequest.Text)
    history entry (+ audio/<id>.wav) ─▶ the end snapshot
 snapshots ─▶ a.post ─▶ sessionChanged ─▶ overlay, hotkey.configure {active}, menu bar, History
 ```
@@ -133,8 +143,9 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `a.page(c, p)`, `placeholderText`, `a.pageShown(path)` | pages.go | the router; milestones replace a page's placeholder here |
 | `a.updateSettings(fn)`, `a.prefs`, `settingsSections()`, `a.settingsShown(sub)` | shell_settings.go | every area that changes a setting; sections that read something when they open |
 | `a.helperStatus()`, `helperCall[T](a, method, params, timeout, then)`, `a.helperNotified(m)`, `a.restartHelper()`, `a.hotkeys` (hotkey.state), `a.front` (app.activated) | helperlink.go | status bar, permissions, Diagnostics, sessions |
-| `a.mgr` (`*session.Manager`), `a.sess` (the newest snapshot), `a.startTranscribe(target, hold, try)`, `a.transcribeBlocker()`, `a.stopSession()`, `a.cancelSession()`, `a.toggleTranscribe()`, `a.pasteLast(target)`, `a.answer` + `insertAnswer` / `copyAnswer` / `closeAnswer`, `a.showNotice`, `sessionProblemText(p)`, `a.syncHotkeys()` | sessionlink.go | the overlay, the Transcribe page's Try area, the menu bar, helperlink.go |
-| `a.overlaySync()`, `a.ov` (mode, size), `overlayView`, `waveform`, `workingText`, `noticeActionLabel` | overlay.go | sessionlink.go; the Transcribe page reuses the texts |
+| `a.mgr` (`*session.Manager`), `a.sess` (the newest snapshot), `a.startSession(req)`, `a.startTranscribe(target, hold, try)`, `a.sessionBlocker(kind)`, `a.stopSession()`, `a.cancelSession()`, `a.toggleTranscribe()`, `a.pasteLast(target)`, `a.answer` + `openAnswer` / `insertAnswer` / `copyAnswer` / `closeAnswer` / `retryAnswer(lang)` / `followUpAnswer(hold)`, `a.showNotice`, `sessionProblemText(p)`, `a.syncHotkeys()` | sessionlink.go | the overlay, the feature pages' Try areas, the menu bar, helperlink.go |
+| `a.overlaySync()`, `a.ov` (mode, size), `overlayView`, `waveform`, `workingText(s)`, `kindIcon`, `kindTitle`, `cardNow`, `targetLanguageLabel`, `noticeActionLabel` | overlay.go | sessionlink.go; the feature pages and History reuse the texts |
+| `a.featurePage(c, feature)`, `a.fui(feature)` (each page's controls), `featureKind`, `hotkeyText`, `featureTitle` | transcribe_page.go | pages.go (Transcribe, Translate, Rewrite) |
 | `a.historyChanged()` | history_page.go | sessionlink.go, after an entry is kept or changed |
 | `a.permSys` (`permission.System`), `a.recheckPermissions()`, `a.askPermission(which)` | permissions.go | Settings → Permissions, Diagnostics, onboarding (M6) |
 | `floatingWindowOptions(…)`, `showFloating(w, x, y)` (non-activating windows, mygo patch 0003), `activateTarget(pid)` (`macx.Activate`) | floating.go | the recording pill and the answer card (M3, M4) |
@@ -191,6 +202,6 @@ Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services,
 | Mac checks | `scripts/mac.sh 'AURALINK_MAC=1 go test -run "TestMacKeychain|TestNative|TestActivate" -v ./internal/secrets ./internal/permission ./internal/macx'` | the Keychain, the permission calls, activation |
 | Packaged app | `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'` | the helper, then the app; signing during development: README |
 | Provider protocols | `go test ./internal/asr/... ./internal/llm ./internal/providers` | golden files of what each client sends (`testdata/*.golden`; `AURALINK_UPDATE_GOLDEN=1` rewrites them) against loopback servers replaying recorded answers |
-| Sessions | `go test ./internal/session ./internal/compose ./internal/deliver ./internal/hotkey`; `go test -run 'TestSession|TestOverlay|TestAnswer' .` | the state machine with in-process fakes (both kinds of speech service × the language model on, off, failing, timing out × cancel at each stage × a target that takes no text × late callbacks); the app over the fake helper process with loopback transcription, streaming and chat servers |
+| Sessions | `go test ./internal/session ./internal/compose ./internal/deliver ./internal/hotkey`; `go test -run 'TestSession|TestOverlay|TestAnswer|TestTranslate|TestRewrite' .` | the state machine with in-process fakes (both kinds of speech service × the language model on, off, failing, timing out × cancel at each stage × a target that takes no text × late callbacks; Translate and Rewrite: a selection read, missing, failing, by ⌘C, the strict retry, the card by choice, by a target that takes no text and by length, the JSON answer, the text given at Start, follow-ups); the app over the fake helper process (`selection=`, `copy-selection=`, `readonly`, `paste-log=`) with loopback transcription, streaming and chat (streaming too) servers |
 | Real services | `AURALINK_E2E=1 go test -run 'TestE2E' -v . ./internal/asr/... ./internal/providers` | keys from the environment or `~/.config/auralink-dev/keys.env` (`DOUBAO_APP_ID`, `DOUBAO_ACCESS_TOKEN`, `DASHSCOPE_API_KEY`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`); speech sample `testdata/speech/sample-zh-en.wav`; each test skips without its key |
 | Text fit | `AURALINK_TEXTFIT_PROBE=1` / `AURALINK_TEXTFIT_AUDIT=1 go test -run 'TestTextFits|TestTranslationsFit' .` | meaningful on macOS (Core Text) |

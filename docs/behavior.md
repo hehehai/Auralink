@@ -13,7 +13,7 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | # | Voxt 怎么做 | Auralink 怎么做 | 为什么 | 状态 |
 |---|---|---|---|---|
 | 1.1 | 会话状态分散在 `AppDelegate` 的 43 个 extension 里（`Voxt/App/*Flow.swift`、`Recording/`），取消和收尾由各个 Flow 各自处理 | 一个 `Session` 状态机（idle → recording → recognizing → composing → delivering → done/cancelled/failed）是会话唯一的所有者；所有异步回调都带 sessionID，迟到的一律丢弃 | 身份、取消、“只收尾一次”集中在一个地方，才能写表驱动测试；迟到回调不会污染下一次会话 | ✅ M3：`internal/session`（§5）；helper 的 job 通知也带 `job`，supervisor 丢弃已结束 job 的迟到通知 |
-| 1.2 | 语音翻译“先增强、再翻译”，两次 LLM 请求（`docs/Prompt.zh-CN.md`“语音翻译”一节） | 一次会话最多一次 LLM 请求：Prompt Composer 按“功能 × 能力 × 场景 × 词典 × 语言”拼出一个请求 | 少一次往返，延迟和费用减半；两段式在第二段会丢掉第一段的上下文 | ◐ M3：转录（`internal/compose`，§5）；翻译、转写 M4 |
+| 1.2 | 语音翻译“先增强、再翻译”，两次 LLM 请求（`docs/Prompt.zh-CN.md`“语音翻译”一节） | 一次会话最多一次 LLM 请求：Prompt Composer 按“功能 × 能力 × 场景 × 词典 × 语言”拼出一个请求 | 少一次往返，延迟和费用减半；两段式在第二段会丢掉第一段的上下文 | ✅ M3 转录、M4 翻译和转写（`internal/compose`，§5、§6）；翻译只有“看起来没翻译”时才多一次严格重试 |
 | 1.3 | 命中应用增强分组时，用分组 prompt **整个替换**全局 prompt（`Core/EnhancementPromptResolver.swift`） | 分组 prompt 作为“场景层”**叠加**在基础清理之上 | 用户写的分组规则不完整时，基础清理（去口头语、标点）不会跟着丢 | ○ M5 |
 | 1.4 | 规则匹配、prompt 拼接和 AppKit 调用写在一起 | 匹配、组合、热键判定、文本后处理是纯 Go 函数，Linux 上做表驱动测试；录音、事件 tap、AX、AppleScript、粘贴放在窄接口后面，测试换成假实现 | 不需要 Mac 也能测完整链路 | ◐ M1：helper 进程和协议、假 helper（`helpertest`）、`permission.Fake`、in-process 的假 supervisor 都已就位 |
 | 1.5 | 设置保存在 UserDefaults 的几百个键里（`Voxt/` 中有 259 处 `UserDefaults`），还保留了旧版单热键之类的迁移代码 | 设置是一个带版本号的类型化文档（`internal/settings`，v1），存在 SQLite 的 `documents` 表里；不兼容、也不读取 Voxt 的键 | 从 v1 开始，没有历史包袱；整个文档可以快照、比较、重置 | ✅ M1 |
@@ -62,7 +62,7 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 |---|---|---|---|---|
 | 4.1 | 录音、热键、读选中文本、粘贴、读 URL 都在 app 主进程里，各自在不同的 Flow 中调用 | 全部放在一个 Swift 子进程里；Go 只下发策略（设备顺序、是否允许 ⌘C、延迟、粘贴后的按键），helper 不存任何设置 | 事件 tap、AX、剪贴板、注入事件的标记在同一个进程里，不需要来回通信；权限按负责进程算在 Auralink 名下（spike S2 实测） | ✅ |
 | 4.2 | 热键：`Hotkey/HotkeyManager.swift` 按修饰键状态判定，单按和双击共用时单按走 `scheduleTapFallback` 延迟触发 | 识别器（`AuralinkHelperKit/HotkeyRecognizer.swift`）按“修饰键会话”判定：从第一个修饰键按下到全部松开算一个和弦；第二次按下在窗口内开始就算双击（默认 500 ms，取系统双击间隔，最多 800 ms）；单按最长 1500 ms；某个修饰键的事件来了状态却没变，说明系统丢了事件，丢弃当前和弦 | 真实按键补测：双击两次松开相隔 450 ms 但第二次按下只隔 303 ms；⇧+fn 按住 983 ms；fn+⌃ 之后 fn 的松开事件会丢 | ✅ 识别器；真实右⌘ 待测 |
-| 4.3 | 读选中文本：AX → 浏览器 AppleScript → 模拟 ⌘C；“空选区会复制整行”的 App 名单里不模拟（`SelectedTextSystemSelectionSupport.shouldAttemptSimulatedCopy`）；焦点元素在但没有选区范围时也不模拟 | AX 选中文本 → 选区范围取字符串 → WebKit/Chromium text marker；只有光标没有选区时直接返回空；其余情况由 Go 决定 `allowCopy`（M3 维护整行复制名单）；不用 AppleScript 读浏览器选区 | 策略留在 Go 便于测试；text marker 已覆盖浏览器里的选区（spike S4：Safari、Chrome、Cursor 都能读到），少一次自动化授权 | ✅ helper；名单 ○ M4（转录不读选区，翻译和转写才用） |
+| 4.3 | 读选中文本：AX → 浏览器 AppleScript → 模拟 ⌘C；“空选区会复制整行”的 App 名单里不模拟（`SelectedTextSystemSelectionSupport.shouldAttemptSimulatedCopy`）；焦点元素在但没有选区范围时也不模拟 | AX 选中文本 → 选区范围取字符串 → WebKit/Chromium text marker；只有光标没有选区时直接返回空；其余情况由 Go 决定 `allowCopy`（M3 维护整行复制名单）；不用 AppleScript 读浏览器选区 | 策略留在 Go 便于测试；text marker 已覆盖浏览器里的选区（spike S4：Safari、Chrome、Cursor 都能读到），少一次自动化授权 | ✅ helper；名单 ✅ M4（`session.AllowCopy`，§6.2） |
 | 4.4 | Electron App 不做特殊处理 | App 切到前台时，helper 给 Electron App 设置 `AXManualAccessibility`，热键按下时 AX 树已经建好 | Chromium 只有被要求时才建 AX 树，而且要过一会儿才生效（spike S4：Cursor 第一次读为空） | ✅ |
 | 4.5 | 粘贴：写剪贴板、⌘V，按 changeCount 判断后恢复（`PasteboardTextWriter`） | 同样按 changeCount 只恢复自己写的内容；另外保存全部 item 和类型，写入时带 `org.nspasteboard.TransientType`，剪贴板管理器不记录；`targetPid` 不在前台就不粘贴；粘贴后可以按任意键（`press`） | 剪贴板里的图片、文件不会因为恢复而丢掉；不会粘贴到别的窗口 | ✅ |
 | 4.6 | 读 URL：直接跑 AppleScript，失败（-1743）后 5 分钟内不再尝试，再退回 AX（`BrowserContextResolver`）；每次都重新编译脚本 | 先不弹窗地探测自动化状态，只有 `granted` 才跑 AppleScript，否则直接用 AX；编译好的脚本缓存起来；浏览器切到前台时刷新状态 | 未授权时跑 AppleScript 会在用户不知情时弹窗；编译每次多 50–500 ms（spike S5） | ✅ |
@@ -85,17 +85,37 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | 5.10 | 热键规则和 common stop 写在 `HotkeyManager` 和各 Flow 里 | `internal/hotkey.Route`：空闲时 tap/双击开始，长按的 down 开始、它自己的 up 停止；录音时任何功能的热键都是“停止”（helper 在 `active` 时 tap 立即触发）；识别、整理中只有 Esc（取消）有效；答案卡片打开时 Esc 关闭卡片 | 纯函数、表驱动测试；Voxt 文档里“普通键 binding 不能 common stop”的问题不存在：所有 binding 都走同一条规则 | ✅ |
 | 5.11 | 一个功能可以有多条快捷键（binding 列表）。冲突检查：同一功能同键报重复；跨功能同键同触发方式报重复；粘贴最近结果和其他功能的 tap 相同报重复；系统快捷键提示 | 规则相同（`hotkey.Check`），外加“单独一个普通键会被全局吞掉”的提示；左右侧修饰键（RightCommand）参与比较时，any 和任一侧都算重叠 | 与 Voxt 一致，补上侧别；转录页在每一条下面写出问题，需要辅助功能的条目带标记；冲突时按设置顺序（转录、翻译、转写、粘贴最近结果）先出现的生效（`hotkey.Build`） | ✅ |
 | 5.12 | 没有辅助功能时不能用 fn 热键 | 事件 tap 没装上时，把能用 Carbon 表达的热键（⌃⌥⇧⌘ 加一个键，不分左右、没有 fn）注册成 `mygo.GlobalShortcut`；tap 装上后注销。长按和双击在 Carbon 下退化为单按 | 没有权限也至少能用 ⌃⌘V 和普通组合键；转录页提示哪些热键需要辅助功能 | ✅ 待真机验证 |
-| 5.13 | M3 只绑定转录和粘贴最近结果 | `liveFeatures`（sessionlink.go）；翻译、转写的热键在 M4 打开 | 没有实现的功能不应该吞掉 fn+⇧ | ✅ |
+| 5.13 | M3 只绑定转录和粘贴最近结果 | `liveFeatures`（sessionlink.go）；翻译、转写的热键在 M4 打开 | 没有实现的功能不应该吞掉 fn+⇧ | ✅ M4 三个功能都已绑定 |
 | 5.14 | Prompt 变量 `{{RAW_TRANSCRIPTION}}` 把识别文本拼进 system | 输入只在 user 消息里（`<input>…</input>`）；变量 `{{USER_MAIN_LANGUAGE}}`、`{{USER_OTHER_LANGUAGES}}`、`{{TARGET_LANGUAGE}}`、`{{APP_NAME}}` 在内置模板和用户规则里都能用，用户规则里的值不会再被展开 | 避免 prompt 注入，system 对同样的设置保持不变 | ✅ |
 | 5.15 | 增强 prompt 一份长文本（中文约 2000 字、英文约 5800 字），基础清理、结构整理、数字规范、示例都写在一起，翻译 prompt 又复制一遍 | 分层（`internal/compose`）：Role、Input policy、基础清理、结构整理（关闭时换成“保持原样”的 Form 层）、Task、用户规则、Scene（M5）、Glossary、Output contract；中英两套模板按主语言选，重新写过、去掉了示例（所有层合起来中文约 1100 字、英文约 2700 字） | 每层只说一件事，能单独开关、单独测（64 个 golden）；示例占篇幅又容易被模型照抄 | ✅ |
 | 5.16 | 词典术语作为 glossary 追加，命中时才加 | 启用的术语都参与：在识别文本里出现（拼写或别名，忽略大小写和空格）的排在前面，最多 60 条、2000 字；同时作为 ASR 热词 | 识别错的词本来就不一定“出现”在文本里；数量有上限 | ✅ |
 | 5.17 | 模型输出原样使用 | `compose.Clean`：去掉模型回显的 `<input>` 标签，去掉整段包起来的引号（输入本身被引号包起来时不去） | 常见的模型小毛病 | ✅ |
 | 5.18 | 录音浮窗：SwiftUI 波形和多种显示模式 | `overlay.go`：非激活浮窗，固定深色；recording（模式图标、16 根 bar、计时、最后 3 行实时文字、停止、×）、working（识别中 / 整理中 / 插入中）、插入后打勾 0.7 s、notice（4 s 自动隐藏，带“打开模型服务 / 打开权限 / 重启辅助进程”）、答案卡片；位置、边距、透明度、圆角读 `settings.Overlay` | 方案 §3.2；“试一试”的会话只显示在转录页，不弹浮窗 | ✅ |
 | 5.19 | 菜单栏“开始转录” | 菜单栏的“开始转录”在录音时变成“停止转录”；目标是最近一次 `app.activated` 的 App（helper 就绪时先问一次 `app.frontmost`） | 点菜单栏图标不会激活 Auralink，前台 App 还是用户要输入的那个 | ✅ |
-| 5.20 | 历史是一个列表，详情窗口另开 | 历史页按功能分 tab（转录；翻译、转写在 M4 有数据），FTS 搜索；详情侧栏里有结果、原文、交付方式（插入 / 卡片 / 复制）、服务和模型、各阶段耗时、命中规则（M5）；失败的会话也记一条（有录音时可以在访达中找到）；删除要确认 | 排查“为什么慢、用了哪个模型、为什么没插入”时一眼能看到 | ✅（重新处理 ○ 以后） |
+| 5.20 | 历史是一个列表，详情窗口另开 | 历史页按功能分 tab（转录、翻译、转写），FTS 搜索；详情侧栏里有结果、原文、交付方式（插入 / 卡片 / 复制）、服务和模型、各阶段耗时、命中规则（M5）；失败的会话也记一条（有录音时可以在访达中找到）；删除要确认 | 排查“为什么慢、用了哪个模型、为什么没插入”时一眼能看到 | ✅（重新处理 ○ 以后） |
 | 5.21 | 开发期手动检查 helper 用 `AURALINK_TRY`（M1 时的临时面板） | 删除，正式链路替代 | 不留调试入口 | ✅ |
 
-## 6. 待补（按里程碑）
+## 6. 翻译与转写（M4）
+
+| # | Voxt 怎么做 | Auralink 怎么做 | 为什么 | 状态 |
+|---|---|---|---|---|
+| 6.1 | 选中文本翻译：先读选区，读到了就不录音（`TranslationFlow.beginSelectedTextTranslationIfPossible`）；转写在识别完口述指令之后才读选区 | 翻译：按下热键时先读选区（`reading` 状态，最多 1.5 s），读到就直接翻译，读不到或读取出错就开始录音。转写：选区和录音并行读取，识别完成后再用（`internal/session`） | 翻译读到选区时不打开麦克风（不会闪一下麦克风指示）；转写要的是“按下热键那一刻”的选区，用户说话时可能已经点到别处 | ✅ |
+| 6.2 | 模拟 ⌘C 的名单：VS Code、Sublime、Zed、JetBrains 等“空选区复制整行”的编辑器不模拟（`SelectedTextSystemSelectionSupport.copiesCurrentLineWhenSelectionEmpty`），另有“AX 全黑时”的过滤探测 | 同一份名单（含前缀：ToDesktop/Cursor、JetBrains、Exafunction、Trae、Qoder，和包含 vscode 的 bundle id），由 Go 决定 `allowCopy`（`session.AllowCopy`）；不做“AX 全黑”的二次探测 | 策略在 Go，表驱动测试；helper 已经在 AX 读到“只有光标”时直接返回空（§4.3），二次探测要靠“看起来像整行”的猜测，误判代价是翻译一行用户没选的代码 | ✅ |
+| 6.3 | 语音翻译两次 LLM 请求：先增强、再翻译 | 一次请求：基础清理层（翻译版本的规则：先清理再翻译，去掉“不要翻译”“保持语言混合”两条）+ Form + 翻译任务层；选中文本不加清理层，Task 层要求保留换行、列表和 Markdown | §1.2；同一份清理规则只写一处（`cleanup.txt` 用 `{{#if FOR_TRANSLATE}}` 切换两条规则），不复制 | ✅ |
+| 6.4 | “看起来没翻译”：结果和原文忽略大小写后相同（`looksUntranslated`），只对选中文本翻译重试 | `compose.Untranslated`：忽略大小写、空格和标点后相同；或者目标语言有独特文字（中日韩、西里尔、阿拉伯……）而结果大多不是这种文字、原文也不是（按词计：一个拉丁词和一个汉字同权）。原文本来就是目标语言的文字时不重试。语音和选区都适用，只重试一次，加一层 Strict；重试也失败时保留第一次的结果 | Voxt 的判断抓不到“清理了但没翻译”的中文结果；按词计数避免“今天部署 Kubernetes”被误判 | ✅ |
+| 6.5 | 翻译目标语言默认英语，22 种可选；结果窗口里可以临时切换目标语言重新翻译 | 默认：英语；主要语言是英语时为简体中文（`session.TranslateTarget`）。22 种（简体、繁体中文分开），`{{TARGET_LANGUAGE}}` 用对应语言的名称。答案卡片右上角可以换目标语言，用同一段原文（语音的识别文本或选区）重新翻译，不再录音 | 中文用户“翻译成主要语言”毫无意义；换语言不用重说一遍 | ✅ |
+| 6.6 | 选中文本翻译：设置“显示结果窗口”时进窗口，否则直接替换；目标可写性用严格判断（`hasWritableFocusedTextInput`） | “在卡片中显示结果”对语音和选区都生效；替换选区时要求焦点元素在 AX 里明确可编辑（`deliver.Request.NeedEditable`），网页上选中的文字一律进卡片；转录、语音翻译、按指令生成仍用宽松判断（§5.8） | 网页正文选区不可编辑，宽松判断会“粘贴”到无处，结果丢失 | ✅ |
+| 6.7 | 转写：先对口述指令做一次增强，再改写，两次请求；失败时把增强后的指令当结果输出 | 一次请求：“理解指令”层（只用于读懂口述指令，明确不作用于选中的文字）+ 改写任务层或生成任务层；失败不输出任何替代文本，答案卡片显示错误和“重试” | §1.2；把指令当结果插进文档没有意义 | ✅ |
+| 6.8 | 结构化答案：没有选区时要求 `{title, content}` JSON，解析器容忍代码块和半截 JSON（`RewriteAnswerPayloadParser`，约 560 行）；内容为空时强制非空重试 | 没有选区时用 JSON（`llm.FormatJSON` + schema，服务商支持时走原生 JSON 模式）；`compose.ParseAnswer` 找第一个合法对象；不是 JSON 时按纯文本使用，没有标题；内容为空时失败进卡片（不再自动重试）。流式时 `compose.PartialAnswer` 从半截 JSON 里取出标题和正文 | 解析器只需要两件事：完整对象和流式前缀；空答案多半是指令本身有问题，重试一般还是空 | ✅ |
+| 6.9 | 转写结果一律进答案卡片（`shouldPresentRewriteAnswerOverlay`） | 有选区：替换选区（不可编辑时进卡片）；没有选区：结果不超过“较长回答”的字数（默认 400）就直接插入，超过就进卡片；流式过程中一超过就切到卡片 | 方案 §2.1：改写的意义就是原地替换；短回答直接插入更快 | ✅ |
+| 6.10 | 答案卡片：生成完成后一次性显示，继续对话时伪流式 | 翻译和转写都流式（`llm.Request.OnDelta`，40 ms 节流写进快照的 `Draft`）：会进卡片的（设置、目标不可写、超长）直接在卡片里出字，其余在浮窗胶囊下方出字；卡片显示标题、目标语言、复制、插入；失败时显示原因、原文和“重试” | 用户能看到进度，长回答不用干等 | ✅ |
+| 6.11 | 继续对话：卡片打开时再按转写热键，带上之前的轮次（Responses API 或 role 消息） | 同样：卡片显示的是转写回答时，转写热键录一段追问，之前的轮次作为 user/assistant 消息发送（assistant 用 JSON 形式），加一层 Follow-up；回答替换卡片内容，轮次累积。只用 chat completions | 不依赖服务商的会话状态 | ✅（P1） |
+| 6.12 | 翻译、转写失败时只在浮窗显示 2.8 s 的状态文字 | 失败的会话结束为 failed，答案卡片显示原因和原文，“重试”用同样的输入重新开始一个会话（不录音、不再读选区）；历史里记一条失败记录（含原文） | 方案 §4.2；不用重新说一遍 | ✅ |
+| 6.13 | 翻译、转写需要的 LLM 没配置时，录完音才报错 | 开始前检查（不做 I/O）：转录要语音服务；翻译要语言模型（语音服务只在没有选区时才需要）；转写两者都要。缺什么就只弹提示，不开麦克风 | 不让用户白说一遍 | ✅ |
+| 6.14 | 历史记录原文、选中文本、口述指令、目标语言 | 同样（`SourceText`、`PromptText`、`TargetLang`），转写的口述指令只记在“指令”里；列表第二行显示“→ 目标语言”，详情里翻译有“目标语言”一行 | — | ✅ |
+| 6.15 | 翻译和转写的设置页各不相同 | 三个功能页共用一套结构（`transcribe_page.go` 的 `featurePage`）：快捷键、服务、各自的设置（翻译：目标语言、基础清理、在卡片中显示结果；转写：清理口述指令、较长回答放进卡片）、你的规则（含完整提示词预览）、试一试 | 一套代码，三页一致 | ✅ |
+
+## 7. 待补（按里程碑）
 
 每节在对应里程碑落地时补上。下面先列出方案里已经确定的差异。
 
@@ -103,6 +123,5 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 |---|---|---|---|---|
 | 应用增强：匹配顺序 | URL 分组 → 浏览器没有命中任何 URL 时直接回到全局（`EnhancementPromptResolver.resolve`） | URL 分组 → **浏览器 App 本身所在的分组** → App 分组 → 全局 | 用户把 Chrome 放进“工作”分组时，没写 URL 规则的网站也应该按“工作”处理 | M5 |
 | 应用增强：上下文快照 | 停止录音时读取前台 App 和 URL | **按下热键时**记下前台 App（helper 的 `hotkey.event` 自带 `front`），同时在后台开始读 URL | AppleScript 要 50–300 ms；用户中途切走窗口也不影响匹配 | ◐ M3：前台 App 作为插入目标；URL M5 |
-| 翻译兜底 | 结果“看起来没翻译”时用更严格的规则重试 | 保留 | 实测有效 | M4 |
 | 录音设备 | 1.2 s 看门狗，指定设备失败时回到默认设备 | 保留，放在 helper 的 `capture.start` 里，`capture.started` 写明是否回退（`fellBack`），见 §4 | 蓝牙耳机常常没有声音 | ✅ helper 和会话（设备顺序来自 `Audio.Devices`） |
 | 剪贴板恢复 | 用 changeCount 判断剪贴板是不是自己写的 | 保留（helper 的 `textio.paste`，§4.5） | 避免覆盖用户在这期间复制的内容 | ✅ |
