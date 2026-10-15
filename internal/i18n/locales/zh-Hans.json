@@ -238,7 +238,7 @@
   "Quit Auralink": "退出 Auralink",
   "Qwen (Alibaba Cloud Model Studio)": "通义千问（阿里云百炼）",
   "Qwen (Model Studio international)": "通义千问（百炼国际版）",
-  "Reaches OpenAI, Volcengine (Doubao), Alibaba Cloud Model Studio and DeepSeek through the proxy above.": "通过上面的代理连接 OpenAI、火山引擎（豆包）、阿里云百炼和 DeepSeek。",
+  "Reaches OpenAI, Volcengine (Doubao), Alibaba Cloud Model Studio, DeepSeek and the endpoints you set up, through the proxy above.": "通过上面的代理访问 OpenAI、火山引擎（豆包）、阿里云百炼、DeepSeek，以及你设置的 Endpoint。",
   "Readable": "可读取",
   "Ready": "就绪",
   "Ready (%s)": "就绪（%s）",

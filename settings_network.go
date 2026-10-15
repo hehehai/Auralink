@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -35,14 +36,34 @@ type networkState struct {
 }
 
 // netHosts are the hosts the connection test reaches: the default
-// providers' (plan D1). M2 adds the endpoints the user set up.
+// providers' (plan D1), then those of the endpoints the user set up.
 var netHosts = []string{"https://api.openai.com", "https://openspeech.bytedance.com", "https://dashscope.aliyuncs.com", "https://api.deepseek.com"}
+
+// testHosts are netHosts and the hosts of the endpoints set up on the
+// Model services page.
+func (a *app) testHosts() []string {
+	hosts := slices.Clone(netHosts)
+	for _, p := range append(slices.Clone(a.prefs.Providers.ASR), a.prefs.Providers.LLM...) {
+		u, err := url.Parse(p.Endpoint)
+		if err != nil || u.Host == "" {
+			continue
+		}
+		scheme := "https"
+		if u.Scheme == "http" || u.Scheme == "ws" {
+			scheme = "http"
+		}
+		if h := scheme + "://" + u.Host; !slices.Contains(hosts, h) {
+			hosts = append(hosts, h)
+		}
+	}
+	return hosts
+}
 
 // testNetwork reaches each host through the proxy.
 func (a *app) testNetwork() {
 	a.netTesting = true
 	client := netx.NewHTTPClient(a.prefs.Network.Proxy, 10*time.Second)
-	hosts := slices.Clone(netHosts)
+	hosts := a.testHosts()
 	a.async(func() {
 		out := make([]netCheck, len(hosts))
 		var wg sync.WaitGroup
@@ -121,7 +142,7 @@ func (a *app) networkSettings(c *ui.Context) {
 	}
 
 	sectionTitle(c, i18n.T("Connection"))
-	settingRow(c, "net-test", i18n.T("Test the connection"), i18n.T("Reaches OpenAI, Volcengine (Doubao), Alibaba Cloud Model Studio and DeepSeek through the proxy above."), func() {
+	settingRow(c, "net-test", i18n.T("Test the connection"), i18n.T("Reaches OpenAI, Volcengine (Doubao), Alibaba Cloud Model Studio, DeepSeek and the endpoints you set up, through the proxy above."), func() {
 		if a.netTesting {
 			ui.Spinner(c)
 		}
