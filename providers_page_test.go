@@ -230,6 +230,9 @@ func TestSnapshotsProviders(t *testing.T) {
 		save("providers-asr")
 		a.provTab = 1
 		save("providers-llm")
+		tt.Scroll(float32(w)*0.6, float32(h)*0.6, 0, 330) // the cards' long names
+		save("providers-llm-cards")
+		tt.Scroll(float32(w)*0.6, float32(h)*0.6, 0, -330)
 		a.provTab = 0
 		a.openProviderDialog(providers.ASR, "doubao")
 		save("providers-dialog-doubao")
