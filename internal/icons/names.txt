@@ -38,7 +38,7 @@ danger-triangle         # warning
 danger-circle           # error
 copy
 folder-open             # show in Finder
-trash-bin-minimalistic  # delete (a history entry)
+trash-bin-minimalistic  # delete (a history entry, a shortcut)
 refresh                 # check again
 square-arrow-right-up   # open System Settings
 alt-arrow-down          # chevrons
@@ -53,3 +53,6 @@ add
 key-minimalistic-square  # a saved key
 soundwave                # speech services
 chat-round-line          # language models
+
+# Transcribe (transcribe_page.go).
+accessibility            # a shortcut that needs Accessibility

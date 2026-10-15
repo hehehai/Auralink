@@ -1,0 +1,425 @@
+package main
+
+import (
+	"errors"
+	"image/png"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/asr"
+	"github.com/hehehai/Auralink/internal/helper/proto"
+	"github.com/hehehai/Auralink/internal/hotkey"
+	"github.com/hehehai/Auralink/internal/session"
+	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/store"
+)
+
+// trTester is the test app on the Transcribe page, in a window tall
+// enough to show all of it.
+func trTester(t *testing.T) (*app, *ui.Tester) {
+	t.Helper()
+	a, _, tt := newTestApp(t)
+	tt.SetSize(windowWidth, 2400)
+	a.navigate("/transcribe")
+	frames(tt)
+	return a, tt
+}
+
+// readyServices sets up a speech service and a language model with keys.
+func readyServices(a *app) {
+	a.updateSettings(func(s *settings.Settings) {
+		s.Providers.ASR = []settings.Provider{{ID: "doubao", Enabled: true}}
+		s.Providers.LLM = []settings.Provider{{ID: "deepseek", Enabled: true}, {ID: "dashscope", Enabled: true}}
+	})
+	a.keyMasks["asr.doubao"] = "tok…abcd"
+	a.keyMasks["llm.deepseek"] = "sk-…wxyz"
+	a.keyMasks["llm.dashscope"] = "sk-…qrst"
+}
+
+func TestHotkeyText(t *testing.T) {
+	for keys, want := range map[string]string{
+		"Fn":                   "fn",
+		"Fn+Shift":             "fn ⇧",
+		"RightCommand":         "Right ⌘",
+		"RightOption":          "Right ⌥",
+		"Control+Command+V":    "⌃⌘V",
+		"Control+Option+Space": "⌃⌥ Space",
+		"Fn+F5":                "fn F5",
+		"bogus":                "bogus",
+	} {
+		if got := hotkeyText(keys); got != want {
+			t.Errorf("hotkeyText(%q) = %q, want %q", keys, got, want)
+		}
+	}
+}
+
+func TestTranscribePageRenders(t *testing.T) {
+	a, tt := trTester(t)
+	for _, s := range []string{
+		"Transcribe", "Shortcuts", "fn", "Tap", "Double tap", "Long press", "Add a shortcut",
+		"Paste the last result", "⌃⌘V",
+		"Services", "No speech service is ready: set one up to transcribe.", "Open Model services",
+		"Clean-up", "Clean up with a language model", "Basic clean-up", "Structure",
+		"Your rules", "{{USER_MAIN_LANGUAGE}}", "{{APP_NAME}}", "Show the full prompt",
+		"Try it", "Start",
+	} {
+		if !has(tt, s) {
+			t.Errorf("no %q in %q", s, tt.Texts())
+		}
+	}
+	// No event tap in tests: the Accessibility notice, and fn is marked.
+	if !has(tt, "Open Permissions") {
+		t.Error("no Accessibility notice")
+	}
+	if _, ok := tt.Find("Works only while Auralink may use Accessibility."); !ok {
+		t.Error("fn is not marked as needing Accessibility")
+	}
+	click(t, tt, "Open Permissions")
+	if a.shownPath() != "/settings/permissions" {
+		t.Errorf("went to %s", a.shownPath())
+	}
+}
+
+func TestTranscribeHotkeysEdit(t *testing.T) {
+	a, tt := trTester(t)
+	saved := func() []settings.Hotkey { return a.lib.settings.Get().Features.Transcribe.Hotkeys }
+
+	// Add one: the first preset no feature uses (fn, fn ⇧, fn ⌃ are taken).
+	click(t, tt, "Add a shortcut")
+	if hs := saved(); len(hs) != 2 || hs[1].Keys != "Fn+Option" || hs[1].Trigger != settings.TriggerTap {
+		t.Fatalf("added %+v", hs)
+	}
+	// Choose a preset through the select's state, as the Select does.
+	a.trRows[1].sel = hotkeyText("RightCommand")
+	a.trChooseKeys(1, &a.trRows[1], func() map[string]string { _, m := keyOptions("Fn+Option", false); return m }())
+	frames(tt)
+	if hs := saved(); hs[1].Keys != "RightCommand" {
+		t.Fatalf("preset not saved: %+v", hs)
+	}
+
+	// Custom keys: invalid ones show why and are not saved; valid ones are
+	// saved in canonical spelling.
+	a.trRows[1].sel = "Custom…"
+	a.trChooseKeys(1, &a.trRows[1], nil)
+	frames(tt)
+	if !a.trRows[1].custom || a.trRows[1].text != "RightCommand" {
+		t.Fatalf("custom row %+v", a.trRows[1])
+	}
+	click(t, tt, "Custom keys of shortcut 2")
+	for range len("RightCommand") {
+		tt.Key(0, ui.KeyBackspace)
+	}
+	tt.Type("ctrl+opt+K+J")
+	if !has(tt, "Only one key besides the modifiers.") {
+		t.Errorf("no parse error: %q", tt.Texts())
+	}
+	if hs := saved(); hs[1].Keys != "RightCommand" {
+		t.Errorf("invalid keys saved: %+v", hs)
+	}
+	tt.Key(0, ui.KeyBackspace)
+	tt.Key(0, ui.KeyBackspace)
+	frames(tt)
+	if hs := saved(); hs[1].Keys != "RightCommand" || !has(tt, "Press Return to use ⌃⌥K.") {
+		t.Errorf("saved before Return: %+v", hs)
+	}
+	tt.Key(0, ui.KeyEnter)
+	frames(tt)
+	if hs := saved(); hs[1].Keys != "Control+Option+K" {
+		t.Errorf("custom keys %+v", hs)
+	}
+	if !a.trRows[1].custom {
+		t.Error("the custom field closed while typing")
+	}
+
+	// Remove the first.
+	click(t, tt, "Remove shortcut 1")
+	if hs := saved(); len(hs) != 1 || hs[0].Keys != "Control+Option+K" {
+		t.Fatalf("after remove %+v", hs)
+	}
+	if len(a.trRows) != 1 || a.trRows[0].custom {
+		t.Errorf("rows not set again: %+v", a.trRows)
+	}
+	// What the helper gets follows (the plan is built from the settings).
+	if p := a.hotkeyPlan(); !slices.ContainsFunc(p.Bindings, func(b proto.HotkeyBinding) bool { return b.ID == hotkey.ID(hotkey.Transcribe, 0) }) {
+		t.Errorf("plan %+v", p.Bindings)
+	}
+}
+
+func TestTranscribeTrigger(t *testing.T) {
+	a, tt := trTester(t)
+	click(t, tt, "Double tap")
+	if hs := a.lib.settings.Get().Features.Transcribe.Hotkeys; hs[0].Trigger != settings.TriggerDouble {
+		t.Fatalf("trigger %+v", hs)
+	}
+	click(t, tt, "Long press")
+	if hs := a.lib.settings.Get().Features.Transcribe.Hotkeys; hs[0].Trigger != settings.TriggerLong {
+		t.Fatalf("trigger %+v", hs)
+	}
+}
+
+func TestTranscribeHotkeyConflicts(t *testing.T) {
+	a, tt := trTester(t)
+	a.updateSettings(func(s *settings.Settings) {
+		s.Features.Transcribe.Hotkeys = []settings.Hotkey{
+			{Keys: "Fn+Shift", Trigger: settings.TriggerTap}, // Translate's
+			{Keys: "Fn+Shift", Trigger: settings.TriggerDouble},
+			{Keys: "Command+Space"},
+			{Keys: "K"},
+		}
+		s.Features.PasteLast = settings.Hotkey{Keys: "Command+Space"}
+	})
+	for _, s := range []string{
+		"Translate has the same keys and trigger: only one of them works.",
+		"The same keys as shortcut 1.",
+		"macOS uses these keys for Spotlight.",
+		"A key alone would be taken from every app: add ⌃, ⌥, ⇧, ⌘ or fn.",
+		"Paste the last result has the same keys and trigger: only one of them works.",
+		"Transcribe has the same keys and trigger: only one of them works.",
+	} {
+		if !has(tt, s) {
+			t.Errorf("no %q in %q", s, tt.Texts())
+		}
+	}
+}
+
+func TestTranscribePasteLast(t *testing.T) {
+	a, tt := trTester(t)
+	click(t, tt, "Keys to paste the last result")
+	click(t, tt, "Off")
+	if k := a.lib.settings.Get().Features.PasteLast.Keys; k != "" {
+		t.Fatalf("paste-last %q", k)
+	}
+	click(t, tt, "Keys to paste the last result")
+	click(t, tt, "Right ⌥")
+	if k := a.lib.settings.Get().Features.PasteLast; k.Keys != "RightOption" || k.Trigger != settings.TriggerTap {
+		t.Fatalf("paste-last %+v", k)
+	}
+}
+
+func TestTranscribeServicesAndSwitches(t *testing.T) {
+	a, tt := trTester(t)
+	readyServices(a)
+	frames(tt)
+	if has(tt, "No speech service is ready: set one up to transcribe.") {
+		t.Error("notice with a ready service")
+	}
+	click(t, tt, "Language model for Transcribe")
+	click(t, tt, "Qwen (Alibaba Cloud Model Studio)")
+	if id := a.lib.settings.Get().Features.Transcribe.LLM; id != "dashscope" {
+		t.Errorf("LLM %q", id)
+	}
+	click(t, tt, "Language model for Transcribe")
+	click(t, tt, "Automatic: DeepSeek")
+	if id := a.lib.settings.Get().Features.Transcribe.LLM; id != "" {
+		t.Errorf("LLM %q", id)
+	}
+
+	// The switches write back; with Enhance off the layers are greyed.
+	clickSwitch(t, tt, "Structure")
+	if !a.lib.settings.Get().Features.Transcribe.Structure {
+		t.Error("structure not saved")
+	}
+	clickSwitch(t, tt, "Clean up with a language model")
+	if a.lib.settings.Get().Features.Transcribe.Enhance {
+		t.Error("enhance not saved")
+	}
+	clickSwitch(t, tt, "Basic clean-up")
+	if !a.lib.settings.Get().Features.Transcribe.Cleanup {
+		t.Error("clean-up changed while disabled")
+	}
+}
+
+func TestTranscribeRules(t *testing.T) {
+	a, tt := trTester(t)
+	click(t, tt, "Your rules for Transcribe")
+	tt.Type("Write {{USER_MAIN_LANGUAGE}} numbers as digits.")
+	frames(tt)
+	if !a.trPromptDirty {
+		t.Fatal("not dirty after typing")
+	}
+	// Leaving the field saves it.
+	click(t, tt, "Show the full prompt")
+	if p := a.lib.settings.Get().Features.Transcribe.Prompt; p != "Write {{USER_MAIN_LANGUAGE}} numbers as digits." {
+		t.Fatalf("prompt %q", p)
+	}
+	// The preview has the rules, with the variable filled in.
+	if !a.trPreview || !strings.Contains(strings.Join(tt.Texts(), "\n"), "Write English numbers as digits.") {
+		t.Errorf("preview: %q", tt.Texts())
+	}
+	click(t, tt, "Reset your rules")
+	if p := a.lib.settings.Get().Features.Transcribe.Prompt; p != "" || a.trPrompt != "" {
+		t.Fatalf("reset: %q %q", p, a.trPrompt)
+	}
+	// A change elsewhere shows.
+	a.updateSettings(func(s *settings.Settings) { s.Features.Transcribe.Prompt = "Be brief." })
+	frames(tt)
+	if a.trPrompt != "Be brief." {
+		t.Errorf("not set from the settings: %q", a.trPrompt)
+	}
+}
+
+// clickSwitch clicks the switch of the setting row titled title: at
+// the row's right end (the switch has the title as its label too, and a
+// click on a label finds the title's text first).
+func clickSwitch(t *testing.T, tt *ui.Tester, title string) {
+	t.Helper()
+	frames(tt)
+	r, ok := tt.Find(title)
+	if !ok {
+		t.Fatalf("no %q", title)
+	}
+	tt.ClickAt(float32(windowWidth-24-18), r.Y+r.H/2)
+	frames(tt)
+}
+
+// trySnapshot is a Try session's snapshot in state st.
+func trySnapshot(a *app, st session.State) session.Snapshot {
+	now := time.Now()
+	s := session.Snapshot{Rev: a.sess.Rev + 1, ID: "try-1", Kind: store.KindTranscribe, State: st, Try: true,
+		StartedAt: now.Add(-4 * time.Second), HeardAt: now.Add(-3 * time.Second)}
+	switch st {
+	case session.Recording:
+		s.Levels = []float64{0.1, 0.3, 0.6, 0.9, 0.5, 0.2, 0.4, 0.7, 0.3, 0.1}
+		s.Partial = "so the meeting moves to Thursday"
+	case session.Done:
+		s.StoppedAt = now
+		s.Raw = "um so the meeting moves to Thursday at three, no, at four"
+		s.Result = "The meeting moves to Thursday at four."
+		s.ASR = session.Model{Name: "Doubao (Volcengine)"}
+		s.LLM = session.Model{Name: "DeepSeek"}
+		s.Timings = session.Timings{Audio: 3200 * time.Millisecond, ASR: 800 * time.Millisecond, LLM: 1100 * time.Millisecond, Total: 5300 * time.Millisecond}
+	case session.Failed:
+		s.Problem = &session.Problem{Code: session.ProblemASR, Err: &asr.Error{Kind: asr.KindAuth, Provider: "openai", Status: 401}}
+	}
+	return s
+}
+
+func TestTranscribeTry(t *testing.T) {
+	a, tt := trTester(t)
+	// Nothing set up: Start says what is missing, on the page.
+	click(t, tt, "Start a try")
+	if a.sess.State.Live() || !has(tt, "No speech service is set up.") {
+		t.Fatalf("blocked try: %+v %q", a.sess, tt.Texts())
+	}
+	click(t, tt, "Open Model services")
+	if a.shownPath() != "/providers" {
+		t.Fatalf("went to %s", a.shownPath())
+	}
+	a.navigate("/transcribe")
+
+	a.sessionChanged(trySnapshot(a, session.Recording))
+	for _, s := range []string{"so the meeting moves to Thursday", "Stop", "Cancel", "0:03"} {
+		if !has(tt, s) {
+			t.Errorf("recording: no %q in %q", s, tt.Texts())
+		}
+	}
+	if _, ok := tt.Find("Input level"); !ok {
+		t.Error("no level bars")
+	}
+	if a.ov.shown {
+		t.Error("the overlay shows a try")
+	}
+	s := trySnapshot(a, session.Composing)
+	a.sessionChanged(s)
+	if !has(tt, "Cleaning up…") {
+		t.Errorf("composing: %q", tt.Texts())
+	}
+	a.sessionChanged(trySnapshot(a, session.Done))
+	for _, s := range []string{"The meeting moves to Thursday at four.", "As recognised", "um so the meeting moves to Thursday at three, no, at four",
+		"Recording 3.2 s · Recognition 0.8 s · Clean-up 1.1 s · Total 5.3 s · Doubao (Volcengine), DeepSeek", "Try again"} {
+		if !has(tt, s) {
+			t.Errorf("done: no %q in %q", s, tt.Texts())
+		}
+	}
+	click(t, tt, "Copy the result")
+	if tt.Clipboard() != "The meeting moves to Thursday at four." {
+		t.Errorf("clipboard %q", tt.Clipboard())
+	}
+	a.sessionChanged(trySnapshot(a, session.Failed))
+	if !has(tt, "Speech recognition failed: The service refused the key. Check it and try again.") {
+		t.Errorf("failed: %q", tt.Texts())
+	}
+	// A session that is not a try does not show here.
+	n := trySnapshot(a, session.Recording)
+	n.ID, n.Try = "real", false
+	a.sessionChanged(n)
+	if has(tt, "so the meeting moves to Thursday") || !has(tt, "A transcription is running.") {
+		t.Errorf("a shortcut's session shows: %q", tt.Texts())
+	}
+}
+
+func TestParseErrorText(t *testing.T) {
+	for keys, want := range map[string]string{
+		"":         "Type the keys, as in Control+Option+Space.",
+		"A+B":      "Only one key besides the modifiers.",
+		"LeftFn":   "fn has no left or right side.",
+		"Hyper+K":  "A key is unknown. Write the modifiers first, then one key: Fn, RightCommand, Control+Option+Space, Fn+F5.",
+		"Option+K": "",
+	} {
+		_, err := hotkey.Parse(keys)
+		if got := parseErrorText(err); got != want {
+			t.Errorf("%q: %q, want %q", keys, got, want)
+		}
+	}
+	if parseErrorText(errors.New("x")) == "" {
+		t.Error("unknown error has no text")
+	}
+}
+
+// transcribeShots saves the Transcribe page's Try area while it records
+// and once done, scrolled to the end of the page (TestSnapshots).
+func transcribeShots(a *app, tt *ui.Tester, save func(string)) {
+	a.navigate("/transcribe")
+	for _, st := range []session.State{session.Recording, session.Done} {
+		a.sessionChanged(trySnapshot(a, st))
+		frames(tt)
+		w, h := snapshotSize()
+		for range 5 {
+			tt.Scroll(float32(w)-100, float32(h)/2, 0, 2000)
+			frames(tt)
+		}
+		save("page-transcribe-try-" + string(st))
+	}
+	a.sessionChanged(session.Snapshot{Rev: a.sess.Rev + 1})
+}
+
+// TestTranscribeFullPage renders the whole page (a tall window) with a
+// done try and the preview open, for looking at it:
+//
+//	AURALINK_SNAPSHOTS=/tmp/shots go test -run TestTranscribeFullPage .
+func TestTranscribeFullPage(t *testing.T) {
+	out := os.Getenv("AURALINK_SNAPSHOTS")
+	if out == "" {
+		t.Skip("set AURALINK_SNAPSHOTS to a directory")
+	}
+	os.MkdirAll(out, 0o755)
+	w, _ := snapshotSize()
+	for _, dark := range []bool{false, true} {
+		a, tt := trTester(t)
+		tt.SetSize(w, 2600)
+		tt.SetDark(dark)
+		a.updateSettings(func(s *settings.Settings) {
+			s.Features.Transcribe.Hotkeys = append(s.Features.Transcribe.Hotkeys, settings.Hotkey{Keys: "Fn+Shift", Trigger: settings.TriggerDouble}, settings.Hotkey{Keys: "K"})
+		})
+		frames(tt)
+		a.trRows[1].custom = true
+		a.trPreview = true
+		a.sessionChanged(trySnapshot(a, session.Done))
+		frames(tt)
+		name := "page-transcribe-full-light.png"
+		if dark {
+			name = "page-transcribe-full-dark.png"
+		}
+		f, err := os.Create(filepath.Join(out, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		png.Encode(f, tt.Image())
+		f.Close()
+	}
+}

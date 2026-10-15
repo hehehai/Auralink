@@ -87,6 +87,7 @@ func TestSnapshots(t *testing.T) {
 			save("page-" + name)
 		}
 		snapshotHistoryDetail(a, save) // history_page_test.go
+		transcribeShots(a, tt, save) // the Try area's states (transcribe_page_test.go)
 		// The settings dialog, section by section.
 		for _, s := range settingsSections() {
 			a.navigate("/settings/" + s.id)
