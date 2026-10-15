@@ -40,7 +40,7 @@ func (r *run) write(raw, selection string) {
 	snap := r.m.Current()
 	in := compose.Input{
 		MainLanguage: MainLanguage(r.settings, cfg.Locale()), OtherLanguages: r.settings.General.OtherLanguages,
-		Glossary: r.glossary(),
+		Glossary: r.glossary(), Scene: r.composeScene(), // the group decides whether it applies to the feature (appctx)
 	}
 	var o finishOpts
 	answer := false // a JSON answer {title, content}

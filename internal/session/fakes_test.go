@@ -296,8 +296,9 @@ type fakeText struct {
 	focus proto.FocusResult
 	err   error
 
-	mu     sync.Mutex
-	pasted []string
+	mu      sync.Mutex
+	pasted  []string
+	presses [][]proto.KeyPress
 }
 
 func (f *fakeText) Focus(context.Context) (proto.FocusResult, error) { return f.focus, f.err }
@@ -306,6 +307,7 @@ func (f *fakeText) Paste(_ context.Context, p proto.PasteParams) (proto.PasteRes
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.pasted = append(f.pasted, p.Text)
+	f.presses = append(f.presses, p.Press)
 	return proto.PasteResult{Posted: true, Restored: true}, nil
 }
 

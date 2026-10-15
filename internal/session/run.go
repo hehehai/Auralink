@@ -43,6 +43,7 @@ type run struct {
 	// holds them.
 	svcDone  chan svcResult
 	resolved bool
+	sc       sceneState // app enhancement (scene.go)
 }
 
 type capResult struct {
@@ -596,6 +597,7 @@ func (r *run) compose(raw string) (string, string, error) {
 		Task: compose.Transcribe, Cleanup: f.Cleanup, Structure: f.Structure, TaskPrompt: f.Prompt,
 		MainLanguage: MainLanguage(r.settings, r.m.cfg.Locale()), OtherLanguages: r.settings.General.OtherLanguages, Text: raw,
 		Glossary: r.glossary(),
+		Scene: r.composeScene(),
 	}
 	out, err := compose.Build(in)
 	if err != nil {
@@ -652,8 +654,9 @@ func (r *run) finish(st State, problem *Problem, result string, o finishOpts) {
 		r.m.update(r, func(s *Snapshot) { s.Result, s.Card = result, true })
 	default:
 		r.m.update(r, func(s *Snapshot) { s.State, s.Result = Delivering, result })
+		press := r.press(o.needEditable) // app enhancement's auto key
 		ctx, cancel := context.WithTimeout(context.Background(), cfg.DeliverTime)
-		dres = deliver.Insert(ctx, cfg.Text, deliver.Request{Text: result, Target: r.req.Target, Self: cfg.Self, Activate: cfg.Activate, NeedEditable: o.needEditable})
+		dres = deliver.Insert(ctx, cfg.Text, deliver.Request{Text: result, Target: r.req.Target, Press: press, Self: cfg.Self, Activate: cfg.Activate, NeedEditable: o.needEditable})
 		cancel()
 		if dres.Err != nil {
 			r.logf("warning", "insert: %v", dres.Err)
@@ -753,6 +756,12 @@ func (r *run) keep(s Snapshot, status store.Status) {
 	}
 	if r.req.Text != nil || s.Timings.Audio == 0 {
 		e.ASRProvider, e.ASRModel = "", "" // nothing was recognised
+	}
+	if m, ok := r.knownScene(); ok {
+		e.URLHost = m.Host
+		if m.Matched() {
+			e.RuleID, e.RuleName, e.RuleSource = m.Group.ID, m.Group.Name, string(m.Source)
+		}
 	}
 	switch {
 	case s.Inserted:

@@ -31,7 +31,8 @@
 // language services (Resolver), the history and the dictionary (store),
 // the clock. Tests drive the whole machine on Linux with fakes.
 //
-// Imports: asr, compose, core, deliver, llm, settings, store, helper/proto, lang.
+// Imports: appctx, asr, compose, core, deliver, dict, llm, settings, store,
+// helper/proto, lang.
 package session
 
 import (
@@ -41,6 +42,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hehehai/Auralink/internal/appctx"
 	"github.com/hehehai/Auralink/internal/asr"
 	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/deliver"
@@ -181,6 +183,9 @@ type Snapshot struct {
 	Inserted bool
 	Card     bool
 	Delivery deliver.Reason
+	// Scene is the app enhancement group the session falls in (scene.go);
+	// nil until it is decided.
+	Scene *appctx.Match
 	// Profile is the composition's ("transcribe:cleanup+structure").
 	Profile  string
 	ASR, LLM Model
@@ -271,6 +276,8 @@ type Config struct {
 	// language, for a main language left to follow it.
 	Settings func() settings.Settings
 	Locale   func() string
+	// Scene is app enhancement (nil: none).
+	Scene *SceneConfig
 	// Self is Auralink's pid and Activate brings an app back to the front
 	// (deliver.Request).
 	Self     int
@@ -459,6 +466,7 @@ func (m *Manager) Start(req StartRequest) (string, error) {
 	s := m.snap.clone()
 	m.mu.Unlock()
 	m.publish(s)
+	r.startScene()
 	go r.main()
 	return r.id, nil
 }
@@ -545,6 +553,10 @@ func (s Snapshot) clone() Snapshot {
 	if s.Problem != nil {
 		p := *s.Problem
 		s.Problem = &p
+	}
+	if s.Scene != nil {
+		m := cloneMatch(*s.Scene)
+		s.Scene = &m
 	}
 	return s
 }

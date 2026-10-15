@@ -15,7 +15,8 @@ import (
 	"github.com/hehehai/Auralink/internal/store"
 )
 
-// historyRepo stores finished sessions (migration 001's history table).
+// historyRepo stores finished sessions (the history table: migration 001,
+// rule_source 002).
 type historyRepo struct {
 	db  *sqlite.DB
 	dir string
@@ -26,7 +27,7 @@ func (r *historyRepo) AudioDir() string { return r.dir }
 // historyColumns are the columns an Entry has, in scanEntry's order.
 const historyColumns = `id, kind, created_at, status, error, app_bundle, app_name, url_host, rule_id, rule_name,
 raw_text, source_text, prompt_text, result, target_lang, delivery, asr_provider, asr_model, llm_provider, llm_model,
-audio_ms, asr_ms, llm_ms, total_ms, audio`
+audio_ms, asr_ms, llm_ms, total_ms, audio, rule_source`
 
 var historyUpsert = func() string {
 	cols := strings.Split(strings.ReplaceAll(historyColumns, "\n", " "), ",")
@@ -57,7 +58,7 @@ func (r *historyRepo) Put(ctx context.Context, e store.Entry) error {
 	_, err := r.db.Execute(ctx, historyUpsert,
 		e.ID, string(e.Kind), e.CreatedAt.UnixMilli(), string(e.Status), e.Error, e.AppBundle, e.AppName, e.URLHost, e.RuleID, e.RuleName,
 		e.RawText, e.SourceText, e.PromptText, e.Result, e.TargetLang, e.Delivery, e.ASRProvider, e.ASRModel, e.LLMProvider, e.LLMModel,
-		e.AudioMS, e.ASRMS, e.LLMMS, e.TotalMS, e.Audio)
+		e.AudioMS, e.ASRMS, e.LLMMS, e.TotalMS, e.Audio, e.RuleSource)
 	return wrap("history "+e.ID, err)
 }
 
@@ -69,6 +70,7 @@ func scanEntry(row []any) store.Entry {
 		RawText: str(10), SourceText: str(11), PromptText: str(12), Result: str(13), TargetLang: str(14), Delivery: str(15),
 		ASRProvider: str(16), ASRModel: str(17), LLMProvider: str(18), LLMModel: str(19),
 		AudioMS: asInt(row[20]), ASRMS: asInt(row[21]), LLMMS: asInt(row[22]), TotalMS: asInt(row[23]), Audio: str(24),
+		RuleSource: str(25),
 	}
 }
 

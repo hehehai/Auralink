@@ -78,6 +78,9 @@ type Entry struct {
 	URLHost   string
 	RuleID    string
 	RuleName  string // as it was named then
+	// RuleSource is how the group matched: "url", "browserApp" or "app"
+	// (appctx.Source); "" for none.
+	RuleSource string
 
 	// RawText is the recognised speech; SourceText the selected text
 	// (translate, rewrite); PromptText the spoken instruction (rewrite);

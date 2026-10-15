@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -82,26 +83,27 @@ func TestBackupBeforeMigrating(t *testing.T) {
 	}
 	s.Close()
 
-	// A second migration: the file is copied first.
-	migrations = append(slices.Clone(saved), migration{version: 2, statements: []string{"CREATE TABLE extra (x)"}})
+	// One more migration: the file is copied first.
+	cur := len(saved)
+	migrations = append(slices.Clone(saved), migration{version: cur + 1, statements: []string{"CREATE TABLE extra (x)"}})
 	s = openTest(t, dir)
-	if v, _ := userVersion(ctx, s.db); v != 2 {
+	if v, _ := userVersion(ctx, s.db); v != cur+1 {
 		t.Fatalf("user_version %d", v)
 	}
-	bak := filepath.Join(dir, FileName+".bak-1")
+	bak := filepath.Join(dir, FileName+".bak-"+strconv.Itoa(cur))
 	if _, err := os.Stat(bak); err != nil {
 		t.Fatal(err)
 	}
 	s.Close()
 
-	// The backup is the version-1 database, with its data.
+	// The backup is the database as it was, with its data.
 	migrations = saved
 	old := t.TempDir()
 	if err := copyFile(bak, filepath.Join(old, FileName)); err != nil {
 		t.Fatal(err)
 	}
 	b := openTest(t, old)
-	if v, _ := userVersion(ctx, b.db); v != 1 {
+	if v, _ := userVersion(ctx, b.db); v != cur {
 		t.Errorf("backup version %d", v)
 	}
 	if doc, ok, _ := b.Documents().Get(ctx, "k"); !ok || string(doc) != `{"v":1}` {
@@ -114,7 +116,7 @@ func TestBackupBeforeMigrating(t *testing.T) {
 	}
 
 	// A failing migration rolls back and leaves the version as it was.
-	migrations = append(slices.Clone(saved), migration{version: 2, statements: []string{"CREATE TABLE ok (x)", "NOT SQL"}})
+	migrations = append(slices.Clone(saved), migration{version: cur + 1, statements: []string{"CREATE TABLE ok (x)", "NOT SQL"}})
 	fresh := t.TempDir()
 	if _, err := Open(ctx, fresh); err == nil {
 		t.Fatal("bad migration succeeded")
@@ -124,7 +126,7 @@ func TestBackupBeforeMigrating(t *testing.T) {
 	if rows, _ := s.db.Query(ctx, "SELECT name FROM sqlite_master WHERE name = 'ok'"); len(rows.Values) != 0 {
 		t.Error("partial migration kept")
 	}
-	if v, _ := userVersion(ctx, s.db); v != 1 {
+	if v, _ := userVersion(ctx, s.db); v != cur {
 		t.Errorf("version after failed migration %d", v)
 	}
 }
@@ -153,7 +155,7 @@ func TestDocuments(t *testing.T) {
 
 func entry(id string, kind store.Kind, at time.Time, raw, result string) store.Entry {
 	return store.Entry{ID: id, Kind: kind, CreatedAt: at, RawText: raw, Result: result, AppBundle: "com.tinyspeck.slackmacgap",
-		AppName: "Slack", RuleID: "g1", RuleName: "工作沟通", ASRProvider: "doubao", ASRModel: "volc.seedasr.sauc.duration",
+		AppName: "Slack", RuleID: "g1", RuleName: "工作沟通", RuleSource: "app", ASRProvider: "doubao", ASRModel: "volc.seedasr.sauc.duration",
 		LLMProvider: "deepseek", LLMModel: "deepseek-chat", AudioMS: 4200, ASRMS: 310, LLMMS: 820, TotalMS: 5400, Delivery: "insert"}
 }
 
