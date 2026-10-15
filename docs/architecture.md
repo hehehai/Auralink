@@ -211,7 +211,7 @@ Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services,
 | All Go tests | `CGO_ENABLED=0 go test ./...` | Views in `ui.Tester` with a fake supervisor in process; the real supervisor against the fake helper process; protocol fixtures; the store over real SQLite (the plugin's library is downloaded and checked once, or `MYGO_SQLITE_LIBRARY`); i18n key parity |
 | MyGo vet | `go tool mygo vet .` | `go vet ./...` and the UI-lifetime checks |
 | Race | `CGO_ENABLED=1 go test -race ./...` | needs cgo |
-| Snapshots | `AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .` | every page, the settings sections and the overlays, light/dark, en/zh-Hans, 2×; the window's default size (880×580); `AURALINK_SNAPSHOTS_SIZE=720x480` for the smallest |
+| Snapshots | `AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .` | every page, the settings sections and the overlays, light/dark, en/zh-Hans, 2×; the window's default size (880×580); `AURALINK_SNAPSHOTS_SIZE=720x480` for the smallest; `scripts/readme-images.sh` copies the README's images from them |
 | Swift helper | `scripts/mac.sh 'cd helper && swift test'` | the wire types against helper/Fixtures (the same lines the Go tests decode), the hotkey recognizer, the PCM framer; CI runs it on macOS (the `helper` job, with the release build and `go test ./internal/helper/...`) |
 | Mac checks | `scripts/mac.sh 'AURALINK_MAC=1 go test -run "TestMacKeychain|TestNative|TestActivate" -v ./internal/secrets ./internal/permission ./internal/macx'` | the Keychain, the permission calls, activation |
 | Packaged app | `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'` | the helper, then the app; signing during development: README |
