@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/hehehai/Auralink/internal/asr"
 	"github.com/hehehai/Auralink/internal/asr/asrtest"
 	"github.com/hehehai/Auralink/internal/helper"
 	"github.com/hehehai/Auralink/internal/helper/helpertest"
@@ -440,5 +441,107 @@ func TestSessionLongPress(t *testing.T) {
 	a.pump("the end", func() bool { return a.sess.State.Ended() })
 	if a.sess.State != session.Done || a.sess.Result != "held" || a.sess.Timings.Audio < 300*time.Millisecond {
 		t.Errorf("end %+v", a.sess)
+	}
+}
+
+// wavAudio plays a WAV file as the microphone, in real time, then stops
+// by itself.
+type wavAudio struct{ pcm []byte }
+
+func (w wavAudio) Record(ctx context.Context, id string, p proto.CaptureParams, fn func(session.AudioEvent)) (proto.CaptureResult, error) {
+	fn(session.AudioEvent{Started: &proto.CaptureStartedParams{Job: id, DeviceName: "sample"}})
+	frames := asr.Frames(w.pcm, 100*time.Millisecond, asr.SampleRate)
+	t := time.NewTicker(100 * time.Millisecond)
+	defer t.Stop()
+	for i, f := range frames {
+		select {
+		case <-ctx.Done():
+			return proto.CaptureResult{}, &proto.Error{Code: proto.CodeCancelled}
+		case <-t.C:
+		}
+		fn(session.AudioEvent{PCM: &proto.PCMParams{Job: id, Seq: i, Data: f}})
+	}
+	return proto.CaptureResult{Reason: proto.CaptureMaxSeconds, Frames: len(frames)}, nil
+}
+
+func (wavAudio) Stop(context.Context, string) error { return nil }
+
+// pasteText takes every paste.
+type pasteText struct {
+	mu   sync.Mutex
+	text []string
+}
+
+func (p *pasteText) Focus(context.Context) (proto.FocusResult, error) {
+	return proto.FocusResult{PID: 812, Role: "AXTextArea", Editable: true}, nil
+}
+
+func (p *pasteText) Paste(_ context.Context, pp proto.PasteParams) (proto.PasteResult, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.text = append(p.text, pp.Text)
+	return proto.PasteResult{Posted: true}, nil
+}
+
+// TestE2ESessionReal runs the speech sample through each real speech
+// service the developer has a key for, and DeepSeek, with the app's
+// resolver (AURALINK_E2E=1; keys from ~/.config/auralink-dev/keys.env).
+func TestE2ESessionReal(t *testing.T) {
+	asrtest.E2E(t)
+	data, err := os.ReadFile(asrtest.SamplePath())
+	if err != nil {
+		t.Skipf("no speech sample: %v", err)
+	}
+	pcm, rate, ch, err := asr.ReadWAV(data)
+	if err != nil || rate != asr.SampleRate || ch != 1 {
+		t.Fatalf("sample: %d Hz %d ch %v", rate, ch, err)
+	}
+	llmKey := asrtest.Key(t, "DEEPSEEK_API_KEY")
+	for _, tc := range []struct {
+		id, keyName, appIDName string
+	}{
+		{"doubao", "DOUBAO_ACCESS_TOKEN", "DOUBAO_APP_ID"},
+		{"aliyun", "DASHSCOPE_API_KEY", ""},
+		{"openai", "OPENAI_API_KEY", ""},
+	} {
+		t.Run(tc.id, func(t *testing.T) {
+			key := asrtest.Key(t, tc.keyName)
+			s := settings.Defaults()
+			prov := settings.Provider{ID: tc.id, Enabled: true}
+			if tc.appIDName != "" {
+				prov.AppID = asrtest.Key(t, tc.appIDName)
+			}
+			s.Providers.ASR = []settings.Provider{prov}
+			s.Providers.LLM = []settings.Provider{{ID: "deepseek", Enabled: true}}
+			s.General.MainLanguage = "zh"
+			kr := &memKeyring{m: map[string]string{"asr." + tc.id: key, "llm.deepseek": llmKey}}
+			text := &pasteText{}
+			ended := make(chan session.Snapshot, 4)
+			m := session.New(session.Config{
+				Audio: wavAudio{pcm: pcm}, Text: text, Resolve: resolver(kr),
+				Settings: func() settings.Settings { return s },
+				OnChange: func(sn session.Snapshot) {
+					if sn.State.Ended() {
+						ended <- sn
+					}
+				},
+				Log:        func(level, msg string) { t.Log(level, msg) },
+				LLMTimeout: 20 * time.Second,
+			})
+			if _, err := m.Start(session.StartRequest{Kind: store.KindTranscribe, Target: slackApp}); err != nil {
+				t.Fatal(err)
+			}
+			var end session.Snapshot
+			select {
+			case end = <-ended:
+			case <-time.After(90 * time.Second):
+				t.Fatal("no end")
+			}
+			if end.State != session.Done || end.Result == "" || !end.Inserted {
+				t.Fatalf("end %s %+v", end.State, end.Problem)
+			}
+			t.Logf("%s → %q; %s → %q (asr %v, llm %v)", end.ASR.Model, end.Raw, end.LLM.Model, end.Result,
+				end.Timings.ASR.Round(time.Millisecond), end.Timings.LLM.Round(time.Millisecond))
+		})
 	}
 }
