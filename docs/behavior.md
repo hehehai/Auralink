@@ -53,6 +53,7 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | 3.17 | LLM 预设含 Ollama、LM Studio、oMLX 等本地服务 | 不提供本地预设；`custom`（OpenAI 兼容）可以指向本机地址 | 产品范围不做本地模型（RULES） | ✅ |
 | 3.18 | MiniMax 用原生 `chatcompletion_v2` 接口 | 用它的 OpenAI 兼容接口 `api.minimaxi.com/v1`，输出里的 `<think>` 由 Client 去掉 | 和其他 provider 共用一个 transport | ◐ 等真实 Key 验证 |
 | 3.19 | 每个 provider 的配置页各不相同 | 模型服务页：ASR / LLM 两个 tab，“各功能使用”选择器，服务卡片（状态点、默认模型、Key 掩码、测试），点卡片打开同一种配置对话框（Key、Endpoint、模型下拉 + 自定义、ASR 提示词） | 一种界面覆盖所有 provider | ✅ |
+| 3.20 | 阶跃星辰 ASR 走 SSE（stepaudio-2.5-asr）或 WebSocket（step-asr-1.1-stream），各写一套协议 | 内置“StepFun”语音服务：它的 `/v1/audio/transcriptions` 与 OpenAI 兼容，复用 `internal/asr/openai`，默认 `step-asr`（10-15 用真实 Key 验证：10.5 s 样本 5–12 s 返回，接受 `prompt` 字段） | 少一套协议；上传式对短句足够 | ✅ |
 
 ## 4. 辅助进程（helper，Swift）
 

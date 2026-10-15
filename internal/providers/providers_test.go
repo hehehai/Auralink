@@ -38,7 +38,7 @@ func TestPresets(t *testing.T) {
 			t.Errorf("ASR preset %+v", p)
 		}
 	}
-	if strings.Join(ids, ",") != "doubao,aliyun,openai" {
+	if strings.Join(ids, ",") != "doubao,aliyun,stepfun,openai" {
 		t.Errorf("ASR order %v", ids)
 	}
 	llms := Presets(LLM)
@@ -53,6 +53,14 @@ func TestPresets(t *testing.T) {
 	}
 	if p, _ := LookupPreset(ASR, "openai"); !p.Prompt || p.Mode != ModeFile {
 		t.Errorf("openai %+v", p)
+	}
+	if p, _ := LookupPreset(ASR, StepFunASR); p.Mode != ModeFile || p.Model != "step-asr" || p.Endpoint != stepFunEndpoint {
+		t.Errorf("stepfun %+v", p)
+	}
+	if c, err := NewASR(settings.Provider{ID: StepFunASR, Enabled: true}, Env{Key: "k"}); err != nil {
+		t.Errorf("stepfun client: %v", err)
+	} else if _, ok := c.(*openai.Client); !ok {
+		t.Errorf("stepfun client %T", c)
 	}
 	if Account(ASR, "doubao") != "asr.doubao" || Account(LLM, "deepseek") != "llm.deepseek" {
 		t.Error("accounts")

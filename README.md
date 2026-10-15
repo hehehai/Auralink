@@ -37,6 +37,7 @@ Bring a key for at least one speech service; a language model is needed for the 
 |---|---|
 | Doubao (Volcengine big-model streaming ASR) | DeepSeek · Qwen (Alibaba Cloud Model Studio, China and international) · Volcengine Ark (Doubao) · Moonshot (Kimi) · Zhipu GLM · MiniMax · StepFun · Xiaomi MiMo · SiliconFlow |
 | Alibaba Cloud Model Studio (Fun-ASR, Paraformer, Qwen3-ASR realtime) | OpenAI · Anthropic · Gemini · OpenRouter · Groq · xAI · Mistral · Together · Fireworks · Cerebras · NVIDIA |
+| StepFun (step-asr) | |
 | Any OpenAI-compatible transcription API (OpenAI, Groq, SiliconFlow…) | Any OpenAI-compatible endpoint |
 
 Keys live in the macOS Keychain. Model services shows which service each feature uses, and tests each connection.

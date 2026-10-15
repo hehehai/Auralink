@@ -34,6 +34,14 @@ func NewASR(p settings.Provider, env Env) (asr.Provider, error) {
 	switch pr.ID {
 	case openai.ID:
 		return openai.New(cfg)
+	case StepFunASR:
+		if cfg.Endpoint == "" {
+			cfg.Endpoint = pr.Endpoint
+		}
+		if cfg.Model == "" {
+			cfg.Model = pr.Model
+		}
+		return openai.New(cfg)
 	case doubao.ID:
 		return doubao.New(cfg)
 	case aliyun.ID:

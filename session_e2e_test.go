@@ -530,6 +530,7 @@ func TestE2ESessionReal(t *testing.T) {
 		{"doubao", "DOUBAO_ACCESS_TOKEN", "DOUBAO_APP_ID"},
 		{"aliyun", "DASHSCOPE_API_KEY", ""},
 		{"openai", "OPENAI_API_KEY", ""},
+		{"stepfun", "STEPFUN_API_KEY", ""},
 	} {
 		t.Run(tc.id, func(t *testing.T) {
 			key := asrtest.Key(t, tc.keyName)

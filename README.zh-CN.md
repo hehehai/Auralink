@@ -37,6 +37,7 @@ Auralink 0.1 需要 **macOS 15 及以上、Apple 芯片的 Mac**。
 |---|---|
 | 豆包（火山引擎大模型流式语音识别） | DeepSeek · 通义千问（阿里云百炼，国内和国际站）· 火山方舟（豆包）· 月之暗面（Kimi）· 智谱 GLM · MiniMax · 阶跃星辰 · 小米 MiMo · 硅基流动 |
 | 阿里云百炼（Fun-ASR、Paraformer、Qwen3-ASR 实时） | OpenAI · Anthropic · Gemini · OpenRouter · Groq · xAI · Mistral · Together · Fireworks · Cerebras · NVIDIA |
+| 阶跃星辰（step-asr） | |
 | 任意 OpenAI 兼容的转写接口（OpenAI、Groq、硅基流动等） | 任意 OpenAI 兼容的接口 |
 
 Key 保存在 macOS 钥匙串里。“模型服务”页显示每个功能使用哪个服务，并可以逐个测试连接。

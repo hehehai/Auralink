@@ -72,10 +72,22 @@ var asrPresets = []Preset{
 	{Kind: ASR, ID: aliyun.ID, Name: "Alibaba Cloud Model Studio", Mode: ModeStream, Endpoint: aliyun.InferenceEndpoint,
 		Model: aliyun.DefaultModel, Models: aliyun.Models, Hints: true,
 		KeyURL: "https://bailian.console.aliyun.com/?tab=model#/api-key", Docs: "https://help.aliyun.com/zh/model-studio/real-time-speech-recognition"},
+	// StepFun's transcriptions are OpenAI-compatible (multipart, Bearer):
+	// the openai client with StepFun's endpoint and model. Checked by hand
+	// on 2026-10-15 with step-asr; no prompt (not documented there).
+	{Kind: ASR, ID: StepFunASR, Name: "StepFun", Mode: ModeFile, Endpoint: stepFunEndpoint,
+		Model: "step-asr", Models: []string{"step-asr", "step-asr-1.1"},
+		KeyURL: "https://platform.stepfun.com/interface-key", Docs: "https://platform.stepfun.com/docs/"},
 	{Kind: ASR, ID: openai.ID, Name: "OpenAI-compatible", Mode: ModeFile, Endpoint: openai.DefaultEndpoint,
 		Model: openai.DefaultModel, Models: openai.Models, Prompt: true,
 		KeyURL: "https://platform.openai.com/api-keys", Docs: "https://platform.openai.com/docs/api-reference/audio/createTranscription"},
 }
+
+// StepFunASR is StepFun's speech service: OpenAI-compatible uploads.
+const (
+	StepFunASR      = "stepfun"
+	stepFunEndpoint = "https://api.stepfun.com/v1/audio/transcriptions"
+)
 
 // Presets returns kind's presets in the page's order (a copy).
 func Presets(kind Kind) []Preset {

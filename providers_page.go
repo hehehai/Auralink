@@ -540,7 +540,7 @@ func (a *app) providerDialogView(c *ui.Context) {
 		ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Wrap().Children(func() {
 			what := i18n.T("Your recordings are sent to %s to be recognised.", name)
 			switch {
-			case d.kind == providers.ASR && pr.Mode == providers.ModeFile:
+			case d.kind == providers.ASR && pr.Mode == providers.ModeFile && pr.ID != providers.StepFunASR:
 				what = i18n.T("Your recordings are sent to the service at the endpoint below to be recognised.")
 			case d.kind == providers.LLM && pr.Custom:
 				what = i18n.T("Recognised and selected text is sent to the service at the endpoint below.")
@@ -582,7 +582,7 @@ func (a *app) providerDialogView(c *ui.Context) {
 			}
 		})
 		epInfo := i18n.T("Leave empty for the service's own. Only https:// (wss:// for streaming) addresses, or http:// to this Mac.")
-		if d.kind == providers.ASR && pr.Mode == providers.ModeFile {
+		if d.kind == providers.ASR && pr.Mode == providers.ModeFile && pr.ID != providers.StepFunASR {
 			epInfo = i18n.T("Any OpenAI-compatible transcription address (Groq, SiliconFlow…), or its API root ending in /v1. Only https://, or http:// to this Mac.")
 		}
 		fieldInfo(c, i18n.T("Endpoint"), epInfo, func() {
