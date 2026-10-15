@@ -12,7 +12,7 @@
 
 ## Status
 
-**Pre-alpha.** The skeleton (M1), the remote model layer (M2) and the Swift helper work: the window, the settings, the store, the model services and permissions pages, and the helper (recording, shortcuts, text in and out of other apps, browser addresses) with its protocol and supervisor; the features themselves do not yet. There is no release.
+**Pre-alpha.** The skeleton (M1), the remote model layer (M2) and the Swift helper work: the window, the settings, the store, the model services page, the permissions in Settings, and the helper (recording, shortcuts, text in and out of other apps, browser addresses) with its protocol and supervisor; the features themselves do not yet. There is no release.
 
 Auralink is a rewrite of what [Voxt](https://github.com/hehehai/voxt) does, with remote models only, on the engineering and UI of [AudioSmith](https://github.com/hehehai/AudioSmith) (Go + [MyGo](https://github.com/egoist/mygo), no cgo). See [docs/architecture.md](docs/architecture.md) and [docs/behavior.md](docs/behavior.md).
 

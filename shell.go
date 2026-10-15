@@ -31,6 +31,16 @@ import (
 	"github.com/hehehai/Auralink/internal/settings"
 )
 
+// The main window's size, DIPs: by default and at the least. A size the
+// window remembers (StateKey "main") wins over the default, so a window
+// left larger by an older version keeps its size.
+const (
+	windowWidth     = 880
+	windowHeight    = 580
+	windowMinWidth  = 720
+	windowMinHeight = 480
+)
+
 const (
 	titleBarHeight  = 52
 	sidebarWidth    = 200
@@ -180,7 +190,6 @@ var navGroups = []navGroup{
 		{"/dictionary", "Dictionary", dictionaryIcon},
 	}},
 	{"System", []navPage{
-		{"/permissions", "Permissions", permissionsIcon},
 		{"/logs", "Logs", logsIcon},
 	}},
 }
@@ -245,8 +254,6 @@ func pageTitle(path string) string {
 		return i18n.T("Model services")
 	case "/dictionary":
 		return i18n.T("Dictionary")
-	case "/permissions":
-		return i18n.T("Permissions")
 	case "/logs":
 		return i18n.T("Logs")
 	case "/settings":
@@ -255,11 +262,20 @@ func pageTitle(path string) string {
 	return path
 }
 
+// movedPaths are pages that moved, and where they are now: links,
+// notifications and old settings may still name them.
+var movedPaths = map[string]string{
+	"/permissions": "/settings/permissions", // a page of the sidebar until 10-2026
+}
+
 // navigate goes to a router path ("/models"); it does nothing when that
 // page shows already. "/settings/general" opens the settings dialog at
 // that section, over the page, and "/settings" at the section shown last;
 // any other path closes it.
 func (a *app) navigate(path string) {
+	if to, ok := movedPaths[path]; ok {
+		path = to
+	}
 	if path == "/settings" || path == "/settings/" {
 		path = "/settings/" + a.lastSettings
 	}
@@ -301,10 +317,10 @@ func (a *app) openWindow() {
 	a.buildMenu()
 	a.win = mygo.NewWindow(mygo.WindowOptions{
 		Title:          "Auralink",
-		Width:          1100,
-		Height:         720,
-		MinWidth:       820,
-		MinHeight:      520,
+		Width:          windowWidth,
+		Height:         windowHeight,
+		MinWidth:       windowMinWidth,
+		MinHeight:      windowMinHeight,
 		StateKey:       "main",
 		TitleBarStyle:  mygo.TitleBarHiddenInset,
 		TitleBarHeight: titleBarHeight,

@@ -183,10 +183,7 @@ func TestSnapshotsProviders(t *testing.T) {
 		t.Skip("set AURALINK_SNAPSHOTS to a directory")
 	}
 	os.MkdirAll(out, 0o755)
-	w, h := 1100, 720
-	if os.Getenv("AURALINK_SNAPSHOTS_SIZE") == "820x520" {
-		w, h = 820, 520
-	}
+	w, h := snapshotSize()
 	for _, run := range []struct {
 		lang string
 		dark bool

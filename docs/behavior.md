@@ -27,7 +27,8 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | 2.2 | 录音、热键、粘贴都在 app 主进程里 | 录音、事件 tap、AppleScript 放在 Swift helper 子进程；Go 进程负责 UI、业务和网络 | MyGo 不能录音；事件 tap 的回调必须同步决定是否吞键；helper 崩溃不会带走 UI（方案 §4.1） | ✅ helper（`helper/`，Swift）和协议 1（`docs/helper-protocol.md`）已完成：录音、热键、textio、前台 App、浏览器 URL、权限 |
 | 2.3 | 历史存在自己的数据库（`Core/VoxtDatabase.swift`） | SQLite（MyGo 插件）迁移 001：`history`（带 trigram FTS，覆盖原文、选中文本、口述指令、结果）、`dictionary_terms`、`documents`；迁移前自动备份，拒绝打开更新版本 app 的数据库 | 中文子串搜索可用；数据可以整体搬家（设置 → 存储） | ✅ |
 | 2.4 | API Key 存在钥匙串 | 钥匙串 service "Auralink"，账号 `asr.<id>`、`llm.<id>`（`internal/secrets`） | 同样的做法 | ✅ |
-| 2.5 | 权限说明分散在 onboarding 和各设置页 | 侧边栏有独立的“权限”页：麦克风、辅助功能、每个浏览器的自动化权限，各自说明用途并提供授权入口 | 应用增强需要按浏览器授权，集中在一处更好排查 | ✅ 状态和授权都走 helper（`permissions.*`、`automation.*`）；helper 没起来时麦克风和辅助功能由 app 自己读 |
+| 2.5 | 权限说明分散在 onboarding 和各设置页 | 权限是设置对话框里的一节（设置 → 权限，在“通用”之后，`/settings/permissions`）：只有麦克风和辅助功能两行，各自说明用途并提供授权入口；首页“检查权限”、⌘K、深链 `auralink://permissions` 和旧路径 `/permissions` 都打开这一节（`permissions.go`、`shell.go` 的 `movedPaths`） | 只剩两项权限，看一次就走，不值得占侧边栏的位置；浏览器网址只用辅助功能（AX）读，不需要浏览器自动化授权（用户 10-15 决定） | ✅ 状态和授权都走 helper（`permissions.*`）；helper 没起来时由 app 自己读。helper 里的 `automation.*` 和 AppleScript 由 M5 删除 |
+| 2.6 | 主窗口 820×560 | 主窗口默认 880×580，最小 720×480（`shell.go`）；窗口记住的尺寸优先，旧版本留下的大窗口不会被缩小；最小尺寸下侧边栏列表滚动，设置对话框左栏至少 240 宽，快捷键表可滚动 | 和 Voxt 相近的小窗口，比 AudioSmith 的 1100×720 更适合常驻的输入工具 | ✅ |
 
 ## 3. 远程模型（M2）
 
@@ -65,7 +66,7 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | 4.4 | Electron App 不做特殊处理 | App 切到前台时，helper 给 Electron App 设置 `AXManualAccessibility`，热键按下时 AX 树已经建好 | Chromium 只有被要求时才建 AX 树，而且要过一会儿才生效（spike S4：Cursor 第一次读为空） | ✅ |
 | 4.5 | 粘贴：写剪贴板、⌘V，按 changeCount 判断后恢复（`PasteboardTextWriter`） | 同样按 changeCount 只恢复自己写的内容；另外保存全部 item 和类型，写入时带 `org.nspasteboard.TransientType`，剪贴板管理器不记录；`targetPid` 不在前台就不粘贴；粘贴后可以按任意键（`press`） | 剪贴板里的图片、文件不会因为恢复而丢掉；不会粘贴到别的窗口 | ✅ |
 | 4.6 | 读 URL：直接跑 AppleScript，失败（-1743）后 5 分钟内不再尝试，再退回 AX（`BrowserContextResolver`）；每次都重新编译脚本 | 先不弹窗地探测自动化状态，只有 `granted` 才跑 AppleScript，否则直接用 AX；编译好的脚本缓存起来；浏览器切到前台时刷新状态 | 未授权时跑 AppleScript 会在用户不知情时弹窗；编译每次多 50–500 ms（spike S5） | ✅ |
-| 4.7 | 浏览器授权：权限设置页请求；浏览器没开时直接失败（`PermissionsSettingsView.requestBrowserAutomationPermission`，appNotRunning） | 权限页的“请求授权”在浏览器没开时先在后台打开它再请求 | macOS 只对正在运行的 App 弹授权窗（spike S5：-600） | ✅ |
+| 4.7 | 浏览器授权：权限设置页请求；浏览器没开时直接失败（`PermissionsSettingsView.requestBrowserAutomationPermission`，appNotRunning） | 不请求浏览器自动化授权：设置 → 权限里没有浏览器一栏 | 网址只用 AX 读，4.6 的 AppleScript 路径由 M5 一并删除；用户不必为每个浏览器授权（用户 10-15 决定） | ◐ UI 已删除；helper 的 `automation.request` 由 M5 删除 |
 | 4.8 | 浮窗是普通窗口，插入前重新激活目标 App | 录音浮窗用 MyGo 补丁 0003 的 `NonActivating`：点击不激活 Auralink，目标 App 保持焦点；需要打字的窗口才走重新激活（`macx.Activate`） | spike S3：非激活 panel 7/7 生效；重新激活会让焦点闪一下 | ◐ 补丁和封装完成；浮窗 ○ M3 |
 
 ## 5. 待补（按里程碑）

@@ -265,16 +265,20 @@ func (a *app) shortcutSheet(c *ui.Context) {
 				{"Esc", i18n.T("Close a dialog or popover")},
 			}},
 		}
-		ui.Column(c).Gap(px(t, sp3)).Width(px(t, 440)).MaxWidth(px(t, 440)).Children(func() {
-			for _, g := range groups {
-				sectionTitle(c, g.title)
-				ui.Grid(c).ColumnTracks(ui.Fixed(px(t, 100)), ui.Fr(1)).GapX(px(t, sp3)).GapY(px(t, 6)).AlignItems(ui.Center).Children(func() {
-					for _, r := range g.rows {
-						ui.Row(c).Children(func() { kbd(c, r[0]) })
-						ui.Text(c, r[1])
-					}
-				})
-			}
+		// The list scrolls in a short window (720×480): Close stays in it.
+		_, h := c.Size()
+		ui.Scroll(c.Key("sheet-scroll")).MaxHeight(max(px(t, 160), h-px(t, 180))).Children(func() {
+			ui.Column(c).Gap(px(t, sp3)).Width(px(t, 440)).MaxWidth(px(t, 440)).Children(func() {
+				for _, g := range groups {
+					sectionTitle(c, g.title)
+					ui.Grid(c).ColumnTracks(ui.Fixed(px(t, 100)), ui.Fr(1)).GapX(px(t, sp3)).GapY(px(t, 6)).AlignItems(ui.Center).Children(func() {
+						for _, r := range g.rows {
+							ui.Row(c).Children(func() { kbd(c, r[0]) })
+							ui.Text(c, r[1])
+						}
+					})
+				}
+			})
 		})
 		ui.Row(c).Justify(ui.End).Children(func() {
 			if ui.Button(c.Key("sheet-close"), i18n.T("Close")).Clicked() {
@@ -369,6 +373,9 @@ func (a *app) openURL(raw string) {
 		path = "/" + u.Host + u.Path
 	}
 	path = "/" + strings.Trim(path, "/")
+	if to, ok := movedPaths[path]; ok {
+		path = to
+	}
 	switch sec := section(path); {
 	case slices.ContainsFunc(pages, func(p navPage) bool { return p.path == sec }): // every sidebar page
 		a.navigate(sec)

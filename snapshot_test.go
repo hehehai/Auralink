@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -22,17 +23,15 @@ import (
 //
 //	AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .
 //
-// AURALINK_SNAPSHOTS_SIZE=820x520 renders at the window's smallest size.
+// AURALINK_SNAPSHOTS_SIZE=720x480 renders at the window's smallest size
+// (snapshotSize).
 func TestSnapshots(t *testing.T) {
 	out := os.Getenv("AURALINK_SNAPSHOTS")
 	if out == "" {
 		t.Skip("set AURALINK_SNAPSHOTS to a directory")
 	}
 	os.MkdirAll(out, 0o755)
-	w, h := 1100, 720
-	if os.Getenv("AURALINK_SNAPSHOTS_SIZE") == "820x520" {
-		w, h = 820, 520
-	}
+	w, h := snapshotSize()
 	for _, run := range []struct {
 		lang string
 		dark bool
@@ -116,11 +115,22 @@ func TestSnapshots(t *testing.T) {
 		save("notifications")
 		a.noticesOpen, a.logsPanel = false, false
 		fs.set(helper.Status{State: helper.Failed, Reason: helper.FailMissing, Err: "auralink-helper was not found"})
-		a.navigate("/permissions")
+		a.navigate("/settings/permissions")
 		save("permissions-no-helper")
+		a.settingsOpen = false
 		a.setRail(true)
 		a.navigate("/home")
 		save("rail")
 		a.setRail(false)
 	}
+}
+
+// snapshotSize is the window's size for snapshots: its default size, or
+// its smallest with AURALINK_SNAPSHOTS_SIZE=720x480 (or "min").
+func snapshotSize() (w, h int) {
+	switch os.Getenv("AURALINK_SNAPSHOTS_SIZE") {
+	case "min", fmt.Sprintf("%dx%d", windowMinWidth, windowMinHeight):
+		return windowMinWidth, windowMinHeight
+	}
+	return windowWidth, windowHeight
 }

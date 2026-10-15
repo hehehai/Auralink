@@ -102,12 +102,12 @@ There is no job queue (plan §5): a session (M3) lives in memory, owned by one s
 | Seam | Defined in | Used by |
 |---|---|---|
 | `a.lib` (`*library`: store, bus, settings) | library.go | every area |
-| `a.navigate(path)`, `a.showPage(name)`, `a.currentPage()`, `a.shownPath()` | shell.go, shell_settings.go | palette, deep links, notifications, tests |
+| `a.navigate(path)`, `a.showPage(name)`, `a.currentPage()`, `a.shownPath()`; `movedPaths` (old paths, e.g. `/permissions` → `/settings/permissions`) | shell.go, shell_settings.go | palette, deep links, notifications, tests |
 | `navGroups`, `shortcutPages` (⌘1–⌘6), `pageTitle`, `a.navBadge` | shell.go | sidebar, rail, palette, Go menu |
 | `a.page(c, p)`, `placeholderText`, `a.pageShown(path)` | pages.go | the router; milestones replace a page's placeholder here |
-| `a.updateSettings(fn)`, `a.prefs`, `settingsSections()` | shell_settings.go | every area that changes a setting |
+| `a.updateSettings(fn)`, `a.prefs`, `settingsSections()`, `a.settingsShown(sub)` | shell_settings.go | every area that changes a setting; sections that read something when they open |
 | `a.helperStatus()`, `helperCall[T](a, method, params, timeout, then)`, `a.helperNotified(m)`, `a.restartHelper()`, `a.hotkeys` (hotkey.state), `a.front` (app.activated) | helperlink.go | status bar, permissions, Diagnostics; sessions (M3) |
-| `a.permSys` (`permission.System`), `a.recheckPermissions()`, `a.askPermission(which)`, `a.probeAutomation()`, `a.requestAutomation(id)`, `a.browsers()` | permissions.go | Permissions page, Diagnostics, onboarding (M6) |
+| `a.permSys` (`permission.System`), `a.recheckPermissions()`, `a.askPermission(which)` | permissions.go | Settings → Permissions, Diagnostics, onboarding (M6) |
 | `floatingWindowOptions(…)`, `showFloating(w, x, y)` (non-activating windows, mygo patch 0003), `activateTarget(pid)` (`macx.Activate`) | floating.go | the recording pill and the answer card (M3, M4) |
 | `a.try` (`AURALINK_TRY=1`): try shortcuts, a test panel that pastes through the helper | devtry.go | checking the helper by hand until M3; M3 replaces it |
 | `a.toast(msg)`, `a.notify(…)`, `a.post(fn)`, `a.async(fn)` | app.go, shell_status.go | everyone |
@@ -132,9 +132,9 @@ There is no job queue (plan §5): a session (M3) lives in memory, owned by one s
 | Auralink | From AudioSmith @f171c86 | Change |
 |---|---|---|
 | `ui_kit.go`, `ui_tokens.go` | same files | comments; `setAccent` (accent review shots) dropped |
-| `shell*.go` | same files | Auralink's sidebar groups and pages (a first group without a title); status bar: provider placeholder and the helper instead of engine, jobs and downloads; no ⌘E quick switch; ? sheet lists the global shortcuts from the settings |
-| `shell_settings.go`, `settings_*.go`, `storage_move.go`, `sysinfo.go` | same files | six sections: General (app and main language, menu bar, open at login), Appearance, Network (proxy only, provider hosts), Privacy (history, recordings, text in logs), Storage (Auralink's folders; erase removes provider keys), Diagnostics and about (helper instead of engine) |
-| `permissions.go` | same file | a page of the sidebar; browsers' Automation through the helper |
+| `shell*.go` | same files | Auralink's sidebar groups and pages (a first group without a title); a smaller window (880×580, at least 720×480; AudioSmith 1100×720 and 820×520); status bar: provider placeholder and the helper instead of engine, jobs and downloads; no ⌘E quick switch; ? sheet lists the global shortcuts from the settings |
+| `shell_settings.go`, `settings_*.go`, `storage_move.go`, `sysinfo.go` | same files | seven sections: General (app and main language, menu bar, open at login), Permissions (permissions.go), Appearance, Network (proxy only, provider hosts), Privacy (history, recordings, text in logs), Storage (Auralink's folders; erase removes provider keys), Diagnostics and about (helper instead of engine) |
+| `permissions.go` | same file | a section of the settings dialog (after General): the Microphone and Accessibility only, through the helper; no browser Automation (addresses are read with AX) |
 | `tray.go` | `dictation_tray.go` | Auralink's menu; a sound-wave icon |
 | `internal/core` | `core` | bus, ids, errors, notifications, log lines only; `Stream` dropped |
 | `internal/settings` | `settings` | the Store kept; the document is new (v1, plan §3–§5) |
@@ -158,7 +158,7 @@ Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services,
 | All Go tests | `CGO_ENABLED=0 go test ./...` | Views in `ui.Tester` with a fake supervisor in process; the real supervisor against the fake helper process; protocol fixtures; the store over real SQLite (the plugin's library is downloaded and checked once, or `MYGO_SQLITE_LIBRARY`); i18n key parity |
 | MyGo vet | `go tool mygo vet .` | `go vet ./...` and the UI-lifetime checks |
 | Race | `CGO_ENABLED=1 go test -race ./...` | needs cgo |
-| Snapshots | `AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .` | every page, the settings sections and the overlays, light/dark, en/zh-Hans, 2×; `AURALINK_SNAPSHOTS_SIZE=820x520` for the smallest window |
+| Snapshots | `AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .` | every page, the settings sections and the overlays, light/dark, en/zh-Hans, 2×; the window's default size (880×580); `AURALINK_SNAPSHOTS_SIZE=720x480` for the smallest |
 | Swift helper | `scripts/mac.sh 'cd helper && swift test'` | the wire types against helper/Fixtures (the same lines the Go tests decode), the hotkey recognizer, the PCM framer |
 | Mac checks | `scripts/mac.sh 'AURALINK_MAC=1 go test -run "TestMacKeychain|TestNative|TestActivate" -v ./internal/secrets ./internal/permission ./internal/macx'` | the Keychain, the permission calls, activation |
 | Packaged app | `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'` | the helper, then the app; signing during development: README |

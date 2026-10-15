@@ -49,6 +49,7 @@ type settingsSection struct{ id, title, en string }
 func settingsSections() []settingsSection {
 	return []settingsSection{
 		{"general", i18n.T("General"), "General language menu bar login"},
+		{"permissions", i18n.T("Permissions"), "Permissions microphone accessibility privacy"},
 		{"appearance", i18n.T("Appearance"), "Appearance theme size sidebar"},
 		{"network", i18n.T("Network"), "Network proxy"},
 		{"privacy", i18n.T("Privacy"), "Privacy history audio logs"},
@@ -62,6 +63,8 @@ func settingsSectionIcon(id string) icons.Icon {
 	switch id {
 	case "general":
 		return icons.Settings
+	case "permissions":
+		return permissionsIcon
 	case "appearance":
 		return icons.Pallete2
 	case "network":
@@ -224,10 +227,21 @@ func (a *app) loadSettingsForm() {
 
 // openSettings shows the settings dialog at a section's path ("/network").
 func (a *app) openSettings(sub string) {
+	if a.setRouter.Path() != sub || !a.settingsOpen {
+		a.settingsShown(sub)
+	}
 	if a.setRouter.Path() != sub {
 		a.setRouter.Replace(sub)
 	}
 	a.settingsOpen = true
+}
+
+// settingsShown runs when the settings dialog goes to a section: sections
+// that read something when they show start it here.
+func (a *app) settingsShown(sub string) {
+	if sub == "/permissions" {
+		a.recheckPermissions() // permissions.go
+	}
 }
 
 // shownPath is the path of what shows: the settings dialog's section
@@ -254,7 +268,8 @@ func (a *app) settingsDialog(c *ui.Context) {
 		panel.Width(min(w-2*margin, px(t, 900))).Height(h-2*margin).Radius(px(t, radiusCard)).Background(k.Bg).Clip().
 			Shadow(0, 16, 48, 0, ui.RGBA(0, 0, 0, 0.28)).Label(i18n.T("Settings"))
 		ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-			ui.Column(c).Width(min(px(t, 252), (w-2*margin)*0.3)).Shrink(0).Background(k.Sidebar).Children(func() {
+			// Every section's name shows in full down to the smallest window.
+			ui.Column(c).Width(min(px(t, 252), max(px(t, 240), (w-2*margin)*0.3))).Shrink(0).Background(k.Sidebar).Children(func() {
 				ui.Row(c).Height(px(t, 52)).Shrink(0).AlignItems(ui.Center).Padding(0, px(t, sp4)).Children(func() {
 					ui.Text(c, i18n.T("Settings")).FontSize(px(t, fsSection)).FontWeight(600).SingleLine()
 				})
@@ -321,12 +336,13 @@ func (a *app) settingsDialog(c *ui.Context) {
 // settingsSection builds the section of the settings dialog r shows.
 func (a *app) settingsSection(c *ui.Context, r *ui.Route) {
 	sections := map[string]func(*ui.Context){
-		"general":    a.generalSettings,
-		"appearance": a.appearanceSettings,
-		"network":    a.networkSettings, // settings_network.go
-		"privacy":    a.privacySettings, // settings_privacy.go
-		"storage":    a.storageSettings, // settings_storage.go
-		"about":      a.aboutSettings,   // settings_about.go
+		"general":     a.generalSettings,
+		"permissions": a.permissionsSettings, // permissions.go
+		"appearance":  a.appearanceSettings,
+		"network":     a.networkSettings, // settings_network.go
+		"privacy":     a.privacySettings, // settings_privacy.go
+		"storage":     a.storageSettings, // settings_storage.go
+		"about":       a.aboutSettings,   // settings_about.go
 	}
 	for _, s := range settingsSections() {
 		if r.Match("/" + s.id) {

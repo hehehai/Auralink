@@ -15,7 +15,7 @@ import (
 //	shellState        shell.go        window chrome, navigation, settings, notifications, logs
 //	helperLink        helperlink.go   the Swift helper's supervisor and status
 //	trayState         tray.go         the menu bar icon
-//	permissionsState  permissions.go  the Permissions page
+//	permissionsState  permissions.go  Settings → Permissions
 //	providersState    providers_page.go  the Model services page
 //
 // Add fields to your area's struct, not here.

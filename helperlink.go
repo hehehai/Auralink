@@ -2,7 +2,7 @@ package main
 
 // The helper as the UI sees it: main makes its supervisor
 // (newHelperHost, connectHelper), the window's start starts it, and the
-// status bar, the Permissions page and Diagnostics read the snapshot of
+// status bar, Settings → Permissions and Diagnostics read the snapshot of
 // its status kept here from helper.StatusChanged. Requests go from a
 // goroutine (helperCall); notifications that belong to no request
 // (hotkey.event) arrive in helperNotified.
@@ -84,13 +84,12 @@ func (a *app) restartHelper() {
 func (a *app) helperStatus() helper.Status { return a.hstatus }
 
 // helperChanged keeps the snapshot; a helper that just became ready is
-// asked what the Permissions page shows.
+// asked what Settings → Permissions shows.
 func (a *app) helperChanged(st helper.Status) {
 	was := a.hstatus.State
 	a.hstatus = st
 	if st.State == helper.Ready && was != helper.Ready {
 		a.recheckPermissions() // permissions.go
-		a.probeAutomation()
 		if a.try.on {
 			a.tryConfigure() // devtry.go
 		}

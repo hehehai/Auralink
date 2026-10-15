@@ -3,8 +3,9 @@ package main
 // The pages of the sidebar (plan §3.1). In M1 each is its header and an
 // empty state that says what the page will hold; the milestones replace
 // them one by one (Home and History M3, the features M3–M4, App
-// enhancement and Dictionary M5). Permissions (permissions.go), Logs
-// (shell_logs.go) and Model services (providers_page.go) work already.
+// enhancement and Dictionary M5). Logs (shell_logs.go) and Model
+// services (providers_page.go) work already; Permissions is a section of
+// the settings dialog (permissions.go).
 
 import (
 	"github.com/egoist/mygo/ui"
@@ -29,19 +30,11 @@ func (a *app) pages(c *ui.Context) {
 
 // pageShown runs when the router goes to path: pages that read something
 // when they show start it here.
-func (a *app) pageShown(path string) {
-	if path == "/permissions" {
-		a.recheckPermissions()
-		a.probeAutomation()
-	}
-}
+func (a *app) pageShown(path string) {}
 
 // page builds one page of the sidebar.
 func (a *app) page(c *ui.Context, p navPage) {
 	switch p.path {
-	case "/permissions":
-		a.permissionsPage(c)
-		return
 	case "/logs":
 		a.logsPage(c)
 		return
@@ -90,7 +83,7 @@ func (a *app) placeholderActions(c *ui.Context, path string) {
 			a.navigate("/providers")
 		}
 		if ghostButton(c.Key("home-permissions"), i18n.T("Check permissions")).Clicked() {
-			a.navigate("/permissions")
+			a.navigate("/settings/permissions")
 		}
 	case "/transcribe", "/translate", "/rewrite":
 		if ghostButton(c.Key("feature-shortcuts"), i18n.T("Keyboard shortcuts")).Clicked() {

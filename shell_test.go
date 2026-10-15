@@ -211,25 +211,30 @@ func TestStatusBarFollowsTheHelper(t *testing.T) {
 	}
 }
 
-func TestPermissionsPage(t *testing.T) {
+func TestPermissionsSettings(t *testing.T) {
 	a, fs, tt := newTestApp(t)
-	a.navigate("/permissions")
+	a.navigate("/settings/permissions")
 	frames(tt)
-	if !slices.Contains(fs.methods(), proto.MethodAutomationProbe) {
-		t.Fatalf("no probe: %v", fs.methods())
+	if a.shownPath() != "/settings/permissions" {
+		t.Fatalf("shown %s", a.shownPath())
 	}
-	if a.automation["com.google.Chrome"] != proto.AutomationGranted || a.automation["com.apple.Safari"] != proto.AutomationNotDetermined {
-		t.Fatalf("automation %v", a.automation)
-	}
-	for _, s := range []string{"Microphone", "Accessibility", "Safari", "Arc", "Not asked yet", "Open it to check"} {
+	for _, s := range []string{"Microphone", "Accessibility", "Not asked yet", "Check again"} {
 		if !has(tt, s) {
-			t.Errorf("page lacks %q", s)
+			t.Errorf("section lacks %q", s)
+		}
+	}
+	for _, s := range []string{"Browsers", "Safari"} {
+		if has(tt, s) {
+			t.Errorf("section still shows %q", s)
 		}
 	}
 	// The helper's view of the permissions wins: the microphone is not
 	// asked yet there.
 	if !slices.Contains(fs.methods(), proto.MethodPermissionsStatus) || a.perms.mic != permission.NotDetermined || a.perms.access {
 		t.Errorf("permissions %+v after %v", a.perms, fs.methods())
+	}
+	if slices.ContainsFunc(fs.methods(), func(m string) bool { return strings.HasPrefix(m, "automation.") }) {
+		t.Errorf("asked for Automation: %v", fs.methods())
 	}
 	// Ask: the first is the microphone's, through the helper.
 	click(t, tt, "Ask")
@@ -239,20 +244,37 @@ func TestPermissionsPage(t *testing.T) {
 	if f := a.permSys.(*permission.Fake); f.Prompted != 0 {
 		t.Errorf("asked from the app: %d", f.Prompted)
 	}
-	// A browser not asked yet: Ask makes macOS ask (the helper opens it).
-	a.requestAutomation("com.apple.Safari")
-	if a.automation["com.apple.Safari"] != proto.AutomationGranted {
-		t.Errorf("after asking: %v", a.automation)
-	}
 	// Without the helper, Accessibility is asked from the app.
 	fs.set(helper.Status{State: helper.Failed, Reason: helper.FailCrashed})
 	a.askPermission(proto.PermissionAccessibility)
 	if f := a.permSys.(*permission.Fake); f.Prompted != 1 {
 		t.Errorf("accessibility prompts: %d", f.Prompted)
 	}
-	// Without the helper, the page says so.
-	if !has(tt, "Checking browsers needs the helper, which is not running.") {
-		t.Errorf("no helper: %q", firstTexts(tt))
+}
+
+// TestPermissionsMoved: the old page's path, its deep link and the Home
+// page's button open the settings section; the sidebar has no such page.
+func TestPermissionsMoved(t *testing.T) {
+	a, _, tt := newTestApp(t)
+	if slices.ContainsFunc(pages, func(p navPage) bool { return p.path == "/permissions" }) {
+		t.Error("Permissions is still a page of the sidebar")
+	}
+	for _, open := range []func(){
+		func() { a.navigate("/permissions") },
+		func() { a.openURL("auralink://permissions") },
+		func() { a.openURL("auralink://settings/permissions") },
+		func() { a.navigate("/home"); frames(tt); click(t, tt, "Check permissions") },
+	} {
+		a.settingsOpen = false
+		a.navigate("/home")
+		open()
+		frames(tt)
+		if a.shownPath() != "/settings/permissions" {
+			t.Errorf("shown %s", a.shownPath())
+		}
+	}
+	if a.router.Path() != "/home" {
+		t.Errorf("page under the dialog %s", a.router.Path())
 	}
 }
 
@@ -333,8 +355,8 @@ func TestAboutAndBundle(t *testing.T) {
 }
 
 // TestHelperProcess runs the shell over a real supervisor and the fake
-// helper process: the status bar follows the handshake, the Permissions
-// page asks it, and its hotkey events reach the log.
+// helper process: the status bar follows the handshake, Settings →
+// Permissions asks it, and its hotkey events reach the log.
 func TestHelperProcess(t *testing.T) {
 	self, err := os.Executable()
 	if err != nil {
@@ -364,7 +386,7 @@ func TestHelperProcess(t *testing.T) {
 	a.startHelper()
 	t.Cleanup(a.quit)
 	pump("the helper", func() bool { return a.helperStatus().State == helper.Ready })
-	pump("the browsers", func() bool { return a.automation["com.google.Chrome"] == proto.AutomationGranted })
+	pump("the permissions", func() bool { return a.perms.checked && a.perms.access })
 	// A hotkey.event of no request goes to helperNotified.
 	raw, err := a.host.sup.Call(context.Background(), "", proto.MethodHotkeyConfigure, proto.HotkeyConfigureParams{Bindings: []proto.HotkeyBinding{
 		{ID: "transcribe/0", Modifiers: map[string]string{proto.ModFn: proto.SideAny}, Behavior: proto.BehaviorTap}}}, nil)
