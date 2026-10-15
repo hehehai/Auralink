@@ -1,0 +1,78 @@
+package main
+
+import (
+	"github.com/egoist/mygo"
+)
+
+// app is Auralink's UI state: the view state of every page, and handles
+// to the domain (the library, the helper). Every field is read and
+// written on the main thread: work on other goroutines reaches it through
+// post.
+//
+// Each area keeps its fields in a struct of its own, embedded here, in the
+// file of its area (docs/architecture.md):
+//
+//	shellState        shell.go        window chrome, navigation, settings, notifications, logs
+//	helperLink        helperlink.go   the Swift helper's supervisor and status
+//	trayState         tray.go         the menu bar icon
+//	permissionsState  permissions.go  the Permissions page
+//
+// Add fields to your area's struct, not here.
+type app struct {
+	win    *mygo.Window // nil in tests
+	toasts []string     // shown by the next build of the view
+	lib    *library
+	// postQueue replaces the window's queue in tests that run real
+	// goroutines (the helper's supervisor): they pump it on the test's
+	// goroutine. nil: post runs fn at once (other tests).
+	postQueue func(func())
+
+	shellState
+	helperLink
+	trayState
+	permissionsState
+}
+
+func newApp(lib *library, h *helperHost) *app {
+	a := &app{lib: lib, shellState: newShellState()}
+	a.helperLink.host = h
+	a.openShell(lib)
+	a.openPermissions()
+	return a
+}
+
+// post runs fn on the main thread and redraws; directly in tests.
+func (a *app) post(fn func()) {
+	if a.win == nil {
+		if a.postQueue != nil {
+			a.postQueue(fn)
+			return
+		}
+		fn()
+		return
+	}
+	a.win.Update(fn)
+}
+
+// async runs fn on a goroutine; in tests (no window) at once, so that
+// views see its results without waiting.
+func (a *app) async(fn func()) {
+	if a.win == nil {
+		fn()
+		return
+	}
+	go fn()
+}
+
+// toast shows msg (already translated) as a toast.
+func (a *app) toast(msg string) {
+	a.toasts = append(a.toasts, msg)
+}
+
+// quit releases what the app holds; it runs in App.OnQuit, before the
+// library closes.
+func (a *app) quit() {
+	a.closeTray()
+	a.stopHelper()
+	a.closeShell()
+}

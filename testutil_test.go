@@ -1,0 +1,171 @@
+package main
+
+// Test helpers shared by the view tests: a test app over a temporary
+// library and a fake helper supervisor (in process), and the test binary
+// as the helper's fake process for the tests that start a real one.
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"slices"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/core"
+	"github.com/hehehai/Auralink/internal/helper"
+	"github.com/hehehai/Auralink/internal/helper/helpertest"
+	"github.com/hehehai/Auralink/internal/helper/proto"
+	"github.com/hehehai/Auralink/internal/i18n"
+	"github.com/hehehai/Auralink/internal/permission"
+)
+
+// The test binary is also the fake helper (helpertest).
+func TestMain(m *testing.M) {
+	if helpertest.Enabled() {
+		helpertest.Main()
+	}
+	os.Exit(m.Run())
+}
+
+// fakeSupervisor is a helper.Supervisor in process: Start makes it ready
+// (publishing StatusChanged), and Call answers from handlers, by default
+// helpertest's answers for automation.probe and browser.url.
+type fakeSupervisor struct {
+	bus *core.Bus
+
+	mu       sync.Mutex
+	status   helper.Status
+	calls    []proto.Message
+	handlers map[string]func(json.RawMessage) (any, error)
+}
+
+func newFakeSupervisor(bus *core.Bus) *fakeSupervisor {
+	f := &fakeSupervisor{bus: bus, status: helper.Status{State: helper.Stopped}, handlers: map[string]func(json.RawMessage) (any, error){}}
+	f.handlers[proto.MethodAutomationProbe] = func(raw json.RawMessage) (any, error) {
+		var p proto.AutomationProbeParams
+		json.Unmarshal(raw, &p)
+		res := proto.AutomationProbeResult{}
+		for _, id := range p.BundleIDs {
+			st := helpertest.AutomationStates[id]
+			if p.Prompt && st == proto.AutomationNotDetermined {
+				st = proto.AutomationGranted
+			}
+			res.Browsers = append(res.Browsers, proto.AutomationState{BundleID: id, State: st})
+		}
+		return res, nil
+	}
+	return f
+}
+
+// set changes the status and publishes it.
+func (f *fakeSupervisor) set(st helper.Status) {
+	f.mu.Lock()
+	f.status = st
+	f.mu.Unlock()
+	f.bus.Publish(helper.StatusChanged{Status: st})
+}
+
+func (f *fakeSupervisor) Start(context.Context) error {
+	f.set(helper.Status{State: helper.Ready, PID: 4242, Since: time.Now(),
+		Hello: &proto.HelloResult{Protocol: proto.Version, Version: "0.1.0", PID: 4242, Methods: helpertest.Methods()}})
+	return nil
+}
+
+func (f *fakeSupervisor) Call(ctx context.Context, id, method string, params any, notify func(proto.Message)) (json.RawMessage, error) {
+	req, _ := proto.NewRequest(id, method, params)
+	f.mu.Lock()
+	f.calls = append(f.calls, req)
+	h, ready := f.handlers[method], f.status.State == helper.Ready
+	f.mu.Unlock()
+	if !ready {
+		return nil, helper.ErrExited
+	}
+	if h == nil {
+		return nil, proto.Errorf(proto.CodeMethodNotFound, "Unknown method %s", method)
+	}
+	v, err := h(req.Params)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(v)
+}
+
+func (f *fakeSupervisor) Status() helper.Status {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.status
+}
+
+func (f *fakeSupervisor) Restart() error { return f.Start(context.Background()) }
+
+func (f *fakeSupervisor) Stop() { f.set(helper.Status{State: helper.Stopped}) }
+
+// methods are the methods called so far.
+func (f *fakeSupervisor) methods() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []string
+	for _, m := range f.calls {
+		out = append(out, m.Method)
+	}
+	return out
+}
+
+// newTestApp is the app over a new library in a temporary directory, with
+// the fake supervisor started and fake permissions (microphone allowed,
+// Accessibility not).
+func newTestApp(t *testing.T) (*app, *fakeSupervisor, *ui.Tester) {
+	t.Helper()
+	return newTestAppIn(t, t.TempDir())
+}
+
+// newTestAppIn is newTestApp over the library in dir, which may hold one
+// from an earlier "run".
+func newTestAppIn(t *testing.T, dir string) (*app, *fakeSupervisor, *ui.Tester) {
+	t.Helper()
+	i18n.SetLocale("en")
+	t.Cleanup(func() { i18n.SetLocale("en") })
+	lib, err := openLibrary(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(lib.close)
+	fs := newFakeSupervisor(lib.bus)
+	a := newApp(lib, &helperHost{sup: fs})
+	a.permSys = &permission.Fake{Mic: permission.Granted, Grant: true}
+	a.connectHelper()
+	a.startHelper()
+	t.Cleanup(a.quit)
+	return a, fs, ui.NewTester(a.view, 1100, 720)
+}
+
+// frames runs the tester a few frames, so state set in one shows.
+func frames(tt *ui.Tester) {
+	for range 3 {
+		tt.Frame()
+	}
+}
+
+// click clicks a label and runs the frames after it.
+func click(t *testing.T, tt *ui.Tester, label string) {
+	t.Helper()
+	frames(tt)
+	if err := tt.Click(label); err != nil {
+		t.Fatalf("click %q: %v (texts: %q)", label, err, firstTexts(tt))
+	}
+	frames(tt)
+}
+
+func firstTexts(tt *ui.Tester) []string {
+	texts := tt.Texts()
+	return texts[:min(len(texts), 40)]
+}
+
+// has reports whether the view shows s.
+func has(tt *ui.Tester, s string) bool {
+	frames(tt)
+	return tt.HasText(s) || slices.Contains(tt.Texts(), s)
+}

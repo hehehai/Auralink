@@ -1,0 +1,126 @@
+package main
+
+import (
+	"image/png"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/hehehai/Auralink/internal/core"
+	"github.com/hehehai/Auralink/internal/helper"
+	"github.com/hehehai/Auralink/internal/i18n"
+	"github.com/hehehai/Auralink/internal/settings"
+)
+
+// TestSnapshots renders each page, the settings sections and the shell's
+// overlays to PNG with MyGo's renderer, for looking at the layout without
+// a Mac screen, light and dark, in English (<name>-light.png) and Chinese
+// (<name>-light-zh-Hans.png), at 2×. Set AURALINK_SNAPSHOTS to a
+// directory:
+//
+//	AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .
+//
+// AURALINK_SNAPSHOTS_SIZE=820x520 renders at the window's smallest size.
+func TestSnapshots(t *testing.T) {
+	out := os.Getenv("AURALINK_SNAPSHOTS")
+	if out == "" {
+		t.Skip("set AURALINK_SNAPSHOTS to a directory")
+	}
+	os.MkdirAll(out, 0o755)
+	w, h := 1100, 720
+	if os.Getenv("AURALINK_SNAPSHOTS_SIZE") == "820x520" {
+		w, h = 820, 520
+	}
+	for _, run := range []struct {
+		lang string
+		dark bool
+	}{{"en", false}, {"en", true}, {"zh-Hans", false}, {"zh-Hans", true}} {
+		a, fs, tt := newTestApp(t)
+		tt.SetSize(w, h)
+		if run.lang != "en" {
+			a.updateSettings(func(s *settings.Settings) { s.General.Language = run.lang })
+		}
+		tt.SetDark(run.dark)
+		tt.SetScale(2)
+		a.version = "0.1.0"
+		suffix := "light"
+		if run.dark {
+			suffix = "dark"
+		}
+		if run.lang != "en" {
+			suffix += "-" + run.lang
+		}
+		save := func(name string) {
+			t.Helper()
+			a.toasts = nil
+			frames(tt)
+			f, err := os.Create(filepath.Join(out, name+"-"+suffix+".png"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			if err := png.Encode(f, tt.Image()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// Every page of the sidebar.
+		for _, p := range pages {
+			a.navigate(p.path)
+			name := strings.TrimPrefix(p.path, "/")
+			if p.path == "/logs" {
+				at := time.Date(2026, 10, 15, 9, 30, 0, 0, time.Local)
+				for i, l := range []core.LogEntry{
+					{Source: "app", Message: "Auralink 0.1.0 started"},
+					{Source: helper.LogSource, Message: "fake helper ready"},
+					{Source: helper.LogSource, Level: core.SeverityWarning, Message: "AirPods Pro gave no audio within 1.2 s: recording from the default input"},
+					{Source: "app", Level: core.SeverityError, Message: "settings: could not save: disk full"},
+				} {
+					l.Time = at.Add(time.Duration(i) * time.Second)
+					if l.Level == "" {
+						l.Level = core.SeverityInfo
+					}
+					a.logs.Append(l)
+				}
+			}
+			save("page-" + name)
+		}
+		// The settings dialog, section by section.
+		for _, s := range settingsSections() {
+			a.navigate("/settings/" + s.id)
+			if s.id == "network" {
+				a.proxyInfo = i18n.T("Requests go through %s.", "http://127.0.0.1:7897")
+			}
+			if s.id == "about" {
+				a.sys = &sysInfo{OS: "macOS 26.7", Chip: "Apple M2", Memory: 16 << 30, Cores: 8, Arch: "arm64"}
+			}
+			save("settings-" + s.id)
+		}
+		a.settingsOpen = false
+
+		// The shell's overlays.
+		a.navigate("/home")
+		a.openPalette()
+		save("palette")
+		a.paletteOpen = false
+		a.sheetOpen = true
+		save("shortcuts")
+		a.sheetOpen = false
+		a.notes.Post(core.Notification{Severity: core.SeverityWarning, Title: i18n.T("Helper out of date"), Link: "/settings/about"})
+		a.helperOpen = true
+		save("helper")
+		a.helperOpen = false
+		a.noticesOpen = true
+		a.logsPanel = true
+		save("notifications")
+		a.noticesOpen, a.logsPanel = false, false
+		fs.set(helper.Status{State: helper.Failed, Reason: helper.FailMissing, Err: "auralink-helper was not found"})
+		a.navigate("/permissions")
+		save("permissions-no-helper")
+		a.setRail(true)
+		a.navigate("/home")
+		save("rail")
+		a.setRail(false)
+	}
+}

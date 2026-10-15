@@ -1,0 +1,49 @@
+# The Solar icons Auralink uses (base names; the generator writes the
+# -linear and -bold variants of each). Keep it sorted by use; add an icon
+# here when a page uses it, then go generate ./internal/icons.
+
+# Sidebar pages (shell.go).
+home-2                  # Home
+history                 # History
+microphone-3            # Transcribe
+global                  # Translate
+pen-new-round           # Rewrite
+target                  # App enhancement
+cloud                   # Model services
+notebook-bookmark       # Dictionary
+shield-keyhole          # Permissions
+clipboard-list          # Logs
+settings                # Settings, Settings → General
+
+# Shell.
+bell                    # notifications
+magnifer                # search, palette
+sidebar-minimalistic    # collapse / expand the sidebar
+command                 # palette rows
+keyboard                # shortcut sheet
+
+# Settings sections.
+pallete-2               # appearance
+wi-fi-router-minimalistic # network
+shield-check            # privacy
+database                # storage
+info-circle             # about, ⓘ info tooltip
+
+# Actions and marks (the kit and the pages).
+menu-dots               # overflow "⋯"
+close                   # close, remove
+close-circle            # failed check
+check-circle            # success
+danger-triangle         # warning
+danger-circle           # error
+copy
+folder-open             # show in Finder
+refresh                 # check again
+square-arrow-right-up   # open System Settings
+alt-arrow-down          # chevrons
+alt-arrow-right
+play                    # playButton (history recordings, M3)
+pause
+stop
+minus                   # numberInput
+add
