@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -165,4 +166,14 @@ func firstTexts(tt *ui.Tester) []string {
 func has(tt *ui.Tester, s string) bool {
 	frames(tt)
 	return tt.HasText(s) || slices.Contains(tt.Texts(), s)
+}
+
+// hasPrefix reports whether a text on screen starts with s.
+func hasPrefix(tt *ui.Tester, s string) bool {
+	for _, x := range tt.Texts() {
+		if strings.HasPrefix(x, s) {
+			return true
+		}
+	}
+	return false
 }

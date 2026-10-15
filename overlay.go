@@ -8,11 +8,15 @@ package main
 //	recording   240×52, 380×120 with live text: the feature's icon, a
 //	            16-bar waveform, the time, the last lines of the live
 //	            text, Stop and × (cancel; Escape too, through the helper)
-//	working     recognising / cleaning up / inserting, with a spinner and ×
+//	working     recognising / cleaning up / translating / writing /
+//	            inserting, with a spinner, the answer as it comes, and ×
 //	done        a check for a moment after the text was inserted
 //	notice      one line, an action ("Open Model services"), × (4 s)
 //	answer      560×340: the result that was not inserted, Insert (ink),
-//	            Copy, Close
+//	            Copy, Close; it streams while the model writes, shows a
+//	            Rewrite answer's title, Translate's target language (to
+//	            translate again into another), and a failure with Try
+//	            again
 //
 // Its place and look come from settings.Overlay: the top or bottom of
 // the display under the pointer, the margin from that edge, the opacity
@@ -20,16 +24,20 @@ package main
 
 import (
 	"math"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/deliver"
+	"github.com/hehehai/Auralink/internal/hotkey"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/store"
 )
 
 // overlayMode is what the overlay shows.
@@ -80,15 +88,19 @@ type overlayState struct {
 	}
 }
 
-// overlayModeNow decides what the overlay shows: the answer card, a live
-// session (not a try: the page shows those), a notice, the check after an
-// insert, or nothing.
+// overlayModeNow decides what the overlay shows: the answer card (an
+// ended session's, or one the model writes into), a live session (not a
+// try: the page shows those), a notice, the check after an insert, or
+// nothing.
 func (a *app) overlayModeNow() overlayMode {
 	s := a.sess
+	live := s.State.Live() && !s.Try
 	switch {
-	case a.answer.open:
+	case a.answer.open && !live:
 		return ovAnswer
-	case s.State == session.Recording && !s.Try:
+	case live && s.Card && s.State == session.Composing:
+		return ovAnswer
+	case live && (s.State == session.Recording || s.State == session.Reading):
 		return ovRecording
 	case s.State.Live() && !s.Try:
 		return ovWorking
@@ -108,7 +120,7 @@ func (a *app) overlaySize(mode overlayMode) (int, int) {
 	case ovNotice:
 		return ovNoticeW, ovPillH
 	case ovRecording, ovWorking:
-		if strings.TrimSpace(a.sess.Partial) != "" {
+		if liveText(a.sess) != "" {
 			return ovLiveW, ovLiveH
 		}
 	}
@@ -252,7 +264,7 @@ func (a *app) overlayPill(c *ui.Context) {
 		ui.Row(c).Height(ovPillH).Shrink(0).Gap(10).AlignItems(ui.Center).Children(func() {
 			switch a.ov.mode {
 			case ovRecording:
-				ui.Icon(c, transcribeIcon.Bold).Size(18, 18).TextColor(tok(t).Record)
+				ui.Icon(c, kindIcon(s.Kind).Bold).Size(18, 18).TextColor(tok(t).Record).Label(kindTitle(s.Kind))
 				a.waveform(c, s.Levels, !s.HeardAt.IsZero())
 				ui.Text(c, clock(s.Elapsed(time.Now()))).FontSize(12).Font("monospace").TextColor(ovText2).Shrink(0)
 				if ui.ButtonBase(c.Key("ov-stop")).Size(28, 28).Center().Radius(14).Background(tok(t).Record).Label(i18n.T("Stop")).Children(func() {
@@ -262,7 +274,7 @@ func (a *app) overlayPill(c *ui.Context) {
 				}
 			case ovWorking:
 				ui.Spinner(c)
-				ui.Text(c, workingText(s.State)).FontSize(13).TextColor(ovText).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
+				ui.Text(c, workingText(s)).FontSize(13).TextColor(ovText).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
 			case ovDone:
 				ui.Icon(c, icons.CheckCircle.Bold).Size(18, 18).TextColor(tok(t).Success)
 				ui.Text(c, i18n.T("Inserted")).FontSize(13).TextColor(ovText).SingleLine().Grow(1).MinWidth(0)
@@ -276,21 +288,63 @@ func (a *app) overlayPill(c *ui.Context) {
 				}
 			}
 		})
-		if live := lastLines(s.Partial, ovLiveLines); live != "" && a.ov.mode != ovDone {
+		if live := lastLines(liveText(s), ovLiveLines); live != "" && a.ov.mode != ovDone {
 			ui.Text(c, live).FontSize(13).TextColor(ovText).MaxLines(ovLiveLines).Ellipsis("…").Padding(0, 4, 12, 4)
 		}
 	})
 }
 
+// liveText is the text the pill shows under it: the answer as the model
+// writes it, else what the speech service heard so far.
+func liveText(s session.Snapshot) string {
+	if d := strings.TrimSpace(s.Draft); d != "" && s.State == session.Composing {
+		return d
+	}
+	return strings.TrimSpace(s.Partial)
+}
+
 // workingText says what a session does after recording.
-func workingText(st session.State) string {
-	switch st {
+func workingText(s session.Snapshot) string {
+	switch s.State {
+	case session.Reading:
+		return i18n.T("Reading the selection…")
 	case session.Composing:
+		switch {
+		case s.Kind == store.KindTranslate && s.Selection != "":
+			return i18n.T("Translating the selection…")
+		case s.Kind == store.KindTranslate:
+			return i18n.T("Translating…")
+		case s.Kind == store.KindRewrite && s.Selection != "":
+			return i18n.T("Rewriting the selection…")
+		case s.Kind == store.KindRewrite:
+			return i18n.T("Writing…")
+		}
 		return i18n.T("Cleaning up…")
 	case session.Delivering:
 		return i18n.T("Inserting…")
 	}
 	return i18n.T("Recognizing…")
+}
+
+// kindIcon is a feature's icon; kindTitle its name.
+func kindIcon(k store.Kind) icons.Icon {
+	switch k {
+	case store.KindTranslate:
+		return translateIcon
+	case store.KindRewrite:
+		return rewriteIcon
+	}
+	return transcribeIcon
+}
+
+func kindTitle(k store.Kind) string {
+	switch k {
+	case store.KindTranslate:
+		return i18n.T("Translate")
+	case store.KindRewrite:
+		return i18n.T("Rewrite")
+	}
+	return i18n.T("Transcribe")
 }
 
 // waveform draws the input levels as 16 bars, newest on the right.
@@ -372,44 +426,172 @@ func noticeActionLabel(action string) string {
 	return ""
 }
 
+// cardView is what the answer card shows: an ended session's card, or
+// the answer the model is writing into it.
+type cardView struct {
+	kind      store.Kind
+	title     string
+	text      string
+	streaming bool
+	failed    *session.Problem
+	msg       string // a warning line: why it is in the card, why Insert failed
+	lang      string // Translate's target
+	selection bool   // it works on a selection
+	followUp  bool   // Rewrite: the shortcut follows up
+	inserting bool
+}
+
+func (a *app) cardNow() cardView {
+	s := a.sess
+	if s.State.Live() && s.Card && !s.Try {
+		v := cardView{kind: s.Kind, title: s.Title, text: s.Draft, streaming: true, lang: s.TargetLanguage, selection: s.Selection != ""}
+		if s.Retried {
+			v.msg = i18n.T("The first answer was not translated: asking again.")
+		}
+		return v
+	}
+	card := a.answer
+	v := cardView{kind: card.kind, title: card.title, text: card.text, failed: card.problem, msg: card.msg, lang: card.lang,
+		selection: card.input.Selection != "", inserting: card.inserting}
+	if v.msg == "" && card.problem == nil {
+		v.msg = notInsertedText(a.sess, card)
+	}
+	v.followUp = card.kind == store.KindRewrite && card.problem == nil && len(card.turns) > 0
+	return v
+}
+
+// cardTitle is the card's heading: a Rewrite answer's own title, else
+// what the card holds.
+func (v cardView) cardTitle() string {
+	if t := strings.TrimSpace(v.title); t != "" {
+		return t
+	}
+	switch v.kind {
+	case store.KindTranslate:
+		return i18n.T("Translation")
+	case store.KindRewrite:
+		if v.selection {
+			return i18n.T("Rewritten text")
+		}
+		return i18n.T("Answer")
+	}
+	return i18n.T("Transcription")
+}
+
 // overlayAnswer is the answer card.
 func (a *app) overlayAnswer(c *ui.Context) {
 	t := c.Theme()
-	card := a.answer
+	v := a.cardNow()
 	ui.Column(c).Fill().Padding(16, 18).Gap(10).Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, transcribeIcon.Linear).Size(16, 16).TextColor(ovText2)
-			ui.Text(c, i18n.T("Transcription")).FontSize(14).Bold().TextColor(ovText).Grow(1)
+			ui.Icon(c, kindIcon(v.kind).Linear).Size(16, 16).TextColor(ovText2)
+			ui.Text(c, v.cardTitle()).FontSize(14).Bold().TextColor(ovText).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
+			if v.streaming {
+				ui.Spinner(c).Size(14, 14)
+			}
+			if v.kind == store.KindTranslate {
+				a.cardLanguage(c, v)
+			}
 			if ui.ButtonBase(c.Key("ov-answer-close")).Size(28, 28).Center().Radius(14).Label(i18n.T("Close")).Children(func() {
 				ui.Icon(c, icons.Close.Linear).Size(16, 16).TextColor(ovText2)
 			}).Clicked() {
+				if v.streaming {
+					a.cancelSession()
+				}
 				a.closeAnswer()
 			}
 		})
-		msg := card.msg
-		if msg == "" {
-			msg = notInsertedText(a.sess, card)
-		}
-		if msg != "" {
-			ui.Text(c, msg).FontSize(12).TextColor(tok(t).Warning).MaxLines(2).Ellipsis("…")
+		if p := v.failed; p != nil {
+			text, more, _ := sessionProblemText(p)
+			ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
+				ui.Icon(c, icons.DangerCircle.Bold).Size(16, 16).TextColor(tok(t).Danger).Shrink(0)
+				ui.Column(c).Gap(2).Grow(1).MinWidth(0).Children(func() {
+					ui.Text(c, text).FontSize(13).TextColor(ovText).MaxLines(2).Ellipsis("…")
+					if more != "" {
+						ui.Text(c, more).FontSize(12).TextColor(ovText2).MaxLines(3).Ellipsis("…").Selectable()
+					}
+				})
+			})
+		} else if v.msg != "" {
+			ui.Text(c, v.msg).FontSize(12).TextColor(tok(t).Warning).MaxLines(2).Ellipsis("…")
 		}
 		ui.Scroll(c.Key("ov-answer-scroll")).Grow(1).MinHeight(0).Children(func() {
-			ui.Text(c, card.text).FontSize(14).TextColor(ovText).Selectable()
+			text := v.text
+			if v.failed != nil {
+				text = a.answer.input.Selection
+				if text == "" {
+					text = a.answer.input.Raw
+				}
+			}
+			tx := ui.Text(c, text).FontSize(14).TextColor(ovText).Selectable()
+			if v.failed != nil {
+				tx.TextColor(ovText2)
+			}
+			if v.streaming && strings.TrimSpace(text) == "" {
+				ui.Text(c, workingText(a.sess)).FontSize(13).TextColor(ovText2)
+			}
 		})
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			if v.followUp {
+				if keys := a.featureKeys(hotkey.Rewrite); keys != "" {
+					ui.Text(c, i18n.T("%s to follow up", keys)).FontSize(12).TextColor(ovText2).SingleLine().Ellipsis("…").MinWidth(0)
+				}
+			}
 			ui.Spacer(c)
-			if ghostButton(c.Key("ov-answer-copy"), i18n.T("Copy")).Clicked() {
+			if v.failed != nil {
+				if primaryButton(c.Key("ov-answer-retry"), i18n.T("Try again")).Disabled(a.sess.State.Live()).Clicked() {
+					a.retryAnswer("")
+				}
+				return
+			}
+			if ghostButton(c.Key("ov-answer-copy"), i18n.T("Copy")).Disabled(v.streaming).Clicked() {
 				a.copyAnswer(c.Services().WriteClipboard)
 			}
 			label := i18n.T("Insert")
-			if card.inserting {
+			if v.inserting {
 				label = i18n.T("Inserting…")
 			}
-			if primaryButton(c.Key("ov-answer-insert"), label).Disabled(card.inserting).Clicked() {
+			if primaryButton(c.Key("ov-answer-insert"), label).Disabled(v.inserting || v.streaming).Clicked() {
 				a.insertAnswer()
 			}
 		})
 	})
+}
+
+// cardLanguage is Translate's target in the card: choosing another
+// translates the same text again.
+func (a *app) cardLanguage(c *ui.Context, v cardView) {
+	opts := make([]string, len(compose.TargetLanguages))
+	for i, code := range compose.TargetLanguages {
+		opts[i] = targetLanguageLabel(code)
+	}
+	cur := targetLanguageLabel(v.lang)
+	if !slices.Contains(opts, cur) {
+		opts = append(opts, cur)
+	}
+	if a.answer.langSel == "" || !slices.Contains(opts, a.answer.langSel) || v.streaming {
+		a.answer.langSel = cur
+	}
+	sel := ui.Select(c.Key("ov-answer-lang"), &a.answer.langSel, opts).Label(i18n.T("Translate into")).Width(150).Disabled(v.streaming || a.sess.State.Live())
+	if sel.Changed() {
+		if j := slices.Index(opts, a.answer.langSel); j >= 0 && j < len(compose.TargetLanguages) && compose.TargetLanguages[j] != v.lang {
+			a.retryAnswer(compose.TargetLanguages[j])
+		}
+	}
+}
+
+// targetLanguageLabel names a target language in the UI's language.
+func targetLanguageLabel(code string) string {
+	return compose.LanguageName(code, i18n.Locale())
+}
+
+// featureKeys are the glyphs of a feature's first shortcut ("" for none).
+func (a *app) featureKeys(feature string) string {
+	hs := hotkey.HotkeysOf(a.prefs.Features, feature)
+	if len(hs) == 0 {
+		return ""
+	}
+	return hotkeyText(hs[0].Keys)
 }
 
 // notInsertedText says why the card shows.
@@ -425,7 +607,12 @@ func notInsertedText(s session.Snapshot, card answerCard) string {
 	case deliver.ReasonNotFront, deliver.ReasonNoTarget:
 		return i18n.T("%s is not in front any more: insert it there, or copy it.", name)
 	case deliver.ReasonNotEditable:
+		if s.Selection != "" {
+			return i18n.T("The selection in %s cannot be edited: copy the result, or click where it should go and insert.", name)
+		}
 		return i18n.T("Nothing in %s takes text: click where it should go, then insert.", name)
+	case deliver.ReasonLong:
+		return i18n.T("A long answer waits here: insert it, or copy it.")
 	}
 	return ""
 }

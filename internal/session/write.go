@@ -39,7 +39,7 @@ func (r *run) write(raw, selection string) {
 	}
 	snap := r.m.Current()
 	in := compose.Input{
-		MainLanguage: mainLanguage(r.settings, cfg.Locale()), OtherLanguages: r.settings.General.OtherLanguages,
+		MainLanguage: MainLanguage(r.settings, cfg.Locale()), OtherLanguages: r.settings.General.OtherLanguages,
 		Glossary: r.glossary(),
 	}
 	var o finishOpts

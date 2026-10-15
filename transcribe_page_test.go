@@ -95,8 +95,8 @@ func TestTranscribeHotkeysEdit(t *testing.T) {
 		t.Fatalf("added %+v", hs)
 	}
 	// Choose a preset through the select's state, as the Select does.
-	a.trRows[1].sel = hotkeyText("RightCommand")
-	a.trChooseKeys(1, &a.trRows[1], func() map[string]string { _, m := keyOptions("Fn+Option", false); return m }())
+	a.fui(hotkey.Transcribe).rows[1].sel = hotkeyText("RightCommand")
+	a.chooseKeys(hotkey.Transcribe, 1, &a.fui(hotkey.Transcribe).rows[1], func() map[string]string { _, m := keyOptions("Fn+Option", false); return m }())
 	frames(tt)
 	if hs := saved(); hs[1].Keys != "RightCommand" {
 		t.Fatalf("preset not saved: %+v", hs)
@@ -104,11 +104,11 @@ func TestTranscribeHotkeysEdit(t *testing.T) {
 
 	// Custom keys: invalid ones show why and are not saved; valid ones are
 	// saved in canonical spelling.
-	a.trRows[1].sel = "Custom…"
-	a.trChooseKeys(1, &a.trRows[1], nil)
+	a.fui(hotkey.Transcribe).rows[1].sel = "Custom…"
+	a.chooseKeys(hotkey.Transcribe, 1, &a.fui(hotkey.Transcribe).rows[1], nil)
 	frames(tt)
-	if !a.trRows[1].custom || a.trRows[1].text != "RightCommand" {
-		t.Fatalf("custom row %+v", a.trRows[1])
+	if !a.fui(hotkey.Transcribe).rows[1].custom || a.fui(hotkey.Transcribe).rows[1].text != "RightCommand" {
+		t.Fatalf("custom row %+v", a.fui(hotkey.Transcribe).rows[1])
 	}
 	click(t, tt, "Custom keys of shortcut 2")
 	for range len("RightCommand") {
@@ -132,7 +132,7 @@ func TestTranscribeHotkeysEdit(t *testing.T) {
 	if hs := saved(); hs[1].Keys != "Control+Option+K" {
 		t.Errorf("custom keys %+v", hs)
 	}
-	if !a.trRows[1].custom {
+	if !a.fui(hotkey.Transcribe).rows[1].custom {
 		t.Error("the custom field closed while typing")
 	}
 
@@ -141,8 +141,8 @@ func TestTranscribeHotkeysEdit(t *testing.T) {
 	if hs := saved(); len(hs) != 1 || hs[0].Keys != "Control+Option+K" {
 		t.Fatalf("after remove %+v", hs)
 	}
-	if len(a.trRows) != 1 || a.trRows[0].custom {
-		t.Errorf("rows not set again: %+v", a.trRows)
+	if len(a.fui(hotkey.Transcribe).rows) != 1 || a.fui(hotkey.Transcribe).rows[0].custom {
+		t.Errorf("rows not set again: %+v", a.fui(hotkey.Transcribe).rows)
 	}
 	// What the helper gets follows (the plan is built from the settings).
 	if p := a.hotkeyPlan(); !slices.ContainsFunc(p.Bindings, func(b proto.HotkeyBinding) bool { return b.ID == hotkey.ID(hotkey.Transcribe, 0) }) {
@@ -239,7 +239,7 @@ func TestTranscribeRules(t *testing.T) {
 	click(t, tt, "Your rules for Transcribe")
 	tt.Type("Write {{USER_MAIN_LANGUAGE}} numbers as digits.")
 	frames(tt)
-	if !a.trPromptDirty {
+	if !a.fui(hotkey.Transcribe).promptDirty {
 		t.Fatal("not dirty after typing")
 	}
 	// Leaving the field saves it.
@@ -248,18 +248,18 @@ func TestTranscribeRules(t *testing.T) {
 		t.Fatalf("prompt %q", p)
 	}
 	// The preview has the rules, with the variable filled in.
-	if !a.trPreview || !strings.Contains(strings.Join(tt.Texts(), "\n"), "Write English numbers as digits.") {
+	if !a.fui(hotkey.Transcribe).preview || !strings.Contains(strings.Join(tt.Texts(), "\n"), "Write English numbers as digits.") {
 		t.Errorf("preview: %q", tt.Texts())
 	}
 	click(t, tt, "Reset your rules")
-	if p := a.lib.settings.Get().Features.Transcribe.Prompt; p != "" || a.trPrompt != "" {
-		t.Fatalf("reset: %q %q", p, a.trPrompt)
+	if p := a.lib.settings.Get().Features.Transcribe.Prompt; p != "" || a.fui(hotkey.Transcribe).prompt != "" {
+		t.Fatalf("reset: %q %q", p, a.fui(hotkey.Transcribe).prompt)
 	}
 	// A change elsewhere shows.
 	a.updateSettings(func(s *settings.Settings) { s.Features.Transcribe.Prompt = "Be brief." })
 	frames(tt)
-	if a.trPrompt != "Be brief." {
-		t.Errorf("not set from the settings: %q", a.trPrompt)
+	if a.fui(hotkey.Transcribe).prompt != "Be brief." {
+		t.Errorf("not set from the settings: %q", a.fui(hotkey.Transcribe).prompt)
 	}
 }
 
@@ -407,8 +407,8 @@ func TestTranscribeFullPage(t *testing.T) {
 			s.Features.Transcribe.Hotkeys = append(s.Features.Transcribe.Hotkeys, settings.Hotkey{Keys: "Fn+Shift", Trigger: settings.TriggerDouble}, settings.Hotkey{Keys: "K"})
 		})
 		frames(tt)
-		a.trRows[1].custom = true
-		a.trPreview = true
+		a.fui(hotkey.Transcribe).rows[1].custom = true
+		a.fui(hotkey.Transcribe).preview = true
 		a.sessionChanged(trySnapshot(a, session.Done))
 		frames(tt)
 		name := "page-transcribe-full-light.png"

@@ -594,7 +594,7 @@ func (r *run) compose(raw string) (string, string, error) {
 	f := r.settings.Features.Transcribe
 	in := compose.Input{
 		Task: compose.Transcribe, Cleanup: f.Cleanup, Structure: f.Structure, TaskPrompt: f.Prompt,
-		MainLanguage: mainLanguage(r.settings, r.m.cfg.Locale()), OtherLanguages: r.settings.General.OtherLanguages, Text: raw,
+		MainLanguage: MainLanguage(r.settings, r.m.cfg.Locale()), OtherLanguages: r.settings.General.OtherLanguages, Text: raw,
 		Glossary: r.glossary(),
 	}
 	out, err := compose.Build(in)

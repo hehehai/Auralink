@@ -68,13 +68,122 @@ func seedHistory(t *testing.T, a *app) {
 	}
 }
 
+// Translate and Rewrite entries (seedWriteHistory).
+const (
+	histTranslated = "01HIST0000000000000000TRL1" // speech into English, inserted
+	histTransSel   = "01HIST0000000000000000TRL2" // a selection on a web page into Chinese, in the card
+	histRewritten  = "01HIST0000000000000000RWR1" // the selection rewritten
+	histWritten    = "01HIST0000000000000000RWR2" // written from scratch, long: in the card
+)
+
+// seedWriteHistory writes Translate and Rewrite entries.
+func seedWriteHistory(t *testing.T, a *app) {
+	t.Helper()
+	now := time.Now()
+	for _, e := range []store.Entry{
+		{
+			ID: histTranslated, Kind: store.KindTranslate, CreatedAt: now.Add(-8 * time.Minute), Status: store.StatusDone,
+			AppBundle: "com.tinyspeck.slackmacgap", AppName: "Slack",
+			RawText: "嗯 帮我跟他们说 周四下午的评审改到周五上午", Result: "Let them know the Thursday afternoon review moves to Friday morning.",
+			TargetLang: "en", Delivery: "insert",
+			ASRProvider: "doubao", ASRModel: "bigmodel", LLMProvider: "deepseek", LLMModel: "deepseek-chat",
+			AudioMS: 4300, ASRMS: 520, LLMMS: 1340, TotalMS: 6400,
+		},
+		{
+			ID: histTransSel, Kind: store.KindTranslate, CreatedAt: now.Add(-2 * time.Hour), Status: store.StatusDone,
+			AppBundle: "com.google.Chrome", AppName: "Google Chrome", URLHost: "go.dev",
+			SourceText: "A goroutine is a lightweight thread managed by the Go runtime.",
+			Result:     "goroutine 是由 Go 运行时管理的轻量级线程。", TargetLang: "zh-Hans", Delivery: "card",
+			LLMProvider: "deepseek", LLMModel: "deepseek-chat", LLMMS: 980, TotalMS: 1100,
+		},
+		{
+			ID: histRewritten, Kind: store.KindRewrite, CreatedAt: now.Add(-20 * time.Minute), Status: store.StatusDone,
+			AppBundle: "com.apple.mail", AppName: "Mail",
+			PromptText: "make it more formal and shorter",
+			SourceText: "hey, the release slips to thursday because the tests are still running, sorry!",
+			Result:     "Apologies: the release moves to Thursday while the tests finish.", Delivery: "insert",
+			ASRProvider: "doubao", ASRModel: "bigmodel", LLMProvider: "deepseek", LLMModel: "deepseek-chat",
+			AudioMS: 2600, ASRMS: 410, LLMMS: 1650, TotalMS: 4900,
+		},
+		{
+			ID: histWritten, Kind: store.KindRewrite, CreatedAt: now.Add(-26 * time.Hour), Status: store.StatusDone,
+			AppBundle: "com.apple.Notes", AppName: "Notes",
+			PromptText:  "写一段两百字的自我介绍，用于技术分享会的开场",
+			Result:      "大家好，我是关伟，一名专注于桌面应用和语音交互的工程师。过去几年，我主要在做跨平台的原生界面框架……",
+			Delivery:    "card",
+			ASRProvider: "aliyun", ASRModel: "qwen3-asr-flash-realtime", LLMProvider: "deepseek", LLMModel: "deepseek-chat",
+			AudioMS: 5100, ASRMS: 300, LLMMS: 6200, TotalMS: 11900,
+		},
+	} {
+		if err := a.lib.store.History().Put(context.Background(), e); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 // snapshotHistoryDetail renders the History page with an entry's details
-// (TestSnapshots).
+// (TestSnapshots), on each tab.
 func snapshotHistoryDetail(a *app, save func(string)) {
 	a.navigate("/history")
 	a.hist.sel = histInserted
 	save("history-detail")
-	a.hist.sel = ""
+	for _, tab := range []struct {
+		i    int
+		name string
+		sel  string
+	}{{1, "history-translate", histTransSel}, {2, "history-rewrite", histRewritten}} {
+		a.hist.tab, a.hist.sel = tab.i, ""
+		a.loadHistory()
+		save(tab.name)
+		a.hist.sel = tab.sel
+		save(tab.name + "-detail")
+	}
+	a.hist.tab, a.hist.sel = 0, ""
+	a.loadHistory()
+}
+
+func TestHistoryTranslateAndRewrite(t *testing.T) {
+	a, _, tt := newTestApp(t)
+	seedHistory(t, a)
+	seedWriteHistory(t, a)
+	a.navigate("/history")
+	a.hist.tab = 1
+	a.loadHistory()
+	frames(tt)
+	if len(a.hist.list) != 2 || a.hist.list[0].ID != histTranslated {
+		t.Fatalf("translate tab %v", historyIDs(a))
+	}
+	if !has(tt, "Let them know the Thursday afternoon review moves to Friday morning.") || !hasPrefix(tt, "8 minutes ago · Slack · → English") {
+		t.Errorf("rows %q", firstTexts(tt))
+	}
+	a.hist.sel = histTransSel
+	frames(tt)
+	for _, s := range []string{"Selected text", "A goroutine is a lightweight thread managed by the Go runtime.", "Target language", "Simplified Chinese", "Shown in the answer card"} {
+		if !has(tt, s) {
+			t.Errorf("translate detail: no %q in %q", s, firstTexts(tt))
+		}
+	}
+	if has(tt, "Recognised text") {
+		t.Error("a selection shows a recognised text")
+	}
+	a.hist.tab, a.hist.sel = 2, histRewritten
+	a.loadHistory()
+	frames(tt)
+	for _, s := range []string{"Instruction", "make it more formal and shorter", "Selected text", "Apologies: the release moves to Thursday while the tests finish."} {
+		if !has(tt, s) {
+			t.Errorf("rewrite detail: no %q in %q", s, firstTexts(tt))
+		}
+	}
+	if has(tt, "Target language") {
+		t.Error("a rewrite has a target language")
+	}
+	// The search covers the instruction and the selection.
+	a.hist.query = "formal"
+	a.loadHistory()
+	frames(tt)
+	if len(a.hist.list) != 1 || a.hist.list[0].ID != histRewritten {
+		t.Errorf("search %v", historyIDs(a))
+	}
 }
 
 func TestHistoryList(t *testing.T) {

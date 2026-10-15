@@ -1,15 +1,19 @@
 package main
 
-// The Transcribe page (/transcribe, plan §3.1): its shortcuts (and the
-// shared "paste the last result"), the services it uses, the clean-up
-// layers, the user's rules with a preview of the whole prompt, and a Try
-// area that runs a session whose result stays on the page.
+// The feature pages (plan §3.1): Transcribe (/transcribe), Translate
+// (/translate) and Rewrite (/rewrite) share one structure: the feature's
+// shortcuts (and, on Transcribe, the shared "paste the last result"), the
+// services it uses, its own settings (Transcribe's clean-up layers;
+// Translate's target language, clean-up and card; Rewrite's instruction
+// clean-up and when an answer goes to the card), the user's rules with a
+// preview of the whole prompt, and a Try area that runs a session whose
+// result stays on the page.
 //
 // Every change goes through a.updateSettings, which also sends the
-// shortcuts to the helper again. The page keeps only what its controls
+// shortcuts to the helper again. A page keeps only what its controls
 // edit (the selects' labels, a custom shortcut being typed, the rules
 // before they are saved), set again from the settings when they change
-// elsewhere.
+// elsewhere; each feature has its own (featureUI).
 
 import (
 	"errors"
@@ -24,34 +28,76 @@ import (
 	"github.com/hehehai/Auralink/internal/hotkey"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
-	"github.com/hehehai/Auralink/internal/lang"
 	"github.com/hehehai/Auralink/internal/providers"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
 )
 
-// transcribeState is the Transcribe page's view state.
+// transcribeState is the feature pages' view state, one featureUI per
+// feature (hotkey.Transcribe, Translate, Rewrite).
 type transcribeState struct {
-	// trRows are the shortcuts' controls, trPaste paste-last's; trSeen is
-	// what they were last set from.
-	trRows  []keyRow
-	trPaste keyRow
-	trSeen  string
-	// trASR and trLLM are the services' selects; trSvcSeen what they
-	// were last set from.
-	trASR, trLLM string
-	trSvcSeen    string
-	// trPrompt is the rules as typed; trPromptSeen the saved value it was
-	// last set from; trPromptDirty an edit not saved yet, trPromptSeq
-	// which edit (its timer saves only the last one).
-	trPrompt      string
-	trPromptSeen  string
-	trPromptDirty bool
-	trPromptSeq   int
-	trPreview     bool
-	// trBlock says why the Try area's Start did not start.
-	trBlock *sessionNotice
+	features map[string]*featureUI
+}
+
+// featureUI is a feature page's view state.
+type featureUI struct {
+	// rows are the shortcuts' controls, paste paste-last's (Transcribe);
+	// seen is what they were last set from.
+	rows  []keyRow
+	paste keyRow
+	seen  string
+	// asr and llm are the services' selects; svcSeen what they were
+	// last set from.
+	asr, llm string
+	svcSeen  string
+	// lang is Translate's target select.
+	lang string
+	// prompt is the rules as typed; promptSeen the saved value it was
+	// last set from; promptDirty an edit not saved yet, promptSeq which
+	// edit (its timer saves only the last one).
+	prompt      string
+	promptSeen  string
+	promptDirty bool
+	promptSeq   int
+	preview     bool
+	// block says why the Try area's Start did not start.
+	block *sessionNotice
+}
+
+// fui is feature's page state.
+func (a *app) fui(feature string) *featureUI {
+	if a.features == nil {
+		a.features = map[string]*featureUI{}
+	}
+	u := a.features[feature]
+	if u == nil {
+		u = &featureUI{}
+		a.features[feature] = u
+	}
+	return u
+}
+
+// featureKind is a feature's session kind.
+func featureKind(feature string) store.Kind {
+	switch feature {
+	case hotkey.Translate:
+		return store.KindTranslate
+	case hotkey.Rewrite:
+		return store.KindRewrite
+	}
+	return store.KindTranscribe
+}
+
+// featurePrefix keys a feature page's controls.
+func featurePrefix(feature string) string {
+	switch feature {
+	case hotkey.Translate:
+		return "tl"
+	case hotkey.Rewrite:
+		return "rw"
+	}
+	return "tr"
 }
 
 // keyRow is a shortcut's controls.
@@ -244,50 +290,76 @@ func hotkeyProblems(f settings.Features, feature string) map[int][]string {
 
 // ---- The page ----
 
-// transcribePage builds the page.
-func (a *app) transcribePage(c *ui.Context) {
+// transcribePage builds the Transcribe page.
+func (a *app) transcribePage(c *ui.Context) { a.featurePage(c, hotkey.Transcribe) }
+
+// translatePage builds the Translate page.
+func (a *app) translatePage(c *ui.Context) { a.featurePage(c, hotkey.Translate) }
+
+// rewritePage builds the Rewrite page.
+func (a *app) rewritePage(c *ui.Context) { a.featurePage(c, hotkey.Rewrite) }
+
+// featurePage builds a feature's page.
+func (a *app) featurePage(c *ui.Context, feature string) {
 	t := c.Theme()
-	pageHeader(c, i18n.T("Transcribe"), nil)
+	p := featurePrefix(feature)
+	pageHeader(c, featureTitle(feature), nil)
 	if a.sess.Try && a.sess.State == session.Recording {
 		c.After(250 * time.Millisecond) // the Try area's clock
 	}
-	ui.Scroll(c.Key("tr-scroll")).Grow(1).MinHeight(0).Children(func() {
+	ui.Scroll(c.Key(p + "-scroll")).Grow(1).MinHeight(0).Children(func() {
 		ui.Column(c).Padding(0, px(t, sp6), px(t, sp6)).Gap(px(t, sp3)).MaxWidth(px(t, 880)).Children(func() {
-			caption(c, i18n.T("Press a shortcut anywhere, speak, and the text is typed where your cursor is."))
-			a.trShortcuts(c)
-			a.trServices(c)
-			a.trEnhance(c)
-			a.trRules(c)
-			a.trTryArea(c)
+			switch feature {
+			case hotkey.Translate:
+				caption(c, i18n.T("Select text and press the shortcut to translate it in place; with nothing selected, speak, and the translation is typed where your cursor is."))
+			case hotkey.Rewrite:
+				caption(c, i18n.T("Select text and say how to change it (\"shorter\", \"more formal\"); with nothing selected, say what to write. The answer goes where your cursor is."))
+			default:
+				caption(c, i18n.T("Press a shortcut anywhere, speak, and the text is typed where your cursor is."))
+			}
+			a.featureShortcuts(c, feature)
+			a.featureServices(c, feature)
+			switch feature {
+			case hotkey.Translate:
+				a.translateSettings(c)
+			case hotkey.Rewrite:
+				a.rewriteSettings(c)
+			default:
+				a.trEnhance(c)
+			}
+			a.featureRules(c, feature)
+			a.featureTry(c, feature)
 		})
 	})
 }
 
 // ---- Shortcuts ----
 
-// trSync sets the shortcuts' controls from the settings when they
-// changed elsewhere (or the language did: the labels are translated).
-func (a *app) trSync() {
-	seen := a.trKeysKey()
-	if seen == a.trSeen {
+// featureSync sets a feature's shortcut controls from the settings when
+// they changed elsewhere (or the language did: the labels are
+// translated).
+func (a *app) featureSync(feature string) {
+	u := a.fui(feature)
+	seen := a.featureKeysKey(feature)
+	if seen == u.seen {
 		return
 	}
-	a.trSeen = seen
-	hs := a.prefs.Features.Transcribe.Hotkeys
-	a.trRows = make([]keyRow, len(hs))
+	u.seen = seen
+	hs := hotkey.HotkeysOf(a.prefs.Features, feature)
+	u.rows = make([]keyRow, len(hs))
 	for i, h := range hs {
-		a.trRows[i] = keyRow{sel: chordLabel(h.Keys), text: h.Keys, trig: triggerIndex(h.Trigger)}
+		u.rows[i] = keyRow{sel: chordLabel(h.Keys), text: h.Keys, trig: triggerIndex(h.Trigger)}
 	}
 	pl := a.prefs.Features.PasteLast.Keys
-	a.trPaste = keyRow{sel: chordLabel(pl), text: pl}
+	u.paste = keyRow{sel: chordLabel(pl), text: pl}
 	if pl == "" {
-		a.trPaste.sel = i18n.T("Off")
+		u.paste.sel = i18n.T("Off")
 	}
 }
 
-func (a *app) trKeysKey() string {
+func (a *app) featureKeysKey(feature string) string {
 	f := a.prefs.Features
-	return fmt.Sprint(f.Transcribe.Hotkeys, f.PasteLast, i18n.Locale())
+	return fmt.Sprint(hotkey.HotkeysOf(f, feature), f.PasteLast, i18n.Locale())
 }
 
 // chordLabel is the select's label of keys: the preset they are, or their
@@ -338,16 +410,24 @@ func keyOptions(cur string, off bool) (opts []string, byLabel map[string]string)
 	return opts, byLabel
 }
 
-// setTranscribeHotkeys changes the shortcuts with fn, on the settings'
-// own copy.
-func (a *app) setTranscribeHotkeys(resync bool, fn func(hs []settings.Hotkey) []settings.Hotkey) {
+// setHotkeys changes a feature's shortcuts with fn, on the settings' own
+// copy.
+func (a *app) setHotkeys(feature string, resync bool, fn func(hs []settings.Hotkey) []settings.Hotkey) {
 	a.updateSettings(func(s *settings.Settings) {
-		s.Features.Transcribe.Hotkeys = fn(slices.Clone(s.Features.Transcribe.Hotkeys))
+		hs := &s.Features.Transcribe.Hotkeys
+		switch feature {
+		case hotkey.Translate:
+			hs = &s.Features.Translate.Hotkeys
+		case hotkey.Rewrite:
+			hs = &s.Features.Rewrite.Hotkeys
+		}
+		*hs = fn(slices.Clone(*hs))
 	})
+	u := a.fui(feature)
 	if resync {
-		a.trSeen = ""
+		u.seen = ""
 	} else {
-		a.trSeen = a.trKeysKey() // the controls already show it
+		u.seen = a.featureKeysKey(feature) // the controls already show it
 	}
 }
 
@@ -371,52 +451,63 @@ func newHotkey(f settings.Features) settings.Hotkey {
 	return settings.Hotkey{Keys: keyPresets[0], Trigger: settings.TriggerDouble}
 }
 
-func (a *app) trShortcuts(c *ui.Context) {
+func (a *app) featureShortcuts(c *ui.Context, feature string) {
 	t := c.Theme()
-	a.trSync()
+	p := featurePrefix(feature)
+	u := a.fui(feature)
+	a.featureSync(feature)
 	sectionTitleTip(c, i18n.T("Shortcuts"), i18n.T("Tap: press to start, press again to stop. Double tap: press twice quickly. Long press: record while you hold the keys. Escape cancels."))
 	if !a.hotkeys.Installed {
-		notice(c, "tr-no-tap", noticeWarn,
+		notice(c, p+"-no-tap", noticeWarn,
 			i18n.T("Without Accessibility only plain shortcuts work (⌃⌥⇧⌘ with a key); fn, a single modifier, double taps and long presses need it."),
 			"", func() {
-				if ui.Button(c.Key("tr-open-perms"), i18n.T("Open Permissions")).Clicked() {
+				if ui.Button(c.Key(p+"-open-perms"), i18n.T("Open Permissions")).Clicked() {
 					a.navigate("/settings/permissions")
 				}
 			}, nil)
 	}
-	problems := hotkeyProblems(a.prefs.Features, hotkey.Transcribe)
-	card(c.Key("tr-keys")).Gap(px(t, sp2)).Children(func() {
-		hs := a.prefs.Features.Transcribe.Hotkeys
+	problems := hotkeyProblems(a.prefs.Features, feature)
+	card(c.Key(p + "-keys")).Gap(px(t, sp2)).Children(func() {
+		hs := hotkey.HotkeysOf(a.prefs.Features, feature)
 		if len(hs) == 0 {
-			caption(c, i18n.T("No shortcut: start from the menu bar, or add one."))
+			if feature == hotkey.Transcribe {
+				caption(c, i18n.T("No shortcut: start from the menu bar, or add one."))
+			} else {
+				caption(c, i18n.T("No shortcut: add one to use this feature."))
+			}
 		}
 		for i := range hs {
-			if i >= len(a.trRows) {
+			if i >= len(u.rows) {
 				break
 			}
 			if i > 0 {
 				ui.Box(c).Height(1).Background(tok(t).Line).Shrink(0)
 			}
-			a.trKeyRow(c, i, hs[i], problems[i])
+			a.keyRowView(c, feature, i, hs[i], problems[i])
 		}
 		ui.Row(c).Children(func() {
-			if ghostIconButton(c.Key("tr-key-add"), icons.Add, i18n.T("Add a shortcut")).Clicked() {
+			if ghostIconButton(c.Key(p+"-key-add"), icons.Add, i18n.T("Add a shortcut")).Clicked() {
 				h := newHotkey(a.prefs.Features)
-				a.setTranscribeHotkeys(true, func(hs []settings.Hotkey) []settings.Hotkey { return append(hs, h) })
+				a.setHotkeys(feature, true, func(hs []settings.Hotkey) []settings.Hotkey { return append(hs, h) })
 			}
 		})
 	})
-	a.trPasteRow(c)
+	switch feature {
+	case hotkey.Transcribe:
+		a.trPasteRow(c)
+	case hotkey.Rewrite:
+		caption(c, i18n.T("While the answer card shows an answer, the shortcut records a follow-up that changes it (\"shorter\", \"in English\")."))
+	}
 }
 
-// trKeyRow is the i-th shortcut: its keys, its trigger, a mark when it
+// keyRowView is the i-th shortcut: its keys, its trigger, a mark when it
 // needs Accessibility, Remove; the typed keys when custom; its problems.
-func (a *app) trKeyRow(c *ui.Context, i int, h settings.Hotkey, problems []string) {
+func (a *app) keyRowView(c *ui.Context, feature string, i int, h settings.Hotkey, problems []string) {
 	t := c.Theme()
 	k := tok(t)
-	r := &a.trRows[i]
+	r := &a.fui(feature).rows[i]
 	n := i + 1
-	ui.Column(c.Key(fmt.Sprintf("tr-key-%d", i))).Gap(px(t, 6)).Children(func() {
+	ui.Column(c.Key(fmt.Sprintf("%s-key-%d", featurePrefix(feature), i))).Gap(px(t, 6)).Children(func() {
 		ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
 			ui.Row(c).Wrap().Gap(px(t, sp2)).AlignItems(ui.Center).Grow(1).MinWidth(0).Children(func() {
 				opts, byLabel := keyOptions(h.Keys, false)
@@ -428,7 +519,7 @@ func (a *app) trKeyRow(c *ui.Context, i int, h settings.Hotkey, problems []strin
 				}
 				sel := ui.Select(c.Key("sel"), &r.sel, opts).Label(i18n.T("Keys of shortcut %d", n)).Width(px(t, 180)).Shrink(1).MinWidth(px(t, 120))
 				if sel.Changed() {
-					a.trChooseKeys(i, r, byLabel)
+					a.chooseKeys(feature, i, r, byLabel)
 				}
 				tips := []string{
 					i18n.T("Press to start, press again to stop."),
@@ -439,7 +530,7 @@ func (a *app) trKeyRow(c *ui.Context, i int, h settings.Hotkey, problems []strin
 					Label(i18n.T("Trigger of shortcut %d", n))
 				if seg.Changed() {
 					trig := triggers[r.trig]
-					a.setTranscribeHotkeys(false, func(hs []settings.Hotkey) []settings.Hotkey {
+					a.setHotkeys(feature, false, func(hs []settings.Hotkey) []settings.Hotkey {
 						if i < len(hs) {
 							hs[i].Trigger = trig
 						}
@@ -455,7 +546,7 @@ func (a *app) trKeyRow(c *ui.Context, i int, h settings.Hotkey, problems []strin
 				iconMark(c, icons.Accessibility, col, i18n.T("Works only while Auralink may use Accessibility."))
 			}
 			if iconButton(c.Key("remove"), icons.TrashBinMinimalistic, i18n.T("Remove shortcut %d", n)).Clicked() {
-				a.setTranscribeHotkeys(true, func(hs []settings.Hotkey) []settings.Hotkey {
+				a.setHotkeys(feature, true, func(hs []settings.Hotkey) []settings.Hotkey {
 					if i < len(hs) {
 						hs = slices.Delete(hs, i, i+1)
 					}
@@ -465,7 +556,7 @@ func (a *app) trKeyRow(c *ui.Context, i int, h settings.Hotkey, problems []strin
 		})
 		if r.custom {
 			a.customKeys(c, r, i18n.T("Custom keys of shortcut %d", n), func(keys string) {
-				a.setTranscribeHotkeys(false, func(hs []settings.Hotkey) []settings.Hotkey {
+				a.setHotkeys(feature, false, func(hs []settings.Hotkey) []settings.Hotkey {
 					if i < len(hs) {
 						hs[i].Keys = keys
 					}
@@ -477,12 +568,12 @@ func (a *app) trKeyRow(c *ui.Context, i int, h settings.Hotkey, problems []strin
 	})
 }
 
-// trChooseKeys applies a choice of the i-th shortcut's select.
-func (a *app) trChooseKeys(i int, r *keyRow, byLabel map[string]string) {
+// chooseKeys applies a choice of a feature's i-th shortcut select.
+func (a *app) chooseKeys(feature string, i int, r *keyRow, byLabel map[string]string) {
 	if r.sel == i18n.T("Custom…") {
 		r.custom = true
-		if i < len(a.prefs.Features.Transcribe.Hotkeys) {
-			r.text = a.prefs.Features.Transcribe.Hotkeys[i].Keys
+		if hs := hotkey.HotkeysOf(a.prefs.Features, feature); i < len(hs) {
+			r.text = hs[i].Keys
 		}
 		return
 	}
@@ -491,7 +582,7 @@ func (a *app) trChooseKeys(i int, r *keyRow, byLabel map[string]string) {
 		return
 	}
 	r.custom, r.text = false, keys
-	a.setTranscribeHotkeys(false, func(hs []settings.Hotkey) []settings.Hotkey {
+	a.setHotkeys(feature, false, func(hs []settings.Hotkey) []settings.Hotkey {
 		if i < len(hs) {
 			hs[i].Keys = keys
 		}
@@ -545,7 +636,7 @@ func warnLine(c *ui.Context, text string) {
 // trPasteRow is "Paste the last result": its keys only (always a tap).
 func (a *app) trPasteRow(c *ui.Context) {
 	t := c.Theme()
-	r := &a.trPaste
+	r := &a.fui(hotkey.Transcribe).paste
 	cur := a.prefs.Features.PasteLast.Keys
 	problems := hotkeyProblems(a.prefs.Features, hotkey.PasteLast)[0]
 	ui.Column(c.Key("tr-paste")).Gap(px(t, 6)).Children(func() {
@@ -581,54 +672,85 @@ func (a *app) setPasteLast(keys string) {
 	a.updateSettings(func(s *settings.Settings) {
 		s.Features.PasteLast = settings.Hotkey{Keys: keys, Trigger: settings.TriggerTap}
 	})
-	a.trSeen = a.trKeysKey()
+	u := a.fui(hotkey.Transcribe)
+	u.seen = a.featureKeysKey(hotkey.Transcribe)
 }
 
 // ---- Services ----
 
-func (a *app) trServices(c *ui.Context) {
+func (a *app) featureServices(c *ui.Context, feature string) {
 	t := c.Theme()
-	f := a.prefs.Features.Transcribe
+	p := featurePrefix(feature)
+	u := a.fui(feature)
+	f := providers.FeatureOf(a.prefs, feature)
+	enhance := feature != hotkey.Transcribe || a.prefs.Features.Transcribe.Enhance
 	readyA := providers.Ready(a.prefs, providers.ASR, a.hasKey)
 	readyL := providers.Ready(a.prefs, providers.LLM, a.hasKey)
 	optsA, autoA := serviceOptions(providers.ASR, readyA)
 	optsL, autoL := serviceOptions(providers.LLM, readyL)
 	seen := strings.Join([]string{f.ASR, f.LLM, strings.Join(optsA, "\x00"), strings.Join(optsL, "\x00")}, "\x01")
-	if a.trSvcSeen != seen {
-		a.trSvcSeen = seen
-		a.trASR, a.trLLM = serviceLabel(providers.ASR, readyA, f.ASR, autoA), serviceLabel(providers.LLM, readyL, f.LLM, autoL)
+	if u.svcSeen != seen {
+		u.svcSeen = seen
+		u.asr, u.llm = serviceLabel(providers.ASR, readyA, f.ASR, autoA), serviceLabel(providers.LLM, readyL, f.LLM, autoL)
 	}
 	sectionTitleTip(c, i18n.T("Services"), i18n.T("Automatic uses the first service that is ready, in the order of the Model services page."))
+	opened := false // one "Open Model services" per page
 	openProviders := func() {
-		if ui.Button(c.Key("tr-open-providers"), i18n.T("Open Model services")).Clicked() {
+		if opened {
+			return
+		}
+		opened = true
+		if ui.Button(c.Key(p+"-open-providers"), i18n.T("Open Model services")).Clicked() {
 			a.navigate("/providers")
 		}
 	}
 	if len(readyA) == 0 {
-		notice(c, "tr-no-asr", noticeWarn, i18n.T("No speech service is ready: set one up to transcribe."), "", openProviders, nil)
+		switch feature {
+		case hotkey.Translate:
+			notice(c, p+"-no-asr", noticeInfo, i18n.T("No speech service is ready: only selected text can be translated."), "", openProviders, nil)
+		case hotkey.Rewrite:
+			notice(c, p+"-no-asr", noticeWarn, i18n.T("No speech service is ready: set one up to rewrite."), "", openProviders, nil)
+		default:
+			notice(c, p+"-no-asr", noticeWarn, i18n.T("No speech service is ready: set one up to transcribe."), "", openProviders, nil)
+		}
 	}
-	settingRow(c, "tr-asr", i18n.T("Speech recognition"), i18n.T("Turns your recording into text."), func() {
-		sel := ui.Select(c.Key("tr-asr-sel"), &a.trASR, optsA).Label(i18n.T("Speech service for Transcribe")).Width(px(t, 260)).Shrink(1).MinWidth(px(t, 160)).Disabled(len(readyA) == 0)
+	if len(readyL) == 0 {
+		switch feature {
+		case hotkey.Translate:
+			notice(c, p+"-no-llm", noticeWarn, i18n.T("No language model is ready: set one up to translate."), "", openProviders, nil)
+		case hotkey.Rewrite:
+			notice(c, p+"-no-llm", noticeWarn, i18n.T("No language model is ready: set one up to rewrite."), "", openProviders, nil)
+		}
+	}
+	var asrDesc, asrLabel, llmDesc, llmLabel string
+	switch feature {
+	case hotkey.Translate:
+		asrDesc, asrLabel = i18n.T("Turns what you say into text, when nothing is selected."), i18n.T("Speech service for Translate")
+		llmDesc, llmLabel = i18n.T("Translates the text."), i18n.T("Language model for Translate")
+	case hotkey.Rewrite:
+		asrDesc, asrLabel = i18n.T("Turns your spoken instruction into text."), i18n.T("Speech service for Rewrite")
+		llmDesc, llmLabel = i18n.T("Rewrites the selection, or writes what you ask for."), i18n.T("Language model for Rewrite")
+	default:
+		asrDesc, asrLabel = i18n.T("Turns your recording into text."), i18n.T("Speech service for Transcribe")
+		llmDesc, llmLabel = i18n.T("Cleans up the recognised text when \"Clean up with a language model\" is on."), i18n.T("Language model for Transcribe")
+	}
+	settingRow(c, p+"-asr", i18n.T("Speech recognition"), asrDesc, func() {
+		sel := ui.Select(c.Key(p+"-asr-sel"), &u.asr, optsA).Label(asrLabel).Width(px(t, 260)).Shrink(1).MinWidth(px(t, 160)).Disabled(len(readyA) == 0)
 		if sel.Changed() {
-			id := serviceID(optsA, readyA, a.trASR)
-			a.updateSettings(func(s *settings.Settings) { setFeatureProvider(s, providers.ASR, providers.Transcribe, id) })
+			id := serviceID(optsA, readyA, u.asr)
+			a.updateSettings(func(s *settings.Settings) { setFeatureProvider(s, providers.ASR, feature, id) })
 		}
 	})
-	settingRow(c, "tr-llm", i18n.T("Language model"), i18n.T("Cleans up the recognised text when \"Clean up with a language model\" is on."), func() {
-		sel := ui.Select(c.Key("tr-llm-sel"), &a.trLLM, optsL).Label(i18n.T("Language model for Transcribe")).Width(px(t, 260)).Shrink(1).MinWidth(px(t, 160)).
-			Disabled(len(readyL) == 0 || !f.Enhance)
+	settingRow(c, p+"-llm", i18n.T("Language model"), llmDesc, func() {
+		sel := ui.Select(c.Key(p+"-llm-sel"), &u.llm, optsL).Label(llmLabel).Width(px(t, 260)).Shrink(1).MinWidth(px(t, 160)).
+			Disabled(len(readyL) == 0 || !enhance)
 		if sel.Changed() {
-			id := serviceID(optsL, readyL, a.trLLM)
-			a.updateSettings(func(s *settings.Settings) { setFeatureProvider(s, providers.LLM, providers.Transcribe, id) })
+			id := serviceID(optsL, readyL, u.llm)
+			a.updateSettings(func(s *settings.Settings) { setFeatureProvider(s, providers.LLM, feature, id) })
 		}
 	})
-	if len(readyL) == 0 && f.Enhance {
-		notice(c, "tr-no-llm", noticeInfo, i18n.T("No language model is ready: the text is typed as recognised, without clean-up."), "",
-			func() {
-				if len(readyA) > 0 { // one "Open Model services" per page
-					openProviders()
-				}
-			}, nil)
+	if feature == hotkey.Transcribe && len(readyL) == 0 && enhance {
+		notice(c, "tr-no-llm", noticeInfo, i18n.T("No language model is ready: the text is typed as recognised, without clean-up."), "", openProviders, nil)
 	}
 }
 
@@ -692,6 +814,76 @@ func (a *app) trEnhance(c *ui.Context) {
 		})
 }
 
+// ---- Translate and Rewrite ----
+
+// translateSettings are Translate's own: the target language, the
+// clean-up of speech, the card.
+func (a *app) translateSettings(c *ui.Context) {
+	t := c.Theme()
+	u := a.fui(hotkey.Translate)
+	f := &a.prefs.Features.Translate
+	sectionTitle(c, i18n.T("Translation"))
+	opts := []string{i18n.T("Automatic: %s", targetLanguageLabel(session.TranslateTarget(settings.Settings{General: a.prefs.General}, i18n.Locale(), "")))}
+	for _, code := range compose.TargetLanguages {
+		opts = append(opts, targetLanguageLabel(code))
+	}
+	cur := opts[0]
+	if j := slices.Index(compose.TargetLanguages, f.Target); j >= 0 {
+		cur = opts[j+1]
+	} else if f.Target != "" {
+		cur = targetLanguageLabel(f.Target)
+		opts = append(opts, cur)
+	}
+	u.lang = cur // the settings say; a choice saves at once
+	settingRow(c, "tl-target", i18n.T("Translate into"),
+		i18n.T("Automatic is English, or Chinese when your main language is English (Settings → General). The answer card can translate the same text into another language."), func() {
+			if ui.Select(c.Key("tl-target-sel"), &u.lang, opts).Label(i18n.T("Target language")).Width(px(t, 220)).Changed() {
+				code := ""
+				if j := slices.Index(opts, u.lang); j > 0 && j <= len(compose.TargetLanguages) {
+					code = compose.TargetLanguages[j-1]
+				}
+				a.updateSettings(func(s *settings.Settings) { s.Features.Translate.Target = code })
+			}
+		})
+	settingRow(c, "tl-cleanup", i18n.T("Basic clean-up"),
+		i18n.T("Cleans up what you say before translating it: fillers, false starts and corrections go, spoken punctuation becomes marks. Selected text is translated as it is."), func() {
+			if ui.Switch(c.Key("tl-cleanup-switch"), &f.Cleanup).Label(i18n.T("Basic clean-up")).Changed() {
+				on := f.Cleanup
+				a.updateSettings(func(s *settings.Settings) { s.Features.Translate.Cleanup = on })
+			}
+		})
+	settingRow(c, "tl-card", i18n.T("Show the result in a card"),
+		i18n.T("Shows the translation in the answer card, to read, copy or insert, instead of typing it (or replacing the selection). Selected text that cannot be edited, such as a web page, always goes to the card."), func() {
+			if ui.Switch(c.Key("tl-card-switch"), &f.ShowCard).Label(i18n.T("Show the result in a card")).Changed() {
+				on := f.ShowCard
+				a.updateSettings(func(s *settings.Settings) { s.Features.Translate.ShowCard = on })
+			}
+		})
+}
+
+// rewriteSettings are Rewrite's own: the instruction's clean-up and when
+// an answer goes to the card.
+func (a *app) rewriteSettings(c *ui.Context) {
+	t := c.Theme()
+	f := &a.prefs.Features.Rewrite
+	sectionTitle(c, i18n.T("Rewriting"))
+	settingRow(c, "rw-cleanup", i18n.T("Clean up the instruction"),
+		i18n.T("Reads past fillers, false starts and corrections in what you say (\"shorter, no, more formal\"). It never changes the selected text by itself."), func() {
+			if ui.Switch(c.Key("rw-cleanup-switch"), &f.Cleanup).Label(i18n.T("Clean up the instruction")).Changed() {
+				on := f.Cleanup
+				a.updateSettings(func(s *settings.Settings) { s.Features.Rewrite.Cleanup = on })
+			}
+		})
+	settingRow(c, "rw-card", i18n.T("Long answers in the card"),
+		i18n.T("With nothing selected, an answer longer than this many characters shows in the answer card instead of being typed; 0 types every answer. A rewritten selection always replaces it, unless it cannot be edited."), func() {
+			v := float64(f.CardChars)
+			if numberInput(c.Key("rw-card-chars"), &v, 0, 5000, 50, numOpts{Label: i18n.T("Characters"), Width: px(t, 160)}) {
+				n := int(v)
+				a.updateSettings(func(s *settings.Settings) { s.Features.Rewrite.CardChars = n })
+			}
+		})
+}
+
 // ---- Your rules ----
 
 // variableInfo says what a prompt variable holds.
@@ -709,66 +901,96 @@ func variableInfo(name string) string {
 	return ""
 }
 
-// trPromptSync sets the rules from the settings when they changed
+// promptOf is a feature's saved rules.
+func promptOf(s settings.Settings, feature string) string {
+	return providers.FeatureOf(s, feature).Prompt
+}
+
+// promptSync sets the rules from the settings when they changed
 // elsewhere and nothing typed waits to be saved.
-func (a *app) trPromptSync() {
-	saved := a.prefs.Features.Transcribe.Prompt
-	if !a.trPromptDirty && saved != a.trPromptSeen {
-		a.trPrompt, a.trPromptSeen = saved, saved
+func (a *app) promptSync(feature string) {
+	u := a.fui(feature)
+	saved := promptOf(a.prefs, feature)
+	if !u.promptDirty && saved != u.promptSeen {
+		u.prompt, u.promptSeen = saved, saved
 	}
 }
 
-// saveTrPrompt saves the rules as typed.
-func (a *app) saveTrPrompt() {
-	a.trPromptDirty = false
-	v := a.trPrompt
+// savePrompt saves the rules as typed.
+func (a *app) savePrompt(feature string) {
+	u := a.fui(feature)
+	u.promptDirty = false
+	v := u.prompt
 	if strings.TrimSpace(v) == "" {
 		v = ""
 	}
-	a.trPromptSeen = v
-	if v == a.prefs.Features.Transcribe.Prompt {
+	u.promptSeen = v
+	if v == promptOf(a.prefs, feature) {
 		return
 	}
-	a.updateSettings(func(s *settings.Settings) { s.Features.Transcribe.Prompt = v })
+	a.updateSettings(func(s *settings.Settings) {
+		switch feature {
+		case hotkey.Translate:
+			s.Features.Translate.Prompt = v
+		case hotkey.Rewrite:
+			s.Features.Rewrite.Prompt = v
+		default:
+			s.Features.Transcribe.Prompt = v
+		}
+	})
 }
 
 // promptSaveDelay is how long the rules wait after the last key before
 // they are saved (they are saved at once when the field loses focus).
 const promptSaveDelay = 800 * time.Millisecond
 
-func (a *app) trRules(c *ui.Context) {
+func (a *app) featureRules(c *ui.Context, feature string) {
 	t := c.Theme()
 	k := tok(t)
-	a.trPromptSync()
+	p := featurePrefix(feature)
+	u := a.fui(feature)
+	a.promptSync(feature)
 	sectionTitle(c, i18n.T("Your rules"))
-	caption(c, i18n.T("These rules are merged with the built-in clean-up rules; where they disagree, yours win."))
-	in := ui.TextArea(c.Key("tr-prompt"), &a.trPrompt).Label(i18n.T("Your rules for Transcribe")).
-		Placeholder(i18n.T("For example: write numbers as digits; keep English product names as they are; end every sentence with a full stop.")).
-		MinHeight(px(t, 88))
+	var label, placeholder string
+	switch feature {
+	case hotkey.Translate:
+		caption(c, i18n.T("These rules are merged with the built-in translation rules; where they disagree, yours win."))
+		label = i18n.T("Your rules for Translate")
+		placeholder = i18n.T("For example: use British spelling; keep product names in English; write dates as 15 October 2026.")
+	case hotkey.Rewrite:
+		caption(c, i18n.T("These rules are merged with the built-in writing rules; where they disagree, yours win."))
+		label = i18n.T("Your rules for Rewrite")
+		placeholder = i18n.T("For example: write plainly, without emoji; sign mails with my first name.")
+	default:
+		caption(c, i18n.T("These rules are merged with the built-in clean-up rules; where they disagree, yours win."))
+		label = i18n.T("Your rules for Transcribe")
+		placeholder = i18n.T("For example: write numbers as digits; keep English product names as they are; end every sentence with a full stop.")
+	}
+	in := ui.TextArea(c.Key(p+"-prompt"), &u.prompt).Label(label).Placeholder(placeholder).MinHeight(px(t, 88))
 	if in.Changed() {
-		a.trPromptDirty = true
-		a.trPromptSeq++
-		if seq := a.trPromptSeq; a.win != nil {
+		u.promptDirty = true
+		u.promptSeq++
+		if seq := u.promptSeq; a.win != nil {
 			time.AfterFunc(promptSaveDelay, func() {
 				a.post(func() {
-					if a.trPromptDirty && a.trPromptSeq == seq {
-						a.saveTrPrompt()
+					if u.promptDirty && u.promptSeq == seq {
+						a.savePrompt(feature)
 					}
 				})
 			})
 		}
-	} else if a.trPromptDirty && !in.Focused() {
-		a.saveTrPrompt() // it lost the focus
+	} else if u.promptDirty && !in.Focused() {
+		a.savePrompt(feature) // it lost the focus
 	}
 	ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Wrap().Children(func() {
 		caption(c, i18n.T("Variables (click one to copy it):")).Grow(1).MinWidth(0)
-		empty := a.trPrompt == "" && a.prefs.Features.Transcribe.Prompt == ""
-		if ghostIconButton(c.Key("tr-prompt-reset"), icons.Refresh, i18n.T("Reset to default")).Label(i18n.T("Reset your rules")).Disabled(empty).Clicked() {
-			a.trPrompt = ""
-			a.saveTrPrompt()
+		empty := u.prompt == "" && promptOf(a.prefs, feature) == ""
+		if ghostIconButton(c.Key(p+"-prompt-reset"), icons.Refresh, i18n.T("Reset to default")).Label(i18n.T("Reset your rules")).Disabled(empty).Clicked() {
+			u.prompt = ""
+			a.savePrompt(feature)
 		}
 	})
-	ui.Column(c.Key("tr-vars")).Gap(px(t, 4)).Children(func() {
+	ui.Column(c.Key(p + "-vars")).Gap(px(t, 4)).Children(func() {
 		for _, name := range compose.VariableNames {
 			token := "{{" + name + "}}"
 			ui.Row(c.Key("var-" + name)).Wrap().GapX(px(t, sp2)).GapY(px(t, 2)).AlignItems(ui.Center).Children(func() {
@@ -787,33 +1009,54 @@ func (a *app) trRules(c *ui.Context) {
 			})
 		}
 	})
-	collapsible(c.Key("tr-preview"), i18n.T("Show the full prompt"), &a.trPreview, nil, func() {
-		a.trPreviewBody(c)
+	collapsible(c.Key(p+"-preview"), i18n.T("Show the full prompt"), &u.preview, nil, func() {
+		a.previewBody(c, feature)
 	})
 }
 
-// trComposed is the request a session would send with the settings and
-// the rules as typed, for the sample text.
-func (a *app) trComposed() (compose.Output, error) {
-	f := a.prefs.Features.Transcribe
+// rewriteSample is the instruction and the selection Rewrite's preview
+// shows.
+func rewriteSample() (instruction, selection string) {
+	return i18n.T("um make it shorter, no, more formal"), i18n.T("hey, the release slips to thursday because the tests are still running, sorry!")
+}
+
+// composedPreview is the request a session would send with the settings
+// and the rules as typed, for the sample text.
+func (a *app) composedPreview(feature string) (compose.Output, error) {
 	g := a.prefs.General
-	main := g.MainLanguage
-	if main == "" {
-		main = lang.Canonical(i18n.Locale())
+	in := compose.Input{
+		TaskPrompt: a.fui(feature).prompt, MainLanguage: session.MainLanguage(a.prefs, i18n.Locale()), OtherLanguages: g.OtherLanguages,
 	}
-	return compose.Build(compose.Input{
-		Task: compose.Transcribe, Cleanup: f.Cleanup, Structure: f.Structure, TaskPrompt: a.trPrompt,
-		MainLanguage: main, OtherLanguages: g.OtherLanguages, Text: trySample(),
-	})
+	switch feature {
+	case hotkey.Translate:
+		f := a.prefs.Features.Translate
+		in.Task, in.Cleanup, in.Text = compose.Translate, f.Cleanup, trySample()
+		in.TargetLanguage = session.TranslateTarget(a.prefs, i18n.Locale(), "")
+	case hotkey.Rewrite:
+		in.Task, in.Cleanup = compose.Rewrite, a.prefs.Features.Rewrite.Cleanup
+		in.Instruction, in.Text = rewriteSample()
+	default:
+		f := a.prefs.Features.Transcribe
+		in.Task, in.Cleanup, in.Structure, in.Text = compose.Transcribe, f.Cleanup, f.Structure, trySample()
+	}
+	return compose.Build(in)
 }
 
-func (a *app) trPreviewBody(c *ui.Context) {
+func (a *app) previewBody(c *ui.Context, feature string) {
 	t := c.Theme()
 	k := tok(t)
-	if !a.prefs.Features.Transcribe.Enhance {
-		caption(c, i18n.T("Clean-up is off: nothing is sent to a language model."))
+	p := featurePrefix(feature)
+	switch feature {
+	case hotkey.Transcribe:
+		if !a.prefs.Features.Transcribe.Enhance {
+			caption(c, i18n.T("Clean-up is off: nothing is sent to a language model."))
+		}
+	case hotkey.Translate:
+		caption(c, i18n.T("Spoken text, as below; selected text is translated without the clean-up and keeps its form."))
+	case hotkey.Rewrite:
+		caption(c, i18n.T("With a selection, as below; with nothing selected the model writes from the instruction and answers with a title and the text."))
 	}
-	out, err := a.trComposed()
+	out, err := a.composedPreview(feature)
 	if err != nil {
 		caption(c, err.Error())
 		return
@@ -827,24 +1070,26 @@ func (a *app) trPreviewBody(c *ui.Context) {
 			})
 		})
 	}
-	block("tr-preview-system", i18n.T("System prompt"), out.System)
-	block("tr-preview-user", i18n.T("User message (an example)"), out.User)
+	block(p+"-preview-system", i18n.T("System prompt"), out.System)
+	block(p+"-preview-user", i18n.T("User message (an example)"), out.User)
 }
 
 // ---- Try it ----
 
-// trySession reports whether the current session is a Transcribe try.
-func (a *app) trySession() bool {
+// trySessionOf reports whether the current session is a try of feature.
+func (a *app) trySessionOf(feature string) bool {
 	s := a.sess
-	return s.ID != "" && s.Try && s.Kind == store.KindTranscribe
+	return s.ID != "" && s.Try && s.Kind == featureKind(feature)
 }
 
-func (a *app) trTryArea(c *ui.Context) {
+func (a *app) featureTry(c *ui.Context, feature string) {
 	t := c.Theme()
+	p := featurePrefix(feature)
+	u := a.fui(feature)
 	sectionTitle(c, i18n.T("Try it"))
 	s := a.sess
-	try := a.trySession()
-	card(c.Key("tr-try")).Children(func() {
+	try := a.trySessionOf(feature)
+	card(c.Key(p + "-try")).Children(func() {
 		switch {
 		case try && s.State == session.Recording:
 			a.tryRecording(c, s)
@@ -852,20 +1097,32 @@ func (a *app) trTryArea(c *ui.Context) {
 		case try && s.State.Live():
 			ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
 				ui.Spinner(c).Size(px(t, 16), px(t, 16))
-				ui.Text(c, workingText(s.State)).Grow(1).MinWidth(0)
-				if ghostButton(c.Key("tr-try-cancel"), i18n.T("Cancel")).Clicked() {
+				ui.Text(c, workingText(s)).Grow(1).MinWidth(0)
+				if ghostButton(c.Key(p+"-try-cancel"), i18n.T("Cancel")).Clicked() {
 					a.cancelSession()
 				}
 			})
+			if d := strings.TrimSpace(s.Draft); d != "" && s.State == session.Composing {
+				fillCard(c.Key(p + "-try-draft")).Padding(px(t, sp3)).Children(func() {
+					ui.Text(c, d).Selectable()
+				})
+			}
 			return
 		}
 		if try && s.State.Ended() {
 			a.tryEnded(c, s)
 		} else {
-			caption(c, i18n.T("Say a sentence or two: the result shows here and is not typed anywhere."))
+			switch feature {
+			case hotkey.Translate:
+				caption(c, i18n.T("Say a sentence or two: the translation shows here and is not typed anywhere."))
+			case hotkey.Rewrite:
+				caption(c, i18n.T("Say what to write (\"a short note saying I will be late\"): the answer shows here and is not typed anywhere."))
+			default:
+				caption(c, i18n.T("Say a sentence or two: the result shows here and is not typed anywhere."))
+			}
 		}
-		if n := a.trBlock; n != nil {
-			notice(c, "tr-try-block", noticeError, n.text, n.more, a.noticeButton(c, "tr-try-block-action", n.action), func() { a.trBlock = nil })
+		if n := u.block; n != nil {
+			notice(c, p+"-try-block", noticeError, n.text, n.more, a.noticeButton(c, p+"-try-block-action", n.action, feature), func() { u.block = nil })
 		}
 		ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Wrap().Children(func() {
 			label := i18n.T("Start")
@@ -873,25 +1130,29 @@ func (a *app) trTryArea(c *ui.Context) {
 				label = i18n.T("Try again")
 			}
 			busy := s.State.Live()
-			if recordButton(c.Key("tr-try-start"), label).Label(i18n.T("Start a try")).Disabled(busy).Clicked() {
-				a.trBlock = a.startTranscribe(proto.App{}, "", true)
+			if recordButton(c.Key(p+"-try-start"), label).Label(i18n.T("Start a try")).Disabled(busy).Clicked() {
+				u.block = a.startSession(session.StartRequest{Kind: featureKind(feature), Try: true})
 			}
 			if busy {
-				caption(c, i18n.T("A transcription is running."))
+				if feature == hotkey.Transcribe {
+					caption(c, i18n.T("A transcription is running."))
+				} else {
+					caption(c, i18n.T("Another session is running."))
+				}
 			}
 		})
 	})
 }
 
 // noticeButton is a notice's action button, nil for none.
-func (a *app) noticeButton(c *ui.Context, key, action string) func() {
+func (a *app) noticeButton(c *ui.Context, key, action, feature string) func() {
 	label := noticeActionLabel(action)
 	if label == "" {
 		return nil
 	}
 	return func() {
 		if ui.Button(c.Key(key), label).Clicked() {
-			a.trBlock = nil
+			a.fui(feature).block = nil
 			a.noticeAction(action)
 		}
 	}
@@ -902,8 +1163,9 @@ func (a *app) noticeButton(c *ui.Context, key, action string) func() {
 func (a *app) tryRecording(c *ui.Context, s session.Snapshot) {
 	t := c.Theme()
 	k := tok(t)
+	p := featurePrefix(string(s.Kind))
 	ui.Row(c).Gap(px(t, sp3)).AlignItems(ui.Center).Children(func() {
-		ui.Icon(c, transcribeIcon.Bold).Size(px(t, 18), px(t, 18)).TextColor(k.Record).Shrink(0)
+		ui.Icon(c, kindIcon(s.Kind).Bold).Size(px(t, 18), px(t, 18)).TextColor(k.Record).Shrink(0)
 		levelBars(c, s.Levels, !s.HeardAt.IsZero())
 		ui.Text(c, clock(s.Elapsed(time.Now()))).FontSize(px(t, fsCaption)).Font("monospace").TextColor(k.Text2).Shrink(0)
 	})
@@ -914,10 +1176,10 @@ func (a *app) tryRecording(c *ui.Context, s session.Snapshot) {
 		ui.Text(c, live).MaxLines(4).Ellipsis("…")
 	}
 	ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
-		if recordButton(c.Key("tr-try-stop"), i18n.T("Stop")).Label(i18n.T("Stop recording")).Clicked() {
+		if recordButton(c.Key(p+"-try-stop"), i18n.T("Stop")).Label(i18n.T("Stop recording")).Clicked() {
 			a.stopSession()
 		}
-		if ghostButton(c.Key("tr-try-cancel"), i18n.T("Cancel")).Clicked() {
+		if ghostButton(c.Key(p+"-try-cancel"), i18n.T("Cancel")).Clicked() {
 			a.cancelSession()
 		}
 	})
@@ -949,6 +1211,8 @@ func levelBars(c *ui.Context, levels []float64, heard bool) {
 func (a *app) tryEnded(c *ui.Context, s session.Snapshot) {
 	t := c.Theme()
 	k := tok(t)
+	feature := string(s.Kind)
+	p := featurePrefix(feature)
 	switch s.State {
 	case session.Cancelled:
 		caption(c, i18n.T("Cancelled."))
@@ -957,31 +1221,35 @@ func (a *app) tryEnded(c *ui.Context, s session.Snapshot) {
 		if s.Problem != nil {
 			text, more, action := sessionProblemText(s.Problem)
 			if text != "" {
-				notice(c, "tr-try-failed", noticeError, text, more, a.noticeButton(c, "tr-try-failed-action", action), nil)
+				notice(c, p+"-try-failed", noticeError, text, more, a.noticeButton(c, p+"-try-failed-action", action, feature), nil)
 				return
 			}
 		}
 		caption(c, i18n.T("Nothing was heard."))
 		return
 	}
-	if p := s.Problem; p != nil {
-		if text, more, action := sessionProblemText(p); text != "" {
-			notice(c, "tr-try-warn", noticeWarn, text, more, a.noticeButton(c, "tr-try-warn-action", action), nil)
+	if pr := s.Problem; pr != nil {
+		if text, more, action := sessionProblemText(pr); text != "" {
+			notice(c, p+"-try-warn", noticeWarn, text, more, a.noticeButton(c, p+"-try-warn-action", action, feature), nil)
 		}
 	}
 	ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, i18n.T("Result")).FontSize(px(t, fsCaption)).FontWeight(600).TextColor(k.Text2).Grow(1)
-		if ghostIconButton(c.Key("tr-try-copy"), icons.Copy, i18n.T("Copy")).Label(i18n.T("Copy the result")).Disabled(s.Result == "").Clicked() {
+		if ghostIconButton(c.Key(p+"-try-copy"), icons.Copy, i18n.T("Copy")).Label(i18n.T("Copy the result")).Disabled(s.Result == "").Clicked() {
 			c.Services().WriteClipboard(s.Result)
 			a.toast(i18n.T("Copied"))
 		}
 	})
-	fillCard(c.Key("tr-try-result")).Padding(px(t, sp3)).Children(func() {
+	fillCard(c.Key(p + "-try-result")).Padding(px(t, sp3)).Children(func() {
 		ui.Text(c, s.Result).Selectable()
 	})
 	if raw := strings.TrimSpace(s.Raw); raw != "" && raw != strings.TrimSpace(s.Result) {
+		title := i18n.T("As recognised")
+		if s.Kind == store.KindRewrite {
+			title = i18n.T("Your instruction")
+		}
 		ui.Column(c).Gap(px(t, 4)).Children(func() {
-			ui.Text(c, i18n.T("As recognised")).FontSize(px(t, fsCaption)).FontWeight(600).TextColor(k.Text2)
+			ui.Text(c, title).FontSize(px(t, fsCaption)).FontWeight(600).TextColor(k.Text2)
 			ui.Text(c, raw).FontSize(px(t, fsCaption)).TextColor(k.Text2).Selectable()
 		})
 	}
@@ -1003,7 +1271,14 @@ func timingsText(s session.Snapshot) string {
 		parts = append(parts, i18n.T("Recognition %s", secs(tm.ASR)))
 	}
 	if tm.LLM > 0 {
-		parts = append(parts, i18n.T("Clean-up %s", secs(tm.LLM)))
+		switch s.Kind {
+		case store.KindTranslate:
+			parts = append(parts, i18n.T("Translation %s", secs(tm.LLM)))
+		case store.KindRewrite:
+			parts = append(parts, i18n.T("Writing %s", secs(tm.LLM)))
+		default:
+			parts = append(parts, i18n.T("Clean-up %s", secs(tm.LLM)))
+		}
 	}
 	if tm.Total > 0 {
 		parts = append(parts, i18n.T("Total %s", secs(tm.Total)))

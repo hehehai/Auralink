@@ -209,8 +209,8 @@ func (a *app) historyPage(c *ui.Context) {
 	a.historyDeleteDialog(c)
 }
 
-// historyEmpty is the list's empty state: nothing kept yet for the tab
-// (Translate and Rewrite come later), or nothing matching the search.
+// historyEmpty is the list's empty state: nothing kept yet for the tab,
+// or nothing matching the search.
 func (a *app) historyEmpty(c *ui.Context) {
 	h := &a.hist
 	if q := strings.TrimSpace(h.query); q != "" {
@@ -228,11 +228,19 @@ func (a *app) historyEmpty(c *ui.Context) {
 	}
 	switch h.kind() {
 	case store.KindTranslate:
-		emptyState(c, icons.Global, i18n.T("No translations yet"),
-			i18n.T("Once Translate is available, what you translate will show up here."), nil)
+		emptyState(c, translateIcon, i18n.T("No translations yet"),
+			i18n.T("Select text, or speak, and press your Translate shortcut: each translation shows up here with its source."), func() {
+				if ghostButton(c.Key("hist-go-translate"), i18n.T("Set up Translate")).Clicked() {
+					a.navigate("/translate")
+				}
+			})
 	case store.KindRewrite:
-		emptyState(c, icons.PenNewRound, i18n.T("No rewrites yet"),
-			i18n.T("Once Rewrite is available, what you rewrite will show up here."), nil)
+		emptyState(c, rewriteIcon, i18n.T("No rewrites yet"),
+			i18n.T("Press your Rewrite shortcut and say what to write, or how to change the selected text: each answer shows up here with your instruction."), func() {
+				if ghostButton(c.Key("hist-go-rewrite"), i18n.T("Set up Rewrite")).Clicked() {
+					a.navigate("/rewrite")
+				}
+			})
 	default:
 		emptyState(c, icons.History, i18n.T("No transcriptions yet"),
 			i18n.T("Press your Transcribe shortcut and speak: each result shows up here, to find and copy again."), func() {
@@ -315,6 +323,12 @@ func entryMeta(e store.Entry) string {
 	if e.AppName != "" {
 		parts = append(parts, e.AppName)
 	}
+	if e.TargetLang != "" {
+		parts = append(parts, "→ "+targetLanguageLabel(e.TargetLang))
+	}
+	if e.Kind == store.KindRewrite && e.SourceText != "" {
+		parts = append(parts, i18n.T("Selection"))
+	}
 	if e.AudioMS > 0 {
 		parts = append(parts, clockMS(e.AudioMS))
 	}
@@ -339,6 +353,14 @@ func entryMarks(c *ui.Context, e store.Entry) {
 	case "copy":
 		tagChip(c, i18n.T("Copied")).Tooltip(i18n.T("Copied from the answer card"))
 	}
+}
+
+// targetLang is a translation's target language.
+func targetLang(e store.Entry) string {
+	if e.TargetLang == "" {
+		return ""
+	}
+	return targetLanguageLabel(e.TargetLang)
 }
 
 // deliveryLabel says where a result went.
@@ -450,18 +472,20 @@ func (a *app) historyDetail(c *ui.Context, e store.Entry) {
 		if e.URLHost != "" {
 			app += " · " + e.URLHost
 		}
+		details := [][2]string{{i18n.T("Time"), i18n.DateTime(e.CreatedAt)}, {i18n.T("App"), app}}
+		if e.Kind == store.KindTranslate {
+			details = append(details, [2]string{i18n.T("Target language"), targetLang(e)})
+		}
+		details = append(details,
+			[2]string{i18n.T("Delivery"), deliveryLabel(e)},
+			[2]string{i18n.T("Speech recognition"), a.entryService(providers.ASR, e.ASRProvider, e.ASRModel)},
+			[2]string{i18n.T("Language model"), a.entryService(providers.LLM, e.LLMProvider, e.LLMModel)},
+			[2]string{i18n.T("App rule"), e.RuleName})
 		sections := []struct {
 			title string
 			rows  [][2]string
 		}{
-			{i18n.T("Details"), [][2]string{
-				{i18n.T("Time"), i18n.DateTime(e.CreatedAt)},
-				{i18n.T("App"), app},
-				{i18n.T("Delivery"), deliveryLabel(e)},
-				{i18n.T("Speech recognition"), a.entryService(providers.ASR, e.ASRProvider, e.ASRModel)},
-				{i18n.T("Language model"), a.entryService(providers.LLM, e.LLMProvider, e.LLMModel)},
-				{i18n.T("App rule"), e.RuleName},
-			}},
+			{i18n.T("Details"), details},
 			{i18n.T("Timing"), [][2]string{
 				{i18n.T("Recording"), stageTime(e.AudioMS)},
 				{i18n.T("Recognition"), stageTime(e.ASRMS)},

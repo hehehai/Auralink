@@ -29,9 +29,9 @@ func TranslateTarget(s settings.Settings, locale, override string) string {
 	return "en"
 }
 
-// mainLanguage is the user's main language: the settings', else the UI
+// MainLanguage is the user's main language: the settings', else the UI
 // language's.
-func mainLanguage(s settings.Settings, locale string) string {
+func MainLanguage(s settings.Settings, locale string) string {
 	if m := s.General.MainLanguage; m != "" {
 		return m
 	}

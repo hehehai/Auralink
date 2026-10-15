@@ -1,12 +1,14 @@
 package main
 
-// Sessions as the UI sees them (M3): the session manager
+// Sessions as the UI sees them (M3, M4): the session manager
 // (internal/session) wired to the helper, the providers and the store;
 // the shortcuts (internal/hotkey) sent to the helper's event tap, with
 // MyGo's Carbon shortcuts as the fallback without Accessibility; the
 // snapshot the overlay, the Transcribe page and the menu bar read; and
-// what their buttons do (stop, cancel, insert, copy, paste the last
-// result).
+// what their buttons do (stop, cancel, insert, copy, try again, another
+// target language, paste the last result). The answer card also takes a
+// Rewrite follow-up: the Rewrite shortcut while it shows a Rewrite
+// answer records the next instruction for it.
 //
 // The manager runs sessions on goroutines; its snapshots come back
 // through a.post (sessionChanged), newest revision wins. Starting a
@@ -23,6 +25,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/core"
 	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/helper"
@@ -39,9 +42,8 @@ import (
 // sessionSource is the logs' source of session lines.
 const sessionSource = "session"
 
-// liveFeatures are the features whose shortcuts are bound: Transcribe in
-// M3 (Translate and Rewrite join in M4).
-var liveFeatures = []string{hotkey.Transcribe}
+// liveFeatures are the features whose shortcuts are bound.
+var liveFeatures = []string{hotkey.Transcribe, hotkey.Translate, hotkey.Rewrite}
 
 // sessionState is the sessions' view state.
 type sessionState struct {
@@ -59,16 +61,30 @@ type sessionState struct {
 	carbon      []string
 	// lastLoaded: the last result was read from the history at start.
 	lastLoaded bool
+	// followUp is the answer card's session a running Rewrite follows up
+	// on ("" for none): its answer joins the card's conversation.
+	followUp string
 }
 
 // answerCard is the answer card's state.
 type answerCard struct {
 	open      bool
 	id        string // the session whose result it shows
+	kind      store.Kind
 	text      string
+	title     string // Rewrite's answer title ("" for none)
 	target    proto.App
 	inserting bool
 	msg       string // why Insert did not work
+	// problem: the session failed (the card shows why, and Try again);
+	// input is what it worked on, for Try again and another language.
+	problem *session.Problem
+	input   session.TextInput
+	lang    string // Translate's target
+	langSel string // the language select's label
+	// turns are a Rewrite conversation so far, the shown answer last
+	// (a follow-up adds to them).
+	turns []compose.Turn
 }
 
 // Notice actions: where the notice's button goes.
@@ -102,6 +118,7 @@ func (a *app) openSessions() {
 	a.mgr = session.New(session.Config{
 		Audio:   session.HelperAudio{H: sup},
 		Text:    session.HelperText{H: sup},
+		Select:  session.HelperText{H: sup},
 		Resolve: resolver(kr),
 		History: lib.store.History(),
 		Glossary: func(ctx context.Context) ([]store.Term, error) {
@@ -121,24 +138,24 @@ func (a *app) openSessions() {
 }
 
 // resolver builds a session's services from the settings, with the keys
-// from kr (the Keychain: off the main thread).
+// from kr (the Keychain: off the main thread). A service that is not set
+// up stays nil: the session says what it lacks when it needs it (a
+// selection to translate needs no speech service).
 func resolver(kr keyring) session.Resolver {
 	return func(ctx context.Context, kind session.Kind, s settings.Settings) (session.Services, error) {
 		hasKey := func(acc string) bool { v, err := kr.Get(acc); return err == nil && v != "" }
 		feature := string(kind)
 		f := providers.FeatureOf(s, feature)
 		var svc session.Services
-		pa, ok := providers.Choose(s, providers.ASR, f.ASR, hasKey)
-		if !ok {
-			return svc, fmt.Errorf("%s: %w", feature, session.ErrNoASR)
+		if pa, ok := providers.Choose(s, providers.ASR, f.ASR, hasKey); ok {
+			key, _ := kr.Get(providers.Account(providers.ASR, pa.ID))
+			p, err := providers.NewASR(pa, providers.Env{Key: key, Proxy: s.Network.Proxy})
+			if err != nil {
+				return svc, err
+			}
+			svc.ASR = p
+			svc.ASRInfo = session.Model{ID: pa.ID, Name: providers.Name(providers.ASR, pa), Model: providers.Model(providers.ASR, pa)}
 		}
-		key, _ := kr.Get(providers.Account(providers.ASR, pa.ID))
-		p, err := providers.NewASR(pa, providers.Env{Key: key, Proxy: s.Network.Proxy})
-		if err != nil {
-			return svc, err
-		}
-		svc.ASR = p
-		svc.ASRInfo = session.Model{ID: pa.ID, Name: providers.Name(providers.ASR, pa), Model: providers.Model(providers.ASR, pa)}
 		if kind == store.KindTranscribe && !s.Features.Transcribe.Enhance {
 			return svc, nil
 		}
@@ -203,14 +220,14 @@ func (a *app) sessionEnded(s session.Snapshot) {
 		a.historyChanged() // history_page.go (a try keeps nothing, but the page may show it)
 		return
 	}
-	if s.Card && s.Result != "" {
-		a.answer = answerCard{open: true, id: s.ID, text: s.Result, target: s.Target}
-		if s.Delivery == deliver.ReasonNoAccess {
-			a.answer.msg = i18n.T("Allow Accessibility to insert results where you type.")
-		}
+	if s.Card && (s.Result != "" || s.State == session.Failed) {
+		a.openAnswer(s)
 		a.syncHotkeys() // Escape closes the card
 	}
-	if p := s.Problem; p != nil && s.State != session.Cancelled {
+	if s.ID != "" && a.followUp != "" && !s.Card {
+		a.followUp = "" // a follow-up that ended without an answer: the card keeps the last one
+	}
+	if p := s.Problem; p != nil && s.State != session.Cancelled && !(s.Card && s.State == session.Failed) {
 		text, more, action := sessionProblemText(p)
 		if text != "" {
 			a.showNotice(sessionNotice{text: text, more: more, action: action, warn: p.Degraded})
@@ -219,6 +236,37 @@ func (a *app) sessionEnded(s session.Snapshot) {
 	if s.State != session.Cancelled {
 		a.historyChanged()
 	}
+}
+
+// openAnswer opens the answer card on an ended session: its result (or
+// why it failed), what it worked on, a Rewrite conversation's turns.
+func (a *app) openAnswer(s session.Snapshot) {
+	card := answerCard{
+		open: true, id: s.ID, kind: s.Kind, text: s.Result, title: s.Title, target: s.Target,
+		input: session.TextInput{Raw: s.Raw, Selection: s.Selection}, lang: s.TargetLanguage,
+	}
+	if s.State == session.Failed {
+		card.problem = s.Problem
+	}
+	if s.Delivery == deliver.ReasonNoAccess {
+		card.msg = i18n.T("Allow Accessibility to insert results where you type.")
+	}
+	if s.Kind == store.KindRewrite {
+		// A follow-up continues the card's conversation.
+		if a.answer.kind == store.KindRewrite && a.answer.id == a.followUp {
+			card.turns = append(card.turns, a.answer.turns...)
+		}
+		if card.problem == nil && s.Selection == "" {
+			card.turns = append(card.turns, compose.Turn{Instruction: s.Raw, Answer: compose.Answer{Title: s.Title, Content: s.Result}})
+		} else if card.problem != nil && len(card.turns) > 0 {
+			card.input.Raw = s.Raw // Try again asks the same follow-up
+		}
+	}
+	a.followUp = ""
+	if card.target.PID == 0 && a.answer.open {
+		card.target = a.answer.target
+	}
+	a.answer = card
 }
 
 // sessionProblemText says what went wrong in a session, its detail (the
@@ -237,7 +285,15 @@ func sessionProblemText(p *session.Problem) (text, more, action string) {
 	case session.ProblemASR:
 		msg, more := providerErrorText(p.Err)
 		return i18n.T("Speech recognition failed: %s", msg), more, actionProviders
+	case session.ProblemNoLLM:
+		return i18n.T("No language model is set up."), "", actionProviders
+	case session.ProblemEmpty:
+		return i18n.T("The language model answered nothing."), "", actionNone
 	case session.ProblemLLM:
+		if !p.Degraded {
+			msg, more := providerErrorText(p.Err)
+			return i18n.T("The language model failed: %s", msg), more, actionProviders
+		}
 		_, more := providerErrorText(p.Err)
 		var le *llm.Error
 		if errors.Is(p.Err, context.DeadlineExceeded) || errors.As(p.Err, &le) && le.Code == llm.CodeTimeout {
@@ -247,7 +303,7 @@ func sessionProblemText(p *session.Problem) (text, more, action string) {
 	case session.ProblemNoSpeech:
 		return i18n.T("Nothing was heard."), "", actionNone
 	case session.ProblemUnsupported:
-		return i18n.T("This feature comes in a later version."), "", actionNone
+		return i18n.T("This feature is not available."), "", actionNone
 	case session.ProblemTooShort:
 		return "", "", actionNone
 	}
@@ -308,42 +364,108 @@ func (a *app) helperReady() bool {
 	return a.hstatus.State == helper.Ready
 }
 
-// transcribeBlocker checks, without I/O, what a session needs: a running
-// helper and a speech service. It returns the notice that says what is
-// missing, or nil.
-func (a *app) transcribeBlocker() *sessionNotice {
+// transcribeBlocker checks, without I/O, what a Transcribe session
+// needs (sessionBlocker).
+func (a *app) transcribeBlocker() *sessionNotice { return a.sessionBlocker(store.KindTranscribe) }
+
+// sessionBlocker checks, without I/O, what a session of kind needs: a
+// running helper, a speech service (Transcribe, Rewrite: Translate may
+// translate a selection without one) and a language model (Translate,
+// Rewrite). It returns the notice that says what is missing, or nil.
+func (a *app) sessionBlocker(kind store.Kind) *sessionNotice {
 	if !a.helperReady() {
 		return &sessionNotice{text: i18n.T("The helper is not running."), action: actionHelper}
 	}
-	f := a.prefs.Features.Transcribe.Feature
-	if _, ok := providers.Choose(a.prefs, providers.ASR, f.ASR, a.hasKey); !ok {
-		return &sessionNotice{text: i18n.T("No speech service is set up."), action: actionProviders}
+	f := providers.FeatureOf(a.prefs, string(kind))
+	if kind != store.KindTranslate {
+		if _, ok := providers.Choose(a.prefs, providers.ASR, f.ASR, a.hasKey); !ok {
+			return &sessionNotice{text: i18n.T("No speech service is set up."), action: actionProviders}
+		}
+	}
+	if kind != store.KindTranscribe {
+		if _, ok := providers.Choose(a.prefs, providers.LLM, f.LLM, a.hasKey); !ok {
+			return &sessionNotice{text: i18n.T("No language model is set up."), action: actionProviders}
+		}
 	}
 	return nil
 }
 
-// startTranscribe starts a Transcribe session for the app target (the app
-// in front when the shortcut fired); hold names the long-pressed binding;
-// try keeps the result on the Transcribe page. When something it needs is
-// missing it returns the notice saying so, which a shortcut's session
+// startTranscribe starts a Transcribe session (startSession).
+func (a *app) startTranscribe(target proto.App, hold string, try bool) *sessionNotice {
+	return a.startSession(session.StartRequest{Kind: store.KindTranscribe, Target: target, HoldBinding: hold, Try: try})
+}
+
+// startSession starts a session for the app req.Target (the app in front
+// when the shortcut fired); req.HoldBinding names the long-pressed
+// binding; a try keeps the result on its page. When something it needs
+// is missing it returns the notice saying so, which a shortcut's session
 // shows in the overlay (a try shows it on the page); nil when it started
 // (or a session runs already).
-func (a *app) startTranscribe(target proto.App, hold string, try bool) *sessionNotice {
+func (a *app) startSession(req session.StartRequest) *sessionNotice {
 	if a.mgr == nil || a.sess.State.Live() {
 		return nil
 	}
-	if n := a.transcribeBlocker(); n != nil {
-		if !try {
+	if n := a.sessionBlocker(req.Kind); n != nil {
+		if !req.Try {
 			a.showNotice(*n)
 		}
 		return n
 	}
-	a.answer = answerCard{}
+	if len(req.Previous) == 0 {
+		a.answer = answerCard{}
+	}
 	a.notice = nil
-	if _, err := a.mgr.Start(session.StartRequest{Kind: store.KindTranscribe, Target: target, HoldBinding: hold, Try: try}); err != nil {
+	if _, err := a.mgr.Start(req); err != nil {
 		return nil // a session runs already
 	}
 	return nil
+}
+
+// retryAnswer starts the card's session again with the text it worked on
+// (Try again after a failure), or into the language lang (Translate's
+// target select). The card stays until the new session's own result.
+func (a *app) retryAnswer(lang string) {
+	card := a.answer
+	if !card.open || a.sess.State.Live() {
+		return
+	}
+	in := card.input
+	req := session.StartRequest{Kind: card.kind, Target: card.target, Text: &in, TargetLanguage: lang}
+	if req.TargetLanguage == "" {
+		req.TargetLanguage = card.lang
+	}
+	if card.kind == store.KindRewrite && len(card.turns) > 0 && in.Selection == "" {
+		req.Previous = card.turns
+		if card.problem == nil {
+			return // nothing to ask again
+		}
+		a.followUp = card.id
+	}
+	a.notice = nil
+	if n := a.sessionBlocker(card.kind); n != nil {
+		a.answer.msg = n.text
+		return
+	}
+	if _, err := a.mgr.Start(req); err == nil && len(req.Previous) == 0 {
+		a.answer = answerCard{}
+	}
+	a.syncHotkeys()
+	a.overlaySync()
+}
+
+// followUpAnswer records a follow-up to the card's Rewrite answer (the
+// Rewrite shortcut while the card shows one): the next instruction
+// rewrites that answer, in the card.
+func (a *app) followUpAnswer(hold string) bool {
+	card := a.answer
+	if !card.open || card.kind != store.KindRewrite || card.problem != nil || len(card.turns) == 0 || a.sess.State.Live() {
+		return false
+	}
+	a.followUp = card.id
+	if n := a.startSession(session.StartRequest{Kind: store.KindRewrite, Target: card.target, HoldBinding: hold, Previous: card.turns}); n != nil {
+		a.followUp = ""
+	}
+	return true
 }
 
 // stopSession stops the recording (the overlay's Stop, the menu bar).
@@ -370,9 +492,13 @@ func (a *app) toggleTranscribe() {
 	}
 }
 
-// closeAnswer closes the answer card.
+// closeAnswer closes the answer card (and cancels a follow-up on its
+// way).
 func (a *app) closeAnswer() {
-	a.answer = answerCard{}
+	if a.followUp != "" && a.sess.State.Live() {
+		a.cancelSession()
+	}
+	a.answer, a.followUp = answerCard{}, ""
 	a.syncHotkeys()
 	a.overlaySync()
 }
@@ -533,9 +659,17 @@ func (a *app) hotkeyFired(e proto.HotkeyEventParams) {
 		if d.Hold {
 			hold = e.Binding
 		}
-		if d.Feature == hotkey.Transcribe {
-			a.startTranscribe(target, hold, false)
+		if d.Feature == hotkey.Rewrite && a.followUpAnswer(hold) {
+			return
 		}
+		kind := store.KindTranscribe
+		switch d.Feature {
+		case hotkey.Translate:
+			kind = store.KindTranslate
+		case hotkey.Rewrite:
+			kind = store.KindRewrite
+		}
+		a.startSession(session.StartRequest{Kind: kind, Target: target, HoldBinding: hold})
 	case hotkey.Stop:
 		a.stopSession()
 	case hotkey.Cancel:

@@ -2,9 +2,9 @@ package main
 
 // The pages of the sidebar (plan §3.1). A page not built yet is its
 // header and an empty state that says what it will hold; the milestones
-// replace them one by one (Translate and Rewrite M4, App enhancement and
-// Dictionary M5, Home M6). Logs (shell_logs.go), Model services
-// (providers_page.go), Transcribe (transcribe_page.go) and History
+// replace them one by one (App enhancement and Dictionary M5, Home M6).
+// Logs (shell_logs.go), Model services (providers_page.go), Transcribe,
+// Translate and Rewrite (transcribe_page.go) and History
 // (history_page.go) work; Permissions is a section of the settings dialog
 // (permissions.go).
 
@@ -50,6 +50,12 @@ func (a *app) page(c *ui.Context, p navPage) {
 	case "/transcribe":
 		a.transcribePage(c) // transcribe_page.go
 		return
+	case "/translate":
+		a.translatePage(c) // transcribe_page.go
+		return
+	case "/rewrite":
+		a.rewritePage(c) // transcribe_page.go
+		return
 	case "/history":
 		a.historyPage(c) // history_page.go
 		return
@@ -65,12 +71,6 @@ func placeholderText(path string) (title, body string) {
 	case "/home":
 		return i18n.T("Speak anywhere, get text where your cursor is"),
 			i18n.T("Home will list what is still missing (a service, a permission), let you try each feature without leaving the page, and show today's results.")
-	case "/translate":
-		return i18n.T("Translate what you say or select"),
-			i18n.T("Here you will choose the shortcut, the services and the target language, and whether the translation is typed or shown in a card.")
-	case "/rewrite":
-		return i18n.T("Rewrite the selection, or write from a spoken prompt"),
-			i18n.T("Select text and say how to change it (\"shorter\", \"more formal\"), or say what to write with nothing selected. Here you will choose the shortcut, the services and when the answer shows in a card.")
 	case "/app-enhancement":
 		return i18n.T("Rules for the app or website in front"),
 			i18n.T("Group apps and website addresses, give each group its own scene prompt (a chat app, your mail), and see which group matches right now.")
@@ -90,10 +90,6 @@ func (a *app) placeholderActions(c *ui.Context, path string) {
 		}
 		if ghostButton(c.Key("home-permissions"), i18n.T("Check permissions")).Clicked() {
 			a.navigate("/settings/permissions")
-		}
-	case "/translate", "/rewrite":
-		if ghostButton(c.Key("feature-shortcuts"), i18n.T("Keyboard shortcuts")).Clicked() {
-			a.sheetOpen = true
 		}
 	}
 }
