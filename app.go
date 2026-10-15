@@ -47,6 +47,7 @@ type app struct {
 	transcribeState
 	historyState
 	appEnhanceState
+	appIconsState
 	dictionaryState
 	homeState
 	onboardingState

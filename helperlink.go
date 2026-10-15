@@ -95,7 +95,8 @@ func (a *app) helperChanged(st helper.Status) {
 		a.hotkeysSent = ""     // a new helper has no shortcuts yet
 		a.syncHotkeys()        // sessionlink.go
 		a.treesSent = ""
-		a.syncTrees() // appenhance.go
+		a.syncTrees()        // appenhance.go
+		a.iconsHelperReady() // appicons.go: the icons that failed, again
 		a.loadLast()
 		a.audioShown() // settings_audio.go: the microphones, if their section shows
 		// The app in front until the first app.activated: the target of a

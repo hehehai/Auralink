@@ -49,6 +49,8 @@ github.com/hehehai/Auralink
 │   ├── appctx/           app enhancement: groups (document appctx:rules), URL rules and their
 │   │                     matching, the order URL → the browser's group → the app's group → none,
 │   │                     the built-in browsers, auto keys
+│   ├── appicons/         apps' icons for the lists that name apps: which are wanted, asked for,
+│   │                     there or missing; the PNGs on disk (a week fresh); fetching a batch
 │   └── dict/             the dictionary's rules: cleaning a term, hints for speech services,
 │                         CSV and text import and export, merging an import
 ├── helper/               the Swift helper (helper/README.md): Sources/, Tests/, Fixtures/, Support/
@@ -71,6 +73,7 @@ llm ──▶ core                  providers ──▶ asr (+ its providers), l
 session ──▶ appctx, asr, compose, core, deliver, dict, helper/proto, lang, llm, settings, store
 compose ──▶ lang              deliver ──▶ helper/proto      hotkey ──▶ helper/proto, settings
 appctx ──▶ helper/proto, hotkey, settings                    dict ──▶ store
+appicons ──▶ helper/proto
 core, settings, helper/proto, i18n, lang, secrets, netx, permission, macx ──▶ (nothing internal)
 icons ──▶ mygo/ui
 ```
@@ -185,6 +188,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | Database: history (+ `history_fts`; `rule_source` since migration 2), dictionary terms, documents (`settings:app`, `appctx:rules`, `notifications`) | `~/Library/Application Support/Auralink/auralink.db` (WAL; `auralink.db.bak-<v>` before each migration) |
 | Recordings kept with history entries | `…/Auralink/audio/<id>.wav` (only with Settings → Privacy → Keep the recordings) |
 | Data folder location | `…/Auralink/location.json` when the user moved it (Settings → Storage); `move.json`, `reset.json` while a move or an erase waits for the next start |
+| Apps' icons (App enhancement's lists) | `~/Library/Caches/Auralink/icons/<bundle id>-64.png`, drawn by the helper (`app.icons`), redrawn after a week (`internal/appicons`) |
 | Logs | `~/Library/Logs/Auralink/auralink.log` (app, rotated at 5 MB) and `helper.log` (the helper's stderr) |
 | Secrets | the login Keychain, service "Auralink": `asr.<provider>`, `llm.<provider>` |
 | Helper | `Auralink.app/Contents/Resources/helper/auralink-helper` (or `$AURALINK_HELPER`) |

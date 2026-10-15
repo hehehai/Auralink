@@ -44,6 +44,7 @@ func main() {
 	}
 	resources, _ := mygo.App.Path(mygo.PathResources)
 	logDir, _ := mygo.App.Path(mygo.PathLogs)
+	cacheDir, _ := mygo.App.Path(mygo.PathCache)
 
 	// Wiring: one call per area, each defined in the file of that area.
 	lib, err := openLibrary(dataDir) // library.go
@@ -54,6 +55,7 @@ func main() {
 	h := newHelperHost(resources, logDir) // helperlink.go
 	a := newApp(lib, h)                   // app.go
 	a.dataHome = home                     // settings_storage.go
+	a.openIcons(cacheDir)                 // appicons.go
 	a.connectShell(logDir)                // shell.go
 	a.connectHelper()                     // helperlink.go
 

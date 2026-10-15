@@ -10,6 +10,7 @@ import (
 	"github.com/hehehai/Auralink/internal/appctx"
 	"github.com/hehehai/Auralink/internal/helper/helpertest"
 	"github.com/hehehai/Auralink/internal/helper/proto"
+	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 )
@@ -348,4 +349,44 @@ func appEnhanceShots(a *app, fs *fakeSupervisor, tt *ui.Tester, save func(string
 	a.updateSettings(func(s *settings.Settings) { s.AppEnhancement.Enabled = false })
 	save("page-app-enhancement-off")
 	a.updateSettings(func(s *settings.Settings) { s.AppEnhancement.Enabled = true })
+}
+
+// TestAppEnhancementHeader: the Browsers button is an icon in the page's
+// header, right of New group, on its centre line and inside the window,
+// at the default and the smallest size; the scene prompt's help is a ⓘ.
+func TestAppEnhancementHeader(t *testing.T) {
+	for _, size := range [][2]int{{windowWidth, windowHeight}, {windowMinWidth, windowMinHeight}} {
+		for _, lang := range []string{"en", "zh-Hans"} {
+			a, _, tt := newTestApp(t)
+			tt.SetSize(size[0], size[1])
+			if lang != "en" {
+				a.updateSettings(func(s *settings.Settings) { s.General.Language = lang })
+			}
+			a.setRules(sampleRules())
+			a.navigate("/app-enhancement")
+			frames(tt)
+			ng, ok1 := tt.Find(i18n.T("New group"))
+			br, ok2 := tt.Find(i18n.T("Browsers"))
+			if !ok1 || !ok2 {
+				t.Fatalf("%v %s: New group %v, Browsers %v", size, lang, ok1, ok2)
+			}
+			if br.X < ng.X+ng.W || br.X+br.W > float32(size[0]) || br.W > 30 {
+				t.Errorf("%v %s: Browsers at %+v, New group %+v", size, lang, br, ng)
+			}
+			if d := (br.Y + br.H/2) - (ng.Y + ng.H/2); d < -0.5 || d > 0.5 {
+				t.Errorf("%v %s: Browsers %.1f off New group's centre line", size, lang, d)
+			}
+			if br.Y > float32(titleBarHeight) {
+				t.Errorf("%v %s: Browsers %+v below the header", size, lang, br)
+			}
+			tip, ok := tt.Find(i18n.T("Added on top of the features' basic clean-up and your rules, never instead of them: say what is special here (tone, format, names)."))
+			if !ok || tip.W > 20 || tip.H > 20 {
+				t.Errorf("%v %s: the scene prompt's help %+v %v, not a ⓘ", size, lang, tip, ok)
+			}
+			click(t, tt, i18n.T("Browsers"))
+			if !a.aePage.browsersOpen {
+				t.Errorf("%v %s: Browsers did not open", size, lang)
+			}
+		}
+	}
 }

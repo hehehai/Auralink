@@ -138,6 +138,12 @@ func (a *app) appEnhancementPage(c *ui.Context) {
 		if primaryIconButton(c.Key("ae-new"), icons.Add, i18n.T("New group")).Clicked() {
 			a.addGroup()
 		}
+		// The browsers: a setting of the page, not a group, so not in
+		// the groups' list.
+		if iconButton(c.Key("ae-browsers"), icons.Global, i18n.T("Browsers")).
+			Tooltip(i18n.T("Browsers: which apps are browsers, read for their tab's address")).Clicked() {
+			a.openBrowsers()
+		}
 	})
 	ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 		p.list.view(c, "ae-groups", i18n.T("Groups"), inline, shown, true, px(t, aeListW), func() { a.aeGroupList(c) })
@@ -162,6 +168,16 @@ func (a *app) appEnhancementPage(c *ui.Context) {
 	a.aeAppsDialog(c)
 	a.aeBrowsersDialog(c)
 	a.aeDeleteDialog(c)
+	a.flushIcons() // appicons.go: the icons the rows asked for
+}
+
+// openBrowsers opens the Browsers dialog, with the apps on this Mac.
+func (a *app) openBrowsers() {
+	p := &a.aePage
+	p.browsersOpen = true
+	if len(p.apps) == 0 {
+		a.loadApps()
+	}
 }
 
 // aeEmpty is the page without groups.
@@ -233,13 +249,6 @@ func (a *app) aeGroupList(c *ui.Context) {
 				}
 			})
 		}
-		ui.Box(c).Height(px(t, sp2))
-		if ghostIconButton(c.Key("ae-browsers"), icons.Global, i18n.T("Browsers…")).Label(i18n.T("Browsers")).Clicked() {
-			p.browsersOpen = true
-			if len(p.apps) == 0 {
-				a.loadApps()
-			}
-		}
 	})
 }
 
@@ -279,7 +288,11 @@ func (a *app) aePreviewCard(c *ui.Context) {
 	browser := appctx.IsBrowser(app.BundleID, a.prefs.AppEnhancement.Browsers)
 	fillCard(c.Key("ae-preview")).Padding(px(t, sp3), px(t, sp4)).Gap(px(t, sp2)).Children(func() {
 		ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, icons.WindowFrame.Linear).Size(px(t, 16), px(t, 16)).TextColor(k.Text2).Shrink(0)
+			if app.BundleID == "" {
+				ui.Icon(c, icons.WindowFrame.Linear).Size(px(t, 16), px(t, 16)).TextColor(k.Text2).Shrink(0)
+			} else {
+				a.appIcon(c, proto.AppRef{BundleID: app.BundleID}, 20, true)
+			}
 			name := app.Name
 			if name == "" {
 				name = app.BundleID
@@ -425,8 +438,7 @@ func (a *app) aeScene(c *ui.Context, g appctx.Group) {
 	t := c.Theme()
 	k := tok(t)
 	p := &a.aePage
-	sectionTitle(c, i18n.T("Scene prompt"))
-	caption(c, i18n.T("Added on top of the features' basic clean-up and your rules, never instead of them: say what is special here (tone, format, names)."))
+	sectionTitleTip(c, i18n.T("Scene prompt"), i18n.T("Added on top of the features' basic clean-up and your rules, never instead of them: say what is special here (tone, format, names)."))
 	in := ui.TextArea(c.Key("ae-prompt"), &p.prompt).Label(i18n.T("Scene prompt of the group")).
 		Placeholder(i18n.T("For example: this is a team chat; keep it short and casual, no greetings or sign-offs.")).MinHeight(px(t, 88))
 	if in.Changed() {
@@ -468,7 +480,7 @@ func (a *app) aeApps(c *ui.Context, g appctx.Group) {
 		}
 		for i, m := range g.Apps {
 			ui.Row(c.Key("ae-app-" + m.BundleID)).Gap(px(t, sp2)).AlignItems(ui.Center).MinHeight(px(t, 28)).Children(func() {
-				ui.Icon(c, icons.Widget2.Linear).Size(px(t, 16), px(t, 16)).TextColor(k.Text2).Shrink(0)
+				a.appIcon(c, proto.AppRef{BundleID: m.BundleID, Path: a.appPath(m.BundleID)}, 20, true)
 				name := m.Name
 				if name == "" {
 					name = m.BundleID
@@ -696,6 +708,9 @@ func (a *app) aeAppsDialog(c *ui.Context) {
 		})
 		shown := 0
 		ui.Column(c.Key("ae-apps-list")).Gap(px(t, 2)).Children(func() {
+			// Icons load as rows show: the first screenful at once, the
+			// others as they scroll into view.
+			const eager = 12
 			for _, app := range apps {
 				if q != "" && !strings.Contains(strings.ToLower(app.Name), q) && !strings.Contains(strings.ToLower(app.BundleID), q) {
 					continue
@@ -717,16 +732,21 @@ func (a *app) aeAppsDialog(c *ui.Context) {
 						}
 					})
 				}
+				visible := shown <= eager || row.InView()
 				row.Children(func() {
-					ic, col := icons.Widget2, k.Text2
-					if member {
-						ic, col = icons.CheckCircle, k.Success
-					}
-					ui.Icon(c, ic.Linear).Size(px(t, 16), px(t, 16)).TextColor(col).Shrink(0)
+					a.appIcon(c, proto.AppRef{BundleID: app.BundleID, Path: app.Path}, 20, visible)
 					ui.Text(c, app.Name).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 					truncText(c, app.BundleID).FontSize(px(t, fsCaption)).TextColor(k.Text3).Grow(1)
 					if app.Running {
 						tagChip(c, i18n.T("Running"))
+					}
+					// In the group: a check at the end (the room kept for
+					// the others, so the rows line up).
+					mark := ui.Box(c).Size(px(t, 16), px(t, 16)).Center().Shrink(0)
+					if member {
+						mark.Children(func() {
+							ui.Icon(c, icons.CheckCircle.Bold).Size(px(t, 16), px(t, 16)).TextColor(k.Success)
+						})
 					}
 				})
 			}
@@ -754,6 +774,17 @@ func (a *app) aeAppsDialog(c *ui.Context) {
 			p.appsOpen = false
 		}
 	})
+}
+
+// appPath is the bundle of bundleID as app.list said, "" when it did not
+// list it (the helper finds the app by its id).
+func (a *app) appPath(bundleID string) string {
+	for _, x := range a.aePage.apps {
+		if strings.EqualFold(x.BundleID, bundleID) {
+			return x.Path
+		}
+	}
+	return ""
 }
 
 // browserState says what the last shortcut in a browser told of its
@@ -808,11 +839,12 @@ func (a *app) aeBrowsersDialog(c *ui.Context) {
 						case noticeWarn:
 							col = k.Warning
 						}
-						statusDot(c, col).Tooltip(text)
+						a.appIcon(c, proto.AppRef{BundleID: b.BundleID, Path: a.appPath(b.BundleID)}, 24, true)
 						ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 							ui.Text(c, b.Name).SingleLine().Ellipsis("…").MinWidth(0)
 							truncText(c, b.BundleID).FontSize(px(t, fsMicro)).TextColor(k.Text3)
 						})
+						statusDot(c, col).Tooltip(text)
 						truncText(c, text).FontSize(px(t, fsCaption)).TextColor(k.Text2).MaxWidth(px(t, 200))
 						if !appctx.IsBuiltin(b.BundleID) {
 							if iconButton(c.Key("remove"), icons.Close, i18n.T("Remove %s", b.Name)).Clicked() {
