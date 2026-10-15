@@ -199,10 +199,12 @@ type Transcribe struct {
 type Translate struct {
 	Feature
 	Cleanup bool `json:"cleanup"`
-	// Target is the language to translate into (a lang code); "" = from
-	// General.MainLanguage.
+	// Target is the language to translate into (a lang code, "zh-Hans",
+	// "zh-Hant"); "" = English, or Chinese when the main language is
+	// English (session.TranslateTarget).
 	Target string `json:"target,omitempty"`
-	// ShowCard shows the result in a card instead of inserting it.
+	// ShowCard shows the result in a card instead of inserting it (speech
+	// and selections alike).
 	ShowCard bool `json:"showCard,omitempty"`
 }
 
@@ -210,8 +212,11 @@ type Translate struct {
 // text when nothing is selected (M4).
 type Rewrite struct {
 	Feature
-	// CardChars: a result longer than this shows in the answer card
-	// instead of being inserted.
+	// Cleanup reads past fillers and self-corrections in the spoken
+	// instruction (never applied to the selection).
+	Cleanup bool `json:"cleanup"`
+	// CardChars: an answer written from scratch that is longer than this
+	// shows in the answer card instead of being inserted (0: never).
 	CardChars int `json:"cardChars"`
 }
 
@@ -259,7 +264,7 @@ func Defaults() Settings {
 		Features: Features{
 			Transcribe: Transcribe{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn", Trigger: TriggerTap}}}, Enhance: true, Cleanup: true},
 			Translate:  Translate{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn+Shift", Trigger: TriggerTap}}}, Cleanup: true},
-			Rewrite:    Rewrite{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn+Control", Trigger: TriggerTap}}}, CardChars: 400},
+			Rewrite:    Rewrite{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn+Control", Trigger: TriggerTap}}}, Cleanup: true, CardChars: 400},
 			PasteLast:  Hotkey{Keys: "Control+Command+V", Trigger: TriggerTap},
 		},
 		AppEnhancement: AppEnhancement{Enabled: true},

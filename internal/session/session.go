@@ -6,6 +6,12 @@
 //	                  └──────────────────┴── Cancel ───┴─────────────┴──▶ cancelled
 //	                  └──────────── an error with no way on ────────────▶ failed
 //
+// Translate starts in reading (the selection): with selected text it goes
+// straight to composing, else it records. Rewrite reads the selection
+// while it records: the spoken instruction rewrites it, or, with nothing
+// selected, says what to write. A session started with its text (a retry
+// from the answer card, another target language) starts in composing.
+//
 // Every session has an id; its callbacks (audio frames, the speech
 // service's partials, timers) carry it, and anything that arrives for a
 // session that is not the current one, or after it ended, is dropped. A
@@ -25,16 +31,18 @@
 // language services (Resolver), the history and the dictionary (store),
 // the clock. Tests drive the whole machine on Linux with fakes.
 //
-// Imports: asr, compose, deliver, llm, settings, store, helper/proto, lang.
+// Imports: asr, compose, core, deliver, llm, settings, store, helper/proto, lang.
 package session
 
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/hehehai/Auralink/internal/asr"
+	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/llm"
@@ -49,7 +57,9 @@ type Kind = store.Kind
 type State string
 
 const (
-	Idle        State = "idle" // no session yet
+	Idle State = "idle" // no session yet
+	// Reading: Translate reads the selection before it records.
+	Reading     State = "reading"
 	Recording   State = "recording"
 	Recognizing State = "recognizing"
 	Composing   State = "composing"
@@ -62,7 +72,7 @@ const (
 // Live reports whether a session in state s has not ended.
 func (s State) Live() bool {
 	switch s {
-	case Recording, Recognizing, Composing, Delivering:
+	case Reading, Recording, Recognizing, Composing, Delivering:
 		return true
 	}
 	return false
@@ -83,15 +93,22 @@ const (
 	ProblemHelper = "helper"
 	// ProblemASR: the speech service failed (Err is an *asr.Error).
 	ProblemASR = "asr"
-	// ProblemLLM: the language model failed or timed out; the raw text
-	// went on (Degraded).
+	// ProblemLLM: the language model failed or timed out. Transcribe: the
+	// raw text went on (Degraded); Translate and Rewrite: the answer card
+	// shows the error, to try again.
 	ProblemLLM = "llm"
 	// ProblemNoSpeech: nothing was recognised.
 	ProblemNoSpeech = "noSpeech"
 	// ProblemTooShort: the recording was too short to send (the session
 	// is cancelled quietly).
 	ProblemTooShort = "tooShort"
-	// ProblemUnsupported: the feature does not work yet (M4).
+	// ProblemNoLLM: Translate and Rewrite need a language model, and none
+	// is ready (Model services).
+	ProblemNoLLM = "noLLM"
+	// ProblemEmpty: the language model answered nothing (Translate,
+	// Rewrite).
+	ProblemEmpty = "empty"
+	// ProblemUnsupported: the feature does not work (an unknown kind).
 	ProblemUnsupported = "unsupported"
 	// ProblemInternal: anything else.
 	ProblemInternal = "internal"
@@ -143,10 +160,24 @@ type Snapshot struct {
 	Device   string
 	FellBack bool
 	// Partial is a streaming service's text so far; Raw the final
-	// recognised text; Result what is delivered.
+	// recognised text (Rewrite's spoken instruction); Result what is
+	// delivered.
 	Partial, Raw, Result string
-	// Inserted: the result was pasted; Card: it waits in the answer card
-	// (Delivery says why it was not inserted).
+	// Selection is the selected text read when the shortcut fired
+	// (Translate, Rewrite; "" for none), SelectionVia how ("ax", "copy").
+	Selection, SelectionVia string
+	// TargetLanguage is Translate's (a code: "en", "zh-Hans").
+	TargetLanguage string
+	// Draft is the answer so far while the language model writes
+	// (Translate, Rewrite); Title the answer's title (Rewrite writing
+	// from scratch).
+	Draft, Title string
+	// Retried: Translate asked again, strictly (the first answer looked
+	// untranslated).
+	Retried bool
+	// Inserted: the result was pasted; Card: it shows in the answer card
+	// (Delivery says why it was not inserted). While the model writes,
+	// Card says the answer streams into the card.
 	Inserted bool
 	Card     bool
 	Delivery deliver.Reason
@@ -198,6 +229,8 @@ type LLM interface {
 
 // Services are the speech and language services of one session.
 type Services struct {
+	// ASR is nil when no speech service is ready (the session fails with
+	// ProblemNoASR when it needs one).
 	ASR     asr.Provider
 	ASRInfo Model
 	// LLM is nil when the feature has no language model ready.
@@ -206,8 +239,8 @@ type Services struct {
 }
 
 // Resolver builds the services a session of kind uses with settings s,
-// reading their keys; it may block. It fails with an error wrapping
-// ErrNoASR when no speech service is ready.
+// reading their keys; it may block. A service that is not ready is nil
+// in Services (an error wrapping ErrNoASR works too).
 type Resolver func(ctx context.Context, kind Kind, s settings.Settings) (Services, error)
 
 // ErrNoASR: no speech service is ready.
@@ -216,11 +249,20 @@ var ErrNoASR = errors.New("session: no speech service is ready")
 // ErrBusy: a session is live already.
 var ErrBusy = errors.New("session: a session is running")
 
+// Selector reads the selected text of the app in front (the helper's
+// textio.selection).
+type Selector interface {
+	Selection(ctx context.Context, p proto.SelectionParams) (proto.SelectionResult, error)
+}
+
 // Config is what a Manager needs. Audio, Text and Resolve are required.
 type Config struct {
 	Audio   Audio
 	Text    deliver.TextIO
 	Resolve Resolver
+	// Select reads the selection (nil: Translate and Rewrite never see
+	// one).
+	Select Selector
 	// History keeps finished sessions (nil: none); Glossary lists the
 	// dictionary's enabled terms (nil: none).
 	History  store.History
@@ -248,7 +290,9 @@ type Config struct {
 	MaxRecording time.Duration // DefaultMaxRecording
 	MinRecording time.Duration // DefaultMinRecording
 	ASRTimeout   time.Duration // after Stop; DefaultASRTimeout
-	LLMTimeout   time.Duration // DefaultLLMTimeout
+	LLMTimeout   time.Duration // Transcribe's clean-up; DefaultLLMTimeout
+	WriteTimeout time.Duration // Translate's and Rewrite's answer; DefaultWriteTimeout
+	ReadTimeout  time.Duration // reading the selection; DefaultReadTimeout
 	DeliverTime  time.Duration // DefaultDeliverTimeout
 	// StopGrace is how long Stop waits for the recording to end before
 	// discarding the capture job (a capture.stop that raced its start);
@@ -262,6 +306,8 @@ const (
 	DefaultMinRecording   = 300 * time.Millisecond
 	DefaultASRTimeout     = 30 * time.Second
 	DefaultLLMTimeout     = 8 * time.Second
+	DefaultWriteTimeout   = 60 * time.Second
+	DefaultReadTimeout    = 1500 * time.Millisecond
 	DefaultDeliverTimeout = 5 * time.Second
 	DefaultStopGrace      = 3 * time.Second
 )
@@ -274,10 +320,28 @@ type StartRequest struct {
 	Target proto.App
 	// HoldBinding: a long press of this binding started it.
 	HoldBinding string
-	// Try: from a page's Try area; nothing is inserted and nothing kept.
+	// Try: from a page's Try area; nothing is inserted and nothing kept
+	// (and no selection is read).
 	Try bool
 	// At is when the shortcut fired (zero: now).
 	At time.Time
+	// Text starts Translate or Rewrite with its input, without recording
+	// or reading the selection: a retry from the answer card, or the
+	// same text into another language.
+	Text *TextInput
+	// TargetLanguage overrides Translate's target ("": the settings').
+	TargetLanguage string
+	// Previous are a Rewrite conversation's earlier turns: the session is
+	// a follow-up to the answer card.
+	Previous []compose.Turn
+}
+
+// TextInput is a session's input given at Start.
+type TextInput struct {
+	// Raw is what was said (Translate's speech, Rewrite's instruction).
+	Raw string
+	// Selection is the selected text ("" for none).
+	Selection string
 }
 
 // Manager runs one session at a time. Goroutine-safe.
@@ -319,6 +383,8 @@ func New(cfg Config) *Manager {
 	def(&cfg.MinRecording, DefaultMinRecording)
 	def(&cfg.ASRTimeout, DefaultASRTimeout)
 	def(&cfg.LLMTimeout, DefaultLLMTimeout)
+	def(&cfg.WriteTimeout, DefaultWriteTimeout)
+	def(&cfg.ReadTimeout, DefaultReadTimeout)
 	def(&cfg.DeliverTime, DefaultDeliverTimeout)
 	def(&cfg.StopGrace, DefaultStopGrace)
 	return &Manager{cfg: cfg, snap: Snapshot{State: Idle}}
@@ -381,8 +447,14 @@ func (m *Manager) Start(req StartRequest) (string, error) {
 	m.cur = r
 	m.rev++
 	m.snap = Snapshot{
-		Rev: m.rev, ID: r.id, Kind: req.Kind, State: Recording, Try: req.Try, HoldBinding: req.HoldBinding,
+		Rev: m.rev, ID: r.id, Kind: req.Kind, State: r.firstState(), Try: req.Try, HoldBinding: req.HoldBinding,
 		Target: req.Target, StartedAt: at,
+	}
+	if req.Kind == store.KindTranslate {
+		m.snap.TargetLanguage = TranslateTarget(r.settings, m.cfg.Locale(), req.TargetLanguage)
+	}
+	if t := req.Text; t != nil {
+		m.snap.Raw, m.snap.Selection = strings.TrimSpace(t.Raw), t.Selection
 	}
 	s := m.snap.clone()
 	m.mu.Unlock()

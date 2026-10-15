@@ -26,22 +26,23 @@ func (a Answer) reply(asJSON bool) string {
 
 // ParseAnswer reads a model's JSON answer {title, content}: the object
 // may sit in a code fence or among other text. ok is false when there is
-// no such object with some content; the caller then takes the text as it
-// is (Clean), without a title.
+// no such object; the caller then takes the text as it is (Clean),
+// without a title. An object whose content is empty is an empty answer.
 func ParseAnswer(text string) (Answer, bool) {
 	raw := extractObject(text)
 	if raw == "" {
 		return Answer{}, false
 	}
+	var fields map[string]json.RawMessage
 	var a Answer
-	if err := json.Unmarshal([]byte(raw), &a); err != nil {
+	if json.Unmarshal([]byte(raw), &fields) != nil || json.Unmarshal([]byte(raw), &a) != nil {
+		return Answer{}, false
+	}
+	if _, ok := fields["content"]; !ok {
 		return Answer{}, false
 	}
 	a.Title = strings.TrimSpace(strings.Trim(strings.TrimSpace(a.Title), `"“”#*`))
 	a.Content = strings.TrimSpace(a.Content)
-	if a.Content == "" {
-		return Answer{}, false
-	}
 	return a, true
 }
 

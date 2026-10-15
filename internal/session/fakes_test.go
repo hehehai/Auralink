@@ -236,11 +236,16 @@ func (f *fakeFile) Transcribe(ctx context.Context, req asr.FileRequest) (asr.Res
 	return asr.Result{Text: f.text, Model: "fake-file"}, f.err
 }
 
-// fakeLLM answers chats.
+// fakeLLM answers chats: text, or texts in turn (the last repeats),
+// streamed in pieces of chunk runes to OnDelta (0: in one), each after
+// pause.
 type fakeLLM struct {
-	text string
-	err  error
-	hang bool
+	text  string
+	texts []string
+	err   error
+	hang  bool
+	chunk int
+	pause time.Duration
 
 	mu   sync.Mutex
 	reqs []llm.Request
@@ -249,12 +254,35 @@ type fakeLLM struct {
 func (f *fakeLLM) Chat(ctx context.Context, req llm.Request) (llm.Response, error) {
 	f.mu.Lock()
 	f.reqs = append(f.reqs, req)
+	text := f.text
+	if len(f.texts) > 0 {
+		text = f.texts[min(len(f.reqs), len(f.texts))-1]
+	}
 	f.mu.Unlock()
 	if f.hang {
+		if req.OnDelta != nil {
+			req.OnDelta("Half an ans")
+		}
 		<-ctx.Done()
 		return llm.Response{}, ctx.Err()
 	}
-	return llm.Response{Text: f.text}, f.err
+	if f.err != nil {
+		return llm.Response{}, f.err
+	}
+	if req.OnDelta != nil {
+		rs := []rune(text)
+		n := f.chunk
+		if n <= 0 {
+			n = len(rs)
+		}
+		for i := 0; i < len(rs); i += n {
+			if f.pause > 0 {
+				time.Sleep(f.pause)
+			}
+			req.OnDelta(string(rs[i:min(i+n, len(rs))]))
+		}
+	}
+	return llm.Response{Text: text}, nil
 }
 
 func (f *fakeLLM) requests() []llm.Request {
@@ -375,3 +403,44 @@ func writeFileForTest(t *testing.T, dir, name string) bool {
 }
 
 var errHelperForTest = core.ErrHelper
+
+// fakeSelector is the selection of the app in front: text read through
+// Accessibility, or copyText only when ⌘C is allowed.
+type fakeSelector struct {
+	text     string
+	copyText string
+	err      error
+	delay    time.Duration
+
+	mu    sync.Mutex
+	calls []proto.SelectionParams
+}
+
+func (f *fakeSelector) Selection(ctx context.Context, p proto.SelectionParams) (proto.SelectionResult, error) {
+	f.mu.Lock()
+	f.calls = append(f.calls, p)
+	f.mu.Unlock()
+	if f.delay > 0 {
+		select {
+		case <-time.After(f.delay):
+		case <-ctx.Done():
+			return proto.SelectionResult{}, ctx.Err()
+		}
+	}
+	if f.err != nil {
+		return proto.SelectionResult{}, f.err
+	}
+	switch {
+	case f.text != "":
+		return proto.SelectionResult{Text: f.text, Via: proto.ViaAX, MS: 2}, nil
+	case f.copyText != "" && p.AllowCopy:
+		return proto.SelectionResult{Text: f.copyText, Via: proto.ViaCopy, MS: 40}, nil
+	}
+	return proto.SelectionResult{Via: proto.ViaNone, MS: 1}, nil
+}
+
+func (f *fakeSelector) params() []proto.SelectionParams {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]proto.SelectionParams(nil), f.calls...)
+}

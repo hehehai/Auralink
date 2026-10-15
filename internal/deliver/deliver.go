@@ -47,6 +47,11 @@ const (
 	ReasonNoAccess Reason = "noAccess"
 	// ReasonFailed: the helper failed (Result.Err).
 	ReasonFailed Reason = "failed"
+	// ReasonCard: the result goes to the answer card by choice (Translate's
+	// "Show the result in a card"); ReasonLong: it is longer than the
+	// answer card's limit (Rewrite). The session sets these, not Insert.
+	ReasonCard Reason = "card"
+	ReasonLong Reason = "long"
 )
 
 // Request is one insert.
@@ -67,8 +72,12 @@ type Request struct {
 	Self     int
 	Activate func(pid int) bool
 	// AnyEditable skips the check of the focused element (the answer
-	// card's Insert: the user looked and chose).
-	AnyEditable bool
+	// card's Insert: the user looked and chose). NeedEditable asks for an
+	// element Accessibility calls editable, not one that may be (text
+	// selected on a web page must not be "replaced" by a paste that
+	// goes nowhere).
+	AnyEditable  bool
+	NeedEditable bool
 }
 
 // Result is what happened.
@@ -115,7 +124,44 @@ func Insert(ctx context.Context, io TextIO, r Request) Result {
 	return res
 }
 
+// Check tells, without pasting or activating anything, whether Insert
+// would paste now (Result.Reason is "" when it would). Sessions ask it
+// before a long answer, to stream it into the answer card at once when
+// it cannot be inserted.
+func Check(ctx context.Context, io TextIO, r Request) Result {
+	start := time.Now()
+	r.Activate = nil
+	res := check(ctx, io, r)
+	res.Elapsed = time.Since(start)
+	return res
+}
+
 func insert(ctx context.Context, io TextIO, r Request) Result {
+	res := check(ctx, io, r)
+	if res.Reason != ReasonNone {
+		return res
+	}
+	p, err := io.Paste(ctx, proto.PasteParams{
+		Text: r.Text, KeepClipboard: r.KeepClipboard, RestoreDelayMS: r.RestoreDelayMS,
+		TargetPID: r.Target.PID, Press: r.Press, PressDelayMS: r.PressDelayMS,
+	})
+	if err != nil {
+		return failed(res, err)
+	}
+	res.Paste = p
+	if !p.Posted {
+		res.Reason = ReasonNotFront
+		if p.Front != nil {
+			res.Front = *p.Front
+		}
+		return res
+	}
+	res.Inserted = true
+	return res
+}
+
+// check is Insert up to the paste.
+func check(ctx context.Context, io TextIO, r Request) Result {
 	var res Result
 	if r.Text == "" {
 		res.Reason = ReasonEmpty
@@ -142,26 +188,11 @@ func insert(ctx context.Context, io TextIO, r Request) Result {
 		res.Reason, res.Front = ReasonNotFront, proto.App{PID: focus.PID}
 		return res
 	}
-	if !r.AnyEditable && !Writable(focus) {
+	switch {
+	case r.AnyEditable:
+	case r.NeedEditable && !focus.Editable, !Writable(focus):
 		res.Reason = ReasonNotEditable
-		return res
 	}
-	p, err := io.Paste(ctx, proto.PasteParams{
-		Text: r.Text, KeepClipboard: r.KeepClipboard, RestoreDelayMS: r.RestoreDelayMS,
-		TargetPID: r.Target.PID, Press: r.Press, PressDelayMS: r.PressDelayMS,
-	})
-	if err != nil {
-		return failed(res, err)
-	}
-	res.Paste = p
-	if !p.Posted {
-		res.Reason = ReasonNotFront
-		if p.Front != nil {
-			res.Front = *p.Front
-		}
-		return res
-	}
-	res.Inserted = true
 	return res
 }
 

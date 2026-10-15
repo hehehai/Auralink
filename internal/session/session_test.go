@@ -477,9 +477,9 @@ func TestBusyTryShortAndMore(t *testing.T) {
 			t.Errorf("end %+v", end)
 		}
 	})
-	t.Run("not yet", func(t *testing.T) {
+	t.Run("an unknown feature", func(t *testing.T) {
 		h := newHarness(t, &fakeFile{text: "x"}, nil, nil)
-		h.m.Start(StartRequest{Kind: store.KindTranslate})
+		h.m.Start(StartRequest{Kind: "summarize"})
 		end := h.rec.wait(t)
 		if end.State != Failed || end.Problem.Code != ProblemUnsupported || h.audio.recorded() != 0 {
 			t.Errorf("end %+v", end)
