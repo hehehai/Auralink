@@ -25,7 +25,8 @@ github.com/hehehai/Auralink
 │   ├── secrets/          API keys in the Keychain, service "Auralink"                          (leaf)
 │   ├── netx/             the proxy (settings.Network) and the HTTP client every provider uses  (leaf)
 │   ├── permission/       Microphone and Accessibility (purego on darwin; Fake for tests)       (leaf)
-│   ├── macx/             activating an app again before a paste (purego on darwin)            (leaf)
+│   ├── macx/             activating an app again before a paste (purego on darwin); the       (leaf)
+│   │                     recording's sounds (afplay)
 │   ├── asr/              remote speech recognition: FileTranscriber, Streamer/Stream, error kinds,
 │   │   │                 endpoint policy, WebSocket dial through the proxy, WAV/PCM helpers
 │   │   ├── openai/       OpenAI-compatible /audio/transcriptions (multipart upload)
@@ -127,7 +128,8 @@ Rewrite:   textio.selection while recording; the instruction (+ the selection) �
    Translate: compose.Untranslated? ─▶ once more with the Strict layer
    fails ─▶ failed, in the card with Try again (retryAnswer: StartRequest.Text)
    history entry (+ audio/<id>.wav) ─▶ the end snapshot
-snapshots ─▶ a.post ─▶ sessionChanged ─▶ overlay, hotkey.configure {active}, menu bar, History
+snapshots ─▶ a.post ─▶ sessionChanged ─▶ the start and stop sounds, overlay, hotkey.configure {active},
+                                         menu bar (its menu and recording icon), History
 ```
 
 While a session is live (or the answer card shows) the bindings go to the helper with `active`: a tap fires at once and Escape is reported. Without Accessibility the event tap is not installed; the bindings Carbon can express are registered with `mygo.GlobalShortcut` until it is.
@@ -149,7 +151,12 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `a.navigate(path)`, `a.showPage(name)`, `a.currentPage()`, `a.shownPath()`; `movedPaths` (old paths, e.g. `/permissions` → `/settings/permissions`) | shell.go, shell_settings.go | palette, deep links, notifications, tests |
 | `navGroups`, `shortcutPages` (⌘1–⌘6), `pageTitle`, `a.navBadge` | shell.go | sidebar, rail, palette, Go menu |
 | `a.page(c, p)`, `a.pageShown(path)` | pages.go | the router: each page's view, and what it reads when it shows |
-| `a.updateSettings(fn)`, `a.prefs`, `settingsSections()`, `a.settingsShown(sub)` | shell_settings.go | every area that changes a setting; sections that read something when they open |
+| `a.updateSettings(fn)`, `a.prefs`, `settingsSections()`, `a.settingsShown(sub)`, `a.setMainLanguage(code)`, `a.syncOpenAtLogin()` | shell_settings.go | every area that changes a setting; sections that read something when they open; the window's opening (shell.go) |
+| `a.railMode()` (the only place that decides: the user's choice, else a window narrower than 820), `a.setRail(on)` | shell_nav.go | the sidebar, `pageWidth`, Settings → Appearance |
+| `a.audio` (the inputs `capture.devices` listed), `a.loadDevices()`, `a.audioShown()`, `deviceInUse(list, devs)`, `a.playSound` (`macx.Play`; tests record), `recordingCue(was, s)`, `a.playCue(was, s)` | settings_audio.go | Settings → Audio, helperlink.go (a helper that became ready), sessionlink.go (`sessionChanged`) |
+| `overlayFaceFrame(c, key, o, mode, h, drag)`, `a.overlayPill(c, s, mode, live)`, `a.overlayRestyle()` | overlay.go | the overlay, the preview of Settings → Overlay style (settings_overlay.go), `settingsChanged` |
+| `triggerText(trigger)` (its name; the setup guide's `triggerHowText` says how to use it), `featurePath(feature)` | settings_shortcuts.go | Settings → Shortcuts |
+| `a.trayItems()`, `a.loadTrayRecent()` (the last three results), `trayIcon` / `trayLiveIcon`, `a.copyText` (tests) | tray.go | `historyChanged`, the menu bar |
 | `a.helperStatus()`, `helperCall[T](a, method, params, timeout, then)`, `a.helperNotified(m)`, `a.restartHelper()`, `a.hotkeys` (hotkey.state), `a.front` (app.activated) | helperlink.go | status bar, permissions, Diagnostics, sessions |
 | `a.mgr` (`*session.Manager`), `a.sess` (the newest snapshot), `a.startSession(req)`, `a.startTranscribe(target, hold, try)`, `a.sessionBlocker(kind)`, `a.stopSession()`, `a.cancelSession()`, `a.toggleTranscribe()`, `a.pasteLast(target)`, `a.answer` + `openAnswer` / `insertAnswer` / `copyAnswer` / `closeAnswer` / `retryAnswer(lang)` / `followUpAnswer(hold)`, `a.showNotice`, `sessionProblemText(p)`, `a.syncHotkeys()` | sessionlink.go | the overlay, the feature pages' Try areas, the menu bar, helperlink.go |
 | `a.overlaySync()`, `a.ov` (mode, size), `overlayView`, `waveform`, `workingText(s)`, `kindIcon`, `kindTitle`, `cardNow`, `targetLanguageLabel`, `noticeActionLabel` | overlay.go | sessionlink.go; the feature pages and History reuse the texts |
@@ -186,9 +193,9 @@ While a session is live (or the answer card shows) the bindings go to the helper
 |---|---|---|
 | `ui_kit.go`, `ui_tokens.go` | same files | comments; `setAccent` (accent review shots) dropped |
 | `shell*.go` | same files | Auralink's sidebar groups and pages (a first group without a title); a smaller window (880×580, at least 720×480; AudioSmith 1100×720 and 820×520); status bar: provider placeholder and the helper instead of engine, jobs and downloads; no ⌘E quick switch; ? sheet lists the global shortcuts from the settings |
-| `shell_settings.go`, `settings_*.go`, `storage_move.go`, `sysinfo.go` | same files | seven sections: General (app and main language, menu bar, open at login), Permissions (permissions.go), Appearance, Network (proxy only, provider hosts), Privacy (history, recordings, text in logs), Storage (Auralink's folders; erase removes provider keys), Diagnostics and about (helper instead of engine) |
+| `shell_settings.go`, `settings_*.go`, `storage_move.go`, `sysinfo.go` | same files | ten sections: General (app, main and other languages, menu bar, open at login), Permissions (permissions.go), Audio (the microphones' order, sounds), Overlay style (with a preview), Shortcuts (the table of every shortcut), Appearance (the sidebar: automatic, names and icons, icons only), Network (proxy only, provider hosts), Privacy (history, recordings, text in logs), Storage (Auralink's folders; erase removes provider keys), Diagnostics and about (helper instead of engine) |
 | `permissions.go` | same file | a section of the settings dialog (after General): the Microphone and Accessibility only, through the helper; no browser Automation (addresses are read with AX) |
-| `tray.go` | `dictation_tray.go` | Auralink's menu; a sound-wave icon |
+| `tray.go` | `dictation_tray.go` | Auralink's menu (the last three results, a click copies one); a sound-wave icon, with a dot while recording |
 | `internal/core` | `core` | bus, ids, errors, notifications, log lines only; `Stream` dropped |
 | `internal/settings` | `settings` | the Store kept; the document is new (v1, plan §3–§5) |
 | `internal/store`, `sqlitestore` | same | Open, migrations, backup, `CheckFile`, `RewritePaths` kept; new schema and repositories; `Stats` instead of `Usage` |
@@ -197,7 +204,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `internal/netx` | `hub/proxy.go` | unchanged rules |
 | `internal/permission` | `dictation/system_darwin.go` | Microphone and Accessibility only; the page asks the helper first |
 | `helper/` (Swift) | `engine/Sources` (`Server.swift`, `Capture.swift`, the protocol target's `Wire.swift`) and the M0 spikes | no MLX; the M0 spike's capture, event tap, text I/O and browser code, made protocol 1 (docs/helper-protocol.md §6) |
-| `internal/i18n`, `icons`, `logs`, `notify`, `lang` | same | zh-Hans rebuilt from what Auralink uses (304 strings); 38 icons; log file `auralink.log` |
+| `internal/i18n`, `icons`, `logs`, `notify`, `lang` | same | zh-Hans rebuilt from what Auralink uses (304 strings at M1); the icons of `names.txt` (53 at M6); log file `auralink.log` |
 | `third_party/mygo`, `scripts/vendor-mygo.sh`, `scripts/mac.sh`, CI | same | renamed; patch 0003 (non-activating windows) is Auralink's |
 
 | `internal/llm` | `llm` | no engine backend, no dubbing skills, no Ollama/LM Studio presets; skills `transcribe_enhance`, `translate_text`, `rewrite`; Volcengine Ark, MiniMax, StepFun, MiMo presets; `extraBody` (thinking off); https-only base URLs; `Probe` (its README) |
@@ -213,9 +220,10 @@ Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services,
 | Race | `CGO_ENABLED=1 go test -race ./...` | needs cgo |
 | Snapshots | `AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .` | every page, the settings sections and the overlays, light/dark, en/zh-Hans, 2×; the window's default size (880×580); `AURALINK_SNAPSHOTS_SIZE=720x480` for the smallest; `scripts/readme-images.sh` copies the README's images from them |
 | Swift helper | `scripts/mac.sh 'cd helper && swift test'` | the wire types against helper/Fixtures (the same lines the Go tests decode), the hotkey recognizer, the PCM framer; CI runs it on macOS (the `helper` job, with the release build and `go test ./internal/helper/...`) |
-| Mac checks | `scripts/mac.sh 'AURALINK_MAC=1 go test -run "TestMacKeychain|TestNative|TestActivate" -v ./internal/secrets ./internal/permission ./internal/macx'` | the Keychain, the permission calls, activation |
+| Mac checks | `scripts/mac.sh 'AURALINK_MAC=1 go test -run "TestMacKeychain|TestNative|TestActivate|TestPlay" -v ./internal/secrets ./internal/permission ./internal/macx'` | the Keychain, the permission calls, activation, the recording's sounds |
 | Packaged app | `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'` | the helper, then the app; signing during development: README |
 | Provider protocols | `go test ./internal/asr/... ./internal/llm ./internal/providers` | golden files of what each client sends (`testdata/*.golden`; `AURALINK_UPDATE_GOLDEN=1` rewrites them) against loopback servers replaying recorded answers |
+| Settings (M6) | `go test -run 'TestAudioSettings|TestDeviceInUse|TestRecordingCues|TestSessionSounds|TestOverlayStyle|TestShortcutsSettings|TestOtherLanguages|TestAutoRail|TestStartHidden|TestTray' .`; `go test -run 'TestPlay' ./internal/macx` | the microphones' list over the fake helper's `capture.devices`, the cues of each change of a session, the overlay's settings, the shortcut table's problems and links, the automatic rail at 720 and 880 wide, the menu bar's items and icons |
 | App enhancement, dictionary | `go test ./internal/appctx ./internal/dict`; `go test -run 'TestScene' ./internal/session`; `go test -run 'TestAppEnhancement|TestDictionary|TestSessionAppEnhancement|TestSceneConfig' .`; `go test -run Dictionary ./internal/asr/...` | URL rules and the matching order (table tests); sessions in a URL group, a browser's group, an app's group, none, an address that times out, the auto key; the dictionary's hints in each service's request (golden files) |
 | Sessions | `go test ./internal/session ./internal/compose ./internal/deliver ./internal/hotkey`; `go test -run 'TestSession|TestOverlay|TestAnswer|TestTranslate|TestRewrite' .` | the state machine with in-process fakes (both kinds of speech service × the language model on, off, failing, timing out × cancel at each stage × a target that takes no text × late callbacks; Translate and Rewrite: a selection read, missing, failing, by ⌘C, the strict retry, the card by choice, by a target that takes no text and by length, the JSON answer, the text given at Start, follow-ups); the app over the fake helper process (`selection=`, `copy-selection=`, `readonly`, `paste-log=`) with loopback transcription, streaming and chat (streaming too) servers |
 | Real services | `AURALINK_E2E=1 go test -run 'TestE2E' -v . ./internal/asr/... ./internal/providers` | keys from the environment or `~/.config/auralink-dev/keys.env` (`DOUBAO_APP_ID`, `DOUBAO_ACCESS_TOKEN`, `DASHSCOPE_API_KEY`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`); speech sample `testdata/speech/sample-zh-en.wav`; each test skips without its key |
