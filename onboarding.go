@@ -463,7 +463,7 @@ func (a *app) obTryStep(c *ui.Context) {
 		caption(c, i18n.T("Shortcut"))
 		h := hs[0]
 		ui.Text(c, hotkeyText(h.Keys)).FontSize(px(t, fsCaption)).Font("monospace").Padding(px(t, 2), px(t, 8)).Radius(px(t, 4)).Background(k.Hover)
-		caption(c, triggerText(h.Trigger))
+		caption(c, triggerHowText(h.Trigger))
 		if hotkey.NeedsTap(h) && !a.hotkeys.Installed {
 			warnLine(c, i18n.T("This shortcut works once Auralink may use Accessibility; Start works now."))
 		}
@@ -496,8 +496,8 @@ func (a *app) obTryStep(c *ui.Context) {
 	})
 }
 
-// triggerText says how a shortcut's trigger is used.
-func triggerText(trigger string) string {
+// triggerHowText says how a shortcut's trigger is used.
+func triggerHowText(trigger string) string {
 	switch trigger {
 	case settings.TriggerDouble:
 		return i18n.T("Press twice quickly to start; once more to stop.")

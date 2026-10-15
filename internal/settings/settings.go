@@ -72,10 +72,13 @@ type Appearance struct {
 	Theme        string  `json:"theme"`        // "system" | "light" | "dark"
 	Scale        float64 `json:"scale"`        // UI scale, 0.9–1.25 (1 = 100 %)
 	ReduceMotion bool    `json:"reduceMotion"` // in addition to the system setting
-	// Rail shows the sidebar as icons only; SidebarWidth is its width in
-	// DIPs at 100 % (0 = the default); ClosedSections the sidebar sections
-	// the user closed.
+	// Rail shows the sidebar as icons only. Without it the sidebar is
+	// automatic (icons only in a narrow window) unless RailChosen: the
+	// user chose names and icons. SidebarWidth is its width in DIPs at
+	// 100 % (0 = the default); ClosedSections the sidebar sections the
+	// user closed.
 	Rail           bool     `json:"rail,omitempty"`
+	RailChosen     bool     `json:"railChosen,omitempty"`
 	SidebarWidth   float64  `json:"sidebarWidth,omitempty"`
 	ClosedSections []string `json:"closedSections,omitempty"`
 }
@@ -105,9 +108,13 @@ type Privacy struct {
 type Audio struct {
 	// Devices are capture device ids in the user's order of preference;
 	// the first one present records, else the system's default input.
-	Devices []string `json:"devices,omitempty"`
+	// DeviceNames are their names when they were last seen, to show the
+	// ones that are not connected (M6).
+	Devices     []string          `json:"devices,omitempty"`
+	DeviceNames map[string]string `json:"deviceNames,omitempty"`
 	// MuteOutput lowers the system's output while recording, restoring
-	// only what Auralink changed (P1). Sounds plays start and end cues.
+	// only what Auralink changed (P1). Sounds plays a cue when recording
+	// starts and another when it stops (M6).
 	MuteOutput bool `json:"muteOutput,omitempty"`
 	Sounds     bool `json:"sounds"`
 }

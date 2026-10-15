@@ -20,6 +20,7 @@ import (
 	"github.com/hehehai/Auralink/internal/helper/helpertest"
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/i18n"
+	"github.com/hehehai/Auralink/internal/macx"
 	"github.com/hehehai/Auralink/internal/permission"
 )
 
@@ -33,7 +34,8 @@ func TestMain(m *testing.M) {
 
 // fakeSupervisor is a helper.Supervisor in process: Start makes it ready
 // (publishing StatusChanged), and Call answers from handlers, by default
-// permissions.* (the microphone not asked yet, Accessibility not allowed).
+// permissions.* (the microphone not asked yet, Accessibility not allowed)
+// and capture.devices (the fake helper's inputs).
 type fakeSupervisor struct {
 	bus *core.Bus
 
@@ -47,6 +49,9 @@ func newFakeSupervisor(bus *core.Bus) *fakeSupervisor {
 	f := &fakeSupervisor{bus: bus, status: helper.Status{State: helper.Stopped}, handlers: map[string]func(json.RawMessage) (any, error){}}
 	perms := proto.PermissionsResult{Microphone: proto.PermNotDetermined}
 	f.handlers[proto.MethodPermissionsStatus] = func(json.RawMessage) (any, error) { return perms, nil }
+	f.handlers[proto.MethodCaptureDevices] = func(json.RawMessage) (any, error) {
+		return proto.DevicesResult{Devices: helpertest.Devices()}, nil
+	}
 	f.handlers[proto.MethodPermissionsRequest] = func(raw json.RawMessage) (any, error) {
 		var p proto.PermissionsRequestParams
 		json.Unmarshal(raw, &p)
@@ -134,6 +139,7 @@ func newTestAppIn(t *testing.T, dir string) (*app, *fakeSupervisor, *ui.Tester) 
 	fs := newFakeSupervisor(lib.bus)
 	a := newApp(lib, &helperHost{sup: fs})
 	a.permSys = &permission.Fake{Mic: permission.Granted, Grant: true}
+	a.playSound = func(macx.Sound) {} // tests that listen replace it
 	a.connectHelper()
 	a.startHelper()
 	t.Cleanup(a.quit)

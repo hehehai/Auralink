@@ -95,6 +95,7 @@ func (a *app) helperChanged(st helper.Status) {
 		a.hotkeysSent = ""     // a new helper has no shortcuts yet
 		a.syncHotkeys()        // sessionlink.go
 		a.loadLast()
+		a.audioShown() // settings_audio.go: the microphones, if their section shows
 		// The app in front until the first app.activated: the target of a
 		// session started from the menu bar.
 		helperCall(a, proto.MethodAppFrontmost, nil, 5*time.Second, func(front proto.App, err error) {

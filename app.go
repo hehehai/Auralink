@@ -25,6 +25,7 @@ import (
 //	dictionaryState   dictionary_page.go  the Dictionary page
 //	homeState         home_page.go    Home: readiness, today, recent results
 //	onboardingState   onboarding.go   the setup guide
+//	audioState        settings_audio.go   Settings → Audio, the recording's sounds
 //
 // Add fields to your area's struct, not here.
 type app struct {
@@ -49,6 +50,7 @@ type app struct {
 	dictionaryState
 	homeState
 	onboardingState
+	audioState
 }
 
 func newApp(lib *library, h *helperHost) *app {
@@ -58,6 +60,7 @@ func newApp(lib *library, h *helperHost) *app {
 	a.openPermissions()
 	a.openProviders()
 	a.openAppEnhancement() // appenhance.go
+	a.openAudio()          // settings_audio.go
 	return a
 }
 

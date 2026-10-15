@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -116,6 +117,7 @@ func clone(s Settings) Settings {
 	s.General.OtherLanguages = slices.Clone(s.General.OtherLanguages)
 	s.Appearance.ClosedSections = slices.Clone(s.Appearance.ClosedSections)
 	s.Audio.Devices = slices.Clone(s.Audio.Devices)
+	s.Audio.DeviceNames = maps.Clone(s.Audio.DeviceNames)
 	s.Providers.ASR = slices.Clone(s.Providers.ASR)
 	s.Providers.LLM = slices.Clone(s.Providers.LLM)
 	f := &s.Features
@@ -148,6 +150,14 @@ func normalize(s Settings) Settings {
 	s.General.OtherLanguages = uniq(s.General.OtherLanguages)
 	s.Network.Proxy = strings.TrimSpace(s.Network.Proxy)
 	s.Audio.Devices = uniq(s.Audio.Devices)
+	for id := range s.Audio.DeviceNames { // names of the listed devices only
+		if !slices.Contains(s.Audio.Devices, id) {
+			delete(s.Audio.DeviceNames, id)
+		}
+	}
+	if len(s.Audio.DeviceNames) == 0 {
+		s.Audio.DeviceNames = nil
+	}
 	o := &s.Overlay
 	if o.Position != "top" {
 		o.Position = "bottom"

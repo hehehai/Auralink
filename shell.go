@@ -308,7 +308,9 @@ func section(path string) string {
 	return path
 }
 
-// openWindow opens the main window; it runs in App.WhenReady.
+// openWindow opens the main window; it runs in App.WhenReady. Opened
+// at login, with the menu bar icon and "Keep running when the window
+// closes" on, Auralink starts in the menu bar: the window waits hidden.
 func (a *app) openWindow() {
 	a.version = mygo.App.Version()
 	a.systemLocale = mygo.App.Locale()
@@ -325,8 +327,16 @@ func (a *app) openWindow() {
 		TitleBarStyle:  mygo.TitleBarHiddenInset,
 		TitleBarHeight: titleBarHeight,
 		Content:        ui.View(a.view),
+		Hidden:         startHidden(mygo.App.WasOpenedAtLogin(), a.prefs.General),
 	})
-	a.maybeOnboard() // onboarding.go: the setup guide, on the first start
+	a.maybeOnboard()    // onboarding.go: the setup guide, on the first start
+	a.syncOpenAtLogin() // shell_settings.go
+}
+
+// startHidden says whether the window waits hidden at start: opened at
+// login, when Auralink stays in the menu bar.
+func startHidden(atLogin bool, g settings.General) bool {
+	return atLogin && g.MenuBar && g.CloseToTray
 }
 
 // The pages' and the shell's icons (Solar; internal/icons/names.txt).

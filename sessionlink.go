@@ -202,6 +202,7 @@ func (a *app) sessionChanged(s session.Snapshot) {
 	was := a.sess
 	a.sess = s
 	a.obSessionChanged(s) // onboarding.go: a try of the setup guide passes
+	a.playCue(was, s)     // settings_audio.go: the start and stop sounds
 	if s.ID != was.ID {
 		a.notice = nil
 	}

@@ -122,7 +122,8 @@ func (a *app) loadHistory() {
 // historyChanged runs when a session kept (or changed) an entry: the page
 // reads the history again now when it shows, else when it shows next.
 func (a *app) historyChanged() {
-	a.homeChanged() // home_page.go: today's numbers, the recent results
+	a.homeChanged()    // home_page.go: today's numbers, the recent results
+	a.loadTrayRecent() // tray.go: the menu bar's recent results
 	if a.currentPage() == "history" {
 		a.loadHistory()
 		return
@@ -563,6 +564,7 @@ func (a *app) deleteHistoryEntry(id string) {
 			}
 			a.toast(i18n.T("Entry deleted"))
 			a.loadHistory()
+			a.loadTrayRecent() // tray.go
 		})
 	})
 }

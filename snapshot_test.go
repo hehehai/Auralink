@@ -92,6 +92,11 @@ func TestSnapshots(t *testing.T) {
 		appEnhanceShots(a, fs, tt, save) // appenhance_page_test.go
 		dictShots(t, a, save)            // dictionary_page_test.go
 		// The settings dialog, section by section.
+		a.updateSettings(func(s *settings.Settings) {
+			s.General.OtherLanguages = []string{"zh", "en", "ja"} // the main language's is not shown
+			s.Audio.Devices = []string{"AirPodsPro:input", "USB-Mic-1234"}
+			s.Audio.DeviceNames = map[string]string{"USB-Mic-1234": "Blue Yeti"}
+		})
 		for _, s := range settingsSections() {
 			a.navigate("/settings/" + s.id)
 			if s.id == "network" {
@@ -101,6 +106,11 @@ func TestSnapshots(t *testing.T) {
 				a.sys = &sysInfo{OS: "macOS 26.7", Chip: "Apple M2", Memory: 16 << 30, Cores: 8, Arch: "arm64"}
 			}
 			save("settings-" + s.id)
+			if s.id == "overlay" { // its preview, under the controls
+				w, h := snapshotSize()
+				tt.Scroll(float32(w)*0.7, float32(h)*0.6, 0, 600)
+				save("settings-overlay-preview")
+			}
 		}
 		a.settingsOpen = false
 

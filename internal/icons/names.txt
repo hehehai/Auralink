@@ -28,6 +28,8 @@ wi-fi-router-minimalistic # network
 shield-check            # privacy
 database                # storage
 info-circle             # about, ⓘ info tooltip
+microphone-large        # audio
+monitor                 # overlay style
 
 # Actions and marks (the kit and the pages).
 menu-dots               # overflow "⋯"
@@ -41,7 +43,8 @@ folder-open             # show in Finder
 trash-bin-minimalistic  # delete (a history entry, a shortcut)
 refresh                 # check again
 square-arrow-right-up   # open System Settings
-alt-arrow-down          # chevrons
+alt-arrow-up            # move up (the microphone list)
+alt-arrow-down          # chevrons, move down
 alt-arrow-right
 play                    # playButton (history recordings, M3)
 pause

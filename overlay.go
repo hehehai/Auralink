@@ -5,7 +5,7 @@ package main
 // the app the user dictates into in front, with its caret. It always
 // uses the dark tokens, whatever the appearance.
 //
-//	recording   240×52 (400×52 with an app enhancement label), 380×120
+//	recording   260×52 (400×52 with an app enhancement label), 380×120
 //	            with live text: the feature's icon, the matched group
 //	            ("Slack · Team chat"), a 16-bar waveform, the time, the last
 //	            lines of the live text, Stop and × (cancel; Escape too)
@@ -64,7 +64,7 @@ func (m overlayMode) String() string {
 // rectangle's).
 const (
 	ovPad       = 16
-	ovPillW     = 240
+	ovPillW     = 260 // the recording row's content needs 259
 	ovSceneW    = 400 // with the app enhancement label
 	ovPillH     = 52
 	ovLiveW     = 380
@@ -202,6 +202,17 @@ func overlayPlace(wa mygo.Rectangle, o settings.Overlay, w, h int) (int, int) {
 	return x, y
 }
 
+// overlayRestyle applies a change of settings.Overlay to the overlay
+// while it shows: its place and its face.
+func (a *app) overlayRestyle() {
+	if !a.ov.shown || a.ov.win == nil {
+		return
+	}
+	x, y := overlayPlace(a.ov.area, a.prefs.Overlay, a.ov.w+2*ovPad, a.ov.h+2*ovPad)
+	a.ov.win.SetPosition(x, y)
+	a.ov.win.Invalidate()
+}
+
 // closeOverlay destroys the window (quit).
 func (a *app) closeOverlay() {
 	if a.ov.win != nil {
@@ -237,24 +248,33 @@ func (a *app) overlayView(c *ui.Context) {
 
 // overlayFace is the face: the pill, the notice or the card.
 func (a *app) overlayFace(c *ui.Context) {
-	o := a.prefs.Overlay
-	radius := float32(o.Radius)
-	if a.ov.mode != ovAnswer {
-		radius = min(radius, float32(a.ov.h)/2)
-	}
-	alpha := float32(min(max(o.Opacity, 0.5), 1))
-	face := ui.Column(c.Key("ov-face")).Fill().Radius(radius).Background(ui.RGBA(22, 22, 26, 0.96*alpha)).
-		Border(1, ui.RGBA(255, 255, 255, 0.12)).Shadow(0, 6, 16, 0, ui.RGBA(0, 0, 0, 0.32)).DragWindow()
-	face.Children(func() {
+	overlayFaceFrame(c, "ov-face", a.prefs.Overlay, a.ov.mode, a.ov.h, true).Children(func() {
 		switch a.ov.mode {
 		case ovAnswer:
 			a.overlayAnswer(c)
 		case ovNotice:
 			a.overlayNotice(c)
 		default:
-			a.overlayPill(c)
+			a.overlayPill(c, a.sess, a.ov.mode, true)
 		}
 	})
+}
+
+// overlayFaceFrame is the face's frame for mode, h DIPs high, in the look
+// o sets (its radius, the opacity of its fill); drag lets it move its
+// window (the overlay's, not the preview's in Settings). Give it children.
+func overlayFaceFrame(c *ui.Context, key string, o settings.Overlay, mode overlayMode, h int, drag bool) ui.Element {
+	radius := float32(o.Radius)
+	if mode != ovAnswer {
+		radius = min(radius, float32(h)/2)
+	}
+	alpha := float32(min(max(o.Opacity, 0.5), 1))
+	face := ui.Column(c.Key(key)).Fill().Radius(radius).Background(ui.RGBA(22, 22, 26, 0.96*alpha)).
+		Border(1, ui.RGBA(255, 255, 255, 0.12)).Shadow(0, 6, 16, 0, ui.RGBA(0, 0, 0, 0.32))
+	if drag {
+		face.DragWindow()
+	}
+	return face
 }
 
 var (
@@ -262,22 +282,30 @@ var (
 	ovText2 = ui.RGBA(235, 235, 245, 0.62)
 )
 
-// overlayPill is the recording, working and done pill, with the live text
-// below it when there is some.
-func (a *app) overlayPill(c *ui.Context) {
+// overlayPill is the recording, working and done pill of s in mode, with
+// the live text below it when there is some. live: its Stop and ×
+// buttons work; off, they are pictures (Settings' preview).
+func (a *app) overlayPill(c *ui.Context, s session.Snapshot, mode overlayMode, live bool) {
 	t := c.Theme()
-	s := a.sess
+	// round is a round button of the pill, or its picture.
+	round := func(key, label string, bg ui.Color, fn func()) bool {
+		if !live {
+			ui.Row(c).Size(28, 28).Center().Radius(14).Background(bg).Shrink(0).Children(fn)
+			return false
+		}
+		return ui.ButtonBase(c.Key(key)).Size(28, 28).Center().Radius(14).Background(bg).Label(label).Children(fn).Clicked()
+	}
 	ui.Column(c).Fill().Padding(0, 10, 0, 14).Children(func() {
 		ui.Row(c).Height(ovPillH).Shrink(0).Gap(10).AlignItems(ui.Center).Children(func() {
-			switch a.ov.mode {
+			switch mode {
 			case ovRecording:
 				ui.Icon(c, kindIcon(s.Kind).Bold).Size(18, 18).TextColor(tok(t).Record).Label(kindTitle(s.Kind))
 				overlaySceneLabel(c, s)
 				a.waveform(c, s.Levels, !s.HeardAt.IsZero())
 				ui.Text(c, clock(s.Elapsed(time.Now()))).FontSize(12).Font("monospace").TextColor(ovText2).Shrink(0)
-				if ui.ButtonBase(c.Key("ov-stop")).Size(28, 28).Center().Radius(14).Background(tok(t).Record).Label(i18n.T("Stop")).Children(func() {
+				if round("ov-stop", i18n.T("Stop"), tok(t).Record, func() {
 					ui.Box(c).Width(10).Height(10).Radius(2).Background(ui.RGB(255, 255, 255))
-				}).Clicked() {
+				}) {
 					a.stopSession()
 				}
 			case ovWorking:
@@ -288,17 +316,16 @@ func (a *app) overlayPill(c *ui.Context) {
 				ui.Icon(c, icons.CheckCircle.Bold).Size(18, 18).TextColor(tok(t).Success)
 				ui.Text(c, i18n.T("Inserted")).FontSize(13).TextColor(ovText).SingleLine().Grow(1).MinWidth(0)
 			}
-			if a.ov.mode != ovDone {
-				closeLabel := i18n.T("Cancel (Esc)")
-				if ui.ButtonBase(c.Key("ov-cancel")).Size(28, 28).Center().Radius(14).Label(closeLabel).Children(func() {
+			if mode != ovDone {
+				if round("ov-cancel", i18n.T("Cancel (Esc)"), ui.Transparent, func() {
 					ui.Icon(c, icons.Close.Linear).Size(16, 16).TextColor(ovText2)
-				}).Clicked() {
+				}) {
 					a.cancelSession()
 				}
 			}
 		})
-		if live := lastLines(liveText(s), ovLiveLines); live != "" && a.ov.mode != ovDone {
-			ui.Text(c, live).FontSize(13).TextColor(ovText).MaxLines(ovLiveLines).Ellipsis("…").Padding(0, 4, 12, 4)
+		if text := lastLines(liveText(s), ovLiveLines); text != "" && mode != ovDone {
+			ui.Text(c, text).FontSize(13).TextColor(ovText).MaxLines(ovLiveLines).Ellipsis("…").Padding(0, 4, 12, 4)
 		}
 	})
 }

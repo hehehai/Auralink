@@ -2,7 +2,8 @@ package main
 
 // The sidebar's layouts (M7a): the full sidebar, resizable, whose width
 // and closed sections the settings remember, and the icon rail
-// (Settings → Appearance, or the ‹ button) that keeps only the icons.
+// (Settings → Appearance, or the ‹ button) that keeps only the icons;
+// until the user chooses, the rail shows while the window is narrow.
 
 import (
 	"slices"
@@ -23,12 +24,31 @@ type navState struct {
 	sideW      float32          // the sidebar's width, DIPs at the theme's scale
 	sideWScale float32          // the px factor sideW was computed at
 	sideWAt    time.Time        // when the user last resized it (saved after a pause)
+	// narrowWindow: the window was narrower than autoRailWidth at the
+	// last build (railMode).
+	narrowWindow bool
 }
 
-func (a *app) railMode() bool { return a.prefs.Appearance.Rail }
+// autoRailWidth: below this window width (DIPs at 100 %) the automatic
+// sidebar shows icons only.
+const autoRailWidth = 820
 
+// railMode reports whether the sidebar shows icons only: the user's
+// choice (Settings → Appearance, the sidebar's button), else automatic,
+// while the window is narrower than autoRailWidth (narrowWindow, set by
+// each build). It is the only place that decides.
+func (a *app) railMode() bool {
+	ap := a.prefs.Appearance
+	if ap.Rail || ap.RailChosen {
+		return ap.Rail
+	}
+	return a.narrowWindow
+}
+
+// setRail is the user's choice of the sidebar's layout: it stays,
+// whatever the window's width.
 func (a *app) setRail(on bool) {
-	a.updateSettings(func(s *settings.Settings) { s.Appearance.Rail = on })
+	a.updateSettings(func(s *settings.Settings) { s.Appearance.Rail, s.Appearance.RailChosen = on, true })
 }
 
 // sectionOpen is the open state of a sidebar section, kept in the
@@ -66,6 +86,8 @@ func (a *app) sidebarFrame(c *ui.Context, page func()) {
 	t := c.Theme()
 	k := tok(t)
 	headerInset = 0
+	w, _ := c.Size()
+	a.narrowWindow = w < px(t, autoRailWidth)
 	if a.railMode() {
 		// The window controls (the traffic lights) reach past the rail:
 		// page titles move over to keep clear of them.

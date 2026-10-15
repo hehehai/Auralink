@@ -1,47 +1,76 @@
 package main
 
 // The menu bar icon (plan §2.3; AudioSmith's dictation tray, for
-// Auralink): Start transcribing, Paste the last result, Open Auralink,
-// Settings, Quit. With Settings → General → "Keep running when the window
-// closes", closing the window hides it, so the shortcuts keep working;
-// the Dock icon or the menu brings it back. Start transcribing records
-// for the app in front (as the shortcut does) and turns into Stop while a
-// session runs.
+// Auralink): Start transcribing, Paste the last result, the last three
+// results (a click copies one), Open Auralink, Settings, Quit. With
+// Settings → General → "Keep running when the window closes", closing
+// the window hides it, so the shortcuts keep working; the Dock icon or
+// the menu brings it back. Start transcribing records for the app in
+// front (as the shortcut does) and turns into Stop while a session runs;
+// the icon shows a recording dot meanwhile.
 
 import (
 	"bytes"
+	"context"
 	"image"
 	"image/color"
 	"image/png"
 	"math"
+	"strings"
+	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/transfer"
 	"github.com/hehehai/Auralink/internal/i18n"
+	"github.com/hehehai/Auralink/internal/store"
 )
 
 // trayState is the menu bar icon.
 type trayState struct {
 	tray     *mygo.Tray
-	quitting bool // Quit was chosen: closing the window must not hide it
+	trayLive bool     // the icon shows the recording one
+	quitting bool     // Quit was chosen: closing the window must not hide it
+	recent   []string // the last results, newest first (trayRecentN at most)
+	// copyText puts text on the clipboard (mygo.Clipboard); tests record.
+	copyText func(string) error
 }
 
-// trayIcon is drawn once: five rounded bars of a sound wave, as a
-// template image (macOS tints it).
-var trayIcon = drawWave(color.NRGBA{0, 0, 0, 255})
+// trayRecentN is how many results the menu lists; trayRecentChars how
+// much of each it shows.
+const (
+	trayRecentN     = 3
+	trayRecentChars = 40
+)
+
+// The icons are drawn once, as template images (macOS tints them): five
+// rounded bars of a sound wave, and while recording three of them and a
+// dot.
+var (
+	trayIcon     = drawWave(color.NRGBA{0, 0, 0, 255}, false)
+	trayLiveIcon = drawWave(color.NRGBA{0, 0, 0, 255}, true)
+)
 
 // drawWave draws a 36×36 (18 pt @2x) sound wave: five bars, 3 px wide,
-// rounded, of heights that rise and fall.
-func drawWave(c color.NRGBA) []byte {
+// rounded, of heights that rise and fall; recording, three bars on the
+// left and a solid dot (r 6) on the right.
+func drawWave(c color.NRGBA, recording bool) []byte {
 	const n = 36
 	img := image.NewNRGBA(image.Rect(0, 0, n, n))
-	heights := []float64{10, 20, 28, 20, 10}
+	heights, x0 := []float64{10, 20, 28, 20, 10}, 8.0
+	if recording {
+		heights, x0 = []float64{10, 22, 10}, 5
+	}
 	cover := func(x, y float64) float64 {
 		inside := 0.0
 		for i, h := range heights {
-			cx := 8 + float64(i)*5
+			cx := x0 + float64(i)*5
 			top, bottom := 18-h/2, 18+h/2
 			cy := min(max(y, top+1.5), bottom-1.5)
 			d := math.Hypot(x-cx, y-cy) - 1.5
+			inside = max(inside, clamp01(0.5-d))
+		}
+		if recording {
+			d := math.Hypot(x-26, y-18) - 6
 			inside = max(inside, clamp01(0.5-d))
 		}
 		return inside
@@ -76,13 +105,19 @@ func (a *app) applyTray() {
 	if a.tray != nil {
 		return
 	}
-	t, err := mygo.NewTray(mygo.TrayOptions{Icon: trayIcon, IconIsTemplate: true, ToolTip: "Auralink"})
+	live := a.sess.State.Live()
+	icon := trayIcon
+	if live {
+		icon = trayLiveIcon
+	}
+	t, err := mygo.NewTray(mygo.TrayOptions{Icon: icon, IconIsTemplate: true, ToolTip: "Auralink"})
 	if err != nil {
 		a.toast(i18n.T("The menu bar icon could not be made: %v", err))
 		return
 	}
-	a.tray = t
+	a.tray, a.trayLive = t, live
 	a.buildTrayMenu()
+	a.loadTrayRecent()
 }
 
 func (a *app) closeTray() {
@@ -92,11 +127,73 @@ func (a *app) closeTray() {
 	}
 }
 
-// buildTrayMenu builds the icon's menu in the current language.
+// loadTrayRecent reads the last results from the history for the menu,
+// then builds it again; at start and after the history changed.
+func (a *app) loadTrayRecent() {
+	if a.tray == nil && a.win != nil {
+		return // no menu to show them in
+	}
+	h := a.lib.store.History()
+	a.async(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		es, err := h.List(ctx, store.HistoryQuery{Limit: 20})
+		if err != nil {
+			return
+		}
+		a.post(func() {
+			a.recent = recentResults(es, trayRecentN)
+			a.buildTrayMenu()
+		})
+	})
+}
+
+// recentResults are the results of the newest n entries that delivered
+// one (done, with a text).
+func recentResults(es []store.Entry, n int) []string {
+	var out []string
+	for _, e := range es {
+		if e.Status == store.StatusDone && strings.TrimSpace(e.Result) != "" {
+			out = append(out, e.Result)
+			if len(out) == n {
+				break
+			}
+		}
+	}
+	return out
+}
+
+// trayLabel is a result as a menu item shows it: one line, about
+// trayRecentChars characters.
+func trayLabel(text string) string {
+	line := strings.Join(strings.Fields(text), " ")
+	r := []rune(line)
+	if len(r) <= trayRecentChars {
+		return line
+	}
+	return strings.TrimSpace(string(r[:trayRecentChars-1])) + "…"
+}
+
+// buildTrayMenu builds the icon's menu in the current language, and
+// shows the recording icon while a session runs.
 func (a *app) buildTrayMenu() {
 	if a.tray == nil {
 		return
 	}
+	if live := a.sess.State.Live(); live != a.trayLive {
+		icon := trayIcon
+		if live {
+			icon = trayLiveIcon
+		}
+		if a.tray.SetIcon(icon, true) == nil {
+			a.trayLive = live
+		}
+	}
+	a.tray.SetMenu(mygo.NewMenu(a.trayItems()))
+}
+
+// trayItems are the menu's items.
+func (a *app) trayItems() []*mygo.MenuItem {
 	act := func(fn func()) func(*mygo.MenuItem, *mygo.Window) {
 		return func(*mygo.MenuItem, *mygo.Window) { a.post(fn) }
 	}
@@ -108,15 +205,34 @@ func (a *app) buildTrayMenu() {
 	if len(f.Transcribe.Hotkeys) > 0 {
 		start += "    " + hotkeyGlyphs(f.Transcribe.Hotkeys[0].Keys)
 	}
-	a.tray.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
+	items := []*mygo.MenuItem{
 		{Label: start, Click: act(a.toggleTranscribe)},
 		{Label: i18n.T("Paste the last result") + "    " + hotkeyGlyphs(f.PasteLast.Keys), Click: act(func() { a.pasteLast(a.front) })},
+	}
+	if len(a.recent) > 0 {
+		items = append(items, mygo.Separator(), &mygo.MenuItem{Label: i18n.T("Recent results (click to copy)"), Disabled: true})
+		for _, text := range a.recent {
+			items = append(items, &mygo.MenuItem{Label: trayLabel(text), ToolTip: text, Click: act(func() { a.copyRecent(text) })})
+		}
+	}
+	return append(items,
 		mygo.Separator(),
-		{Label: i18n.T("Open Auralink"), Click: act(a.showMainWindow)},
-		{Label: i18n.T("Settings…"), Click: act(func() { a.showMainWindow(); a.navigate("/settings") })},
+		&mygo.MenuItem{Label: i18n.T("Open Auralink"), Click: act(a.showMainWindow)},
+		&mygo.MenuItem{Label: i18n.T("Settings…"), Click: act(func() { a.showMainWindow(); a.navigate("/settings") })},
 		mygo.Separator(),
-		{Label: i18n.T("Quit Auralink"), Click: act(func() { a.quitting = true; mygo.App.Quit() })},
-	}))
+		&mygo.MenuItem{Label: i18n.T("Quit Auralink"), Click: act(func() { a.quitting = true; mygo.App.Quit() })},
+	)
+}
+
+// copyRecent copies a recent result (the menu bar).
+func (a *app) copyRecent(text string) {
+	cp := a.copyText
+	if cp == nil {
+		cp = func(s string) error { return mygo.Clipboard.Write(transfer.TextData(s)) }
+	}
+	if err := cp(text); err != nil {
+		a.toast(i18n.T("Could not copy: %v", err))
+	}
 }
 
 // showMainWindow brings the main window back (it may be hidden in the
@@ -128,9 +244,9 @@ func (a *app) showMainWindow() {
 }
 
 // connectWindowLife keeps Auralink in the menu bar when its window closes
-// (the setting), and quits otherwise; it reads the permissions again
-// whenever Auralink comes to the front (System Settings may have changed
-// them).
+// (the setting, while the menu bar icon shows), and quits otherwise; it
+// reads the permissions again whenever Auralink comes to the front
+// (System Settings may have changed them).
 func (a *app) connectWindowLife() {
 	if a.win == nil {
 		return

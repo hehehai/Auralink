@@ -144,3 +144,24 @@ func TestProvidersNormalized(t *testing.T) {
 		t.Errorf("feature ASR %q", got.Features.Transcribe.ASR)
 	}
 }
+
+// TestDeviceNames: names are kept for the listed devices only, and a
+// copy never shares its map.
+func TestDeviceNames(t *testing.T) {
+	s := Defaults()
+	s.Audio.Devices = []string{"a", " a ", "b"}
+	s.Audio.DeviceNames = map[string]string{"a": "Mic A", "gone": "Old mic"}
+	n := normalize(clone(s))
+	if !reflect.DeepEqual(n.Audio.Devices, []string{"a", "b"}) || !reflect.DeepEqual(n.Audio.DeviceNames, map[string]string{"a": "Mic A"}) {
+		t.Fatalf("normalized: %+v", n.Audio)
+	}
+	c := clone(n)
+	c.Audio.DeviceNames["a"] = "changed"
+	if n.Audio.DeviceNames["a"] != "Mic A" {
+		t.Error("clone shares the names")
+	}
+	s.Audio.Devices, s.Audio.DeviceNames = nil, map[string]string{"x": "X"}
+	if n := normalize(clone(s)); n.Audio.DeviceNames != nil {
+		t.Errorf("names without devices: %v", n.Audio.DeviceNames)
+	}
+}

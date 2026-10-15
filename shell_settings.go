@@ -3,10 +3,11 @@ package main
 // Settings: the settings service seen from the UI (a snapshot in
 // a.prefs, kept by settings.Changed), the language and the theme they
 // drive, and the settings dialog (⌘,) with its sections under
-// /settings/{section}. The dialog is AudioSmith's; M1 has the sections
-// every app of the family has. The features' own settings live on their
-// pages (Transcribe, Translate, Rewrite…); the audio, the overlay and the
-// shortcut table join this dialog with the milestones that use them.
+// /settings/{section}. The dialog is AudioSmith's, with the sections
+// every app of the family has and Auralink's own: Audio
+// (settings_audio.go), Overlay style (settings_overlay.go) and the table
+// of Shortcuts (settings_shortcuts.go). The features' own settings live
+// on their pages (Transcribe, Translate, Rewrite…).
 
 import (
 	"context"
@@ -19,6 +20,7 @@ import (
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/lang"
+	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 )
 
@@ -40,8 +42,14 @@ type settingsForm struct {
 	keepHistory  bool
 	keepAudio    bool
 	logText      bool
+	sounds       bool
+	sidebar      int         // automatic, names and icons, icons only (settings_appearance.go)
+	ovStyle      overlayForm // settings_overlay.go
 
 	clearHistoryAsk bool // Privacy's Clear the history… dialog
+	// loginIs is whether macOS opens Auralink at login, as last read or
+	// set: the setting changes it only when they differ.
+	loginIs bool
 }
 
 // settingsSection is a section of the settings dialog.
@@ -51,6 +59,9 @@ func settingsSections() []settingsSection {
 	return []settingsSection{
 		{"general", i18n.T("General"), "General language menu bar login"},
 		{"permissions", i18n.T("Permissions"), "Permissions microphone accessibility privacy"},
+		{"audio", i18n.T("Audio"), "Audio microphone input device sounds"},
+		{"overlay", i18n.T("Overlay style"), "Overlay style position opacity corners recording pill"},
+		{"shortcuts", i18n.T("Shortcuts"), "Shortcuts hotkeys keys fn"},
 		{"appearance", i18n.T("Appearance"), "Appearance theme size sidebar"},
 		{"network", i18n.T("Network"), "Network proxy"},
 		{"privacy", i18n.T("Privacy"), "Privacy history audio logs"},
@@ -66,6 +77,12 @@ func settingsSectionIcon(id string) icons.Icon {
 		return icons.Settings
 	case "permissions":
 		return permissionsIcon
+	case "audio":
+		return icons.MicrophoneLarge
+	case "overlay":
+		return icons.Monitor
+	case "shortcuts":
+		return icons.Keyboard
 	case "appearance":
 		return icons.Pallete2
 	case "network":
@@ -107,13 +124,21 @@ func (a *app) settingsChanged(old, new settings.Settings) {
 		a.syncHotkeys()   // sessionlink.go
 		a.buildTrayMenu() // the shortcuts it shows
 	}
-	if old.General.LaunchAtLogin != new.General.LaunchAtLogin && a.hasMenu {
+	if old.General.LaunchAtLogin != new.General.LaunchAtLogin && new.General.LaunchAtLogin != a.loginIs && a.hasMenu {
 		on := new.General.LaunchAtLogin
 		go func() {
-			if err := mygo.App.SetOpenAtLogin(on); err != nil {
-				a.post(func() { a.toast(i18n.T("Could not change opening at login: %v", err)) })
-			}
+			err := mygo.App.SetOpenAtLogin(on)
+			a.post(func() {
+				if err != nil {
+					a.toast(i18n.T("Could not change opening at login: %v", err))
+					return
+				}
+				a.loginIs = on
+			})
 		}()
+	}
+	if old.Overlay != new.Overlay {
+		a.overlayRestyle() // overlay.go
 	}
 	a.loadSettingsForm()
 }
@@ -228,6 +253,24 @@ func (a *app) loadSettingsForm() {
 		f.proxyMode, f.proxy = px[2], s.Network.Proxy
 	}
 	f.keepHistory, f.keepAudio, f.logText = s.Privacy.KeepHistory, s.Privacy.KeepAudio, s.Privacy.LogText
+	f.sounds = s.Audio.Sounds
+	f.sidebar = sidebarChoice(s.Appearance)
+	a.loadOverlayForm() // settings_overlay.go
+}
+
+// syncOpenAtLogin reads whether macOS opens Auralink at login (the user
+// may have turned it off in System Settings) and makes the setting say
+// so; it runs when the window opens.
+func (a *app) syncOpenAtLogin() {
+	go func() {
+		on := mygo.App.OpenAtLogin()
+		a.post(func() {
+			a.loginIs = on
+			if on != a.prefs.General.LaunchAtLogin {
+				a.updateSettings(func(s *settings.Settings) { s.General.LaunchAtLogin = on })
+			}
+		})
+	}()
 }
 
 // openSettings shows the settings dialog at a section's path ("/network").
@@ -244,8 +287,11 @@ func (a *app) openSettings(sub string) {
 // settingsShown runs when the settings dialog goes to a section: sections
 // that read something when they show start it here.
 func (a *app) settingsShown(sub string) {
-	if sub == "/permissions" {
+	switch sub {
+	case "/permissions":
 		a.recheckPermissions() // permissions.go
+	case "/audio":
+		a.loadDevices() // settings_audio.go
 	}
 }
 
@@ -343,6 +389,9 @@ func (a *app) settingsSection(c *ui.Context, r *ui.Route) {
 	sections := map[string]func(*ui.Context){
 		"general":     a.generalSettings,
 		"permissions": a.permissionsSettings, // permissions.go
+		"audio":       a.audioSettings,       // settings_audio.go
+		"overlay":     a.overlaySettings,     // settings_overlay.go
+		"shortcuts":   a.shortcutsSettings,   // settings_shortcuts.go
 		"appearance":  a.appearanceSettings,
 		"network":     a.networkSettings, // settings_network.go
 		"privacy":     a.privacySettings, // settings_privacy.go
@@ -422,9 +471,10 @@ func (a *app) generalSettings(c *ui.Context) {
 			if i := slices.Index(opts, a.settingsForm.mainLanguage); i > 0 {
 				code = mainLanguages[i-1]
 			}
-			a.updateSettings(func(s *settings.Settings) { s.General.MainLanguage = code })
+			a.setMainLanguage(code)
 		}
 	})
+	a.otherLanguagesRow(c)
 
 	sectionTitle(c, i18n.T("Menu bar and login"))
 	settingRow(c, "menu-bar", i18n.T("Show in the menu bar"), i18n.T("An icon in the menu bar to start a transcription, see the last result and open Auralink."), func() {
@@ -449,6 +499,67 @@ func (a *app) generalSettings(c *ui.Context) {
 
 	sectionTitle(c, i18n.T("Getting started"))
 	a.onboardingRow(c) // onboarding.go
+}
+
+// setMainLanguage sets the main language (a lang code, "" = the app's)
+// and takes it off the other languages.
+func (a *app) setMainLanguage(code string) {
+	a.updateSettings(func(s *settings.Settings) {
+		s.General.MainLanguage = code
+		s.General.OtherLanguages = withoutLanguage(s.General.OtherLanguages, session.MainLanguage(*s, i18n.Locale()))
+	})
+}
+
+// otherLanguagesRow is General → Other languages: the languages the user
+// mixes in, as chips with ×, and Add (a menu of the languages left).
+func (a *app) otherLanguagesRow(c *ui.Context) {
+	t := c.Theme()
+	k := tok(t)
+	main := lang.Canonical(session.MainLanguage(a.prefs, i18n.Locale()))
+	others := withoutLanguage(a.prefs.General.OtherLanguages, main)
+	settingRow(c, "other-languages", i18n.T("Other languages"), i18n.T("Languages you mix into what you say and write. Clean-up keeps them as they are instead of translating them into your main language."), func() {
+		for _, code := range others {
+			label := langLabel(code)
+			ui.Row(c.Key("other-lang-"+code)).Gap(px(t, 2)).AlignItems(ui.Center).Padding(px(t, 2), px(t, 2), px(t, 2), px(t, 10)).
+				Radius(px(t, radiusControl)).Background(k.Hover).Shrink(0).Children(func() {
+				ui.Text(c, label).FontSize(px(t, fsCaption)).SingleLine()
+				b := ui.ButtonBase(c.Key("remove")).Size(px(t, 20), px(t, 20)).Center().Radius(px(t, 4)).Label(i18n.T("Remove %s", label)).Tooltip(i18n.T("Remove"))
+				if b.Hovered() {
+					b.Background(k.Pressed)
+				}
+				b.Children(func() { ui.Icon(c, icons.Close.Linear).Size(px(t, 12), px(t, 12)).TextColor(k.Text2) })
+				if b.Clicked() {
+					a.updateSettings(func(s *settings.Settings) { s.General.OtherLanguages = withoutLanguage(s.General.OtherLanguages, code) })
+				}
+			})
+		}
+		var left []string
+		for _, code := range mainLanguages {
+			if lang.Canonical(code) != main && !slices.ContainsFunc(others, func(o string) bool { return lang.Canonical(o) == lang.Canonical(code) }) {
+				left = append(left, code)
+			}
+		}
+		if len(left) == 0 {
+			return
+		}
+		dropButton(c.Key("other-lang-add"), icons.Add, i18n.T("Add a language")).Shrink(0).Menu(func(m *ui.Menu) {
+			for _, code := range left {
+				if m.Item(langLabel(code)).Chosen() {
+					a.updateSettings(func(s *settings.Settings) {
+						if !slices.Contains(s.General.OtherLanguages, code) {
+							s.General.OtherLanguages = append(slices.Clone(s.General.OtherLanguages), code)
+						}
+					})
+				}
+			}
+		})
+	})
+}
+
+// withoutLanguage is list without code (in any spelling: "zh", "zh-Hans").
+func withoutLanguage(list []string, code string) []string {
+	c := lang.Canonical(code)
+	return slices.DeleteFunc(slices.Clone(list), func(x string) bool { return x == code || c != "" && lang.Canonical(x) == c })
 }
 
 func (a *app) appearanceSettings(c *ui.Context) {
