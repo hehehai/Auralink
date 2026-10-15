@@ -31,7 +31,12 @@ func (a *app) pages(c *ui.Context) {
 
 // pageShown runs when the router goes to path: pages that read something
 // when they show start it here.
-func (a *app) pageShown(path string) {}
+func (a *app) pageShown(path string) {
+	switch path {
+	case "/history":
+		a.historyShown() // history_page.go
+	}
+}
 
 // page builds one page of the sidebar.
 func (a *app) page(c *ui.Context, p navPage) {

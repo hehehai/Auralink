@@ -44,6 +44,7 @@ func TestSnapshots(t *testing.T) {
 		tt.SetDark(run.dark)
 		tt.SetScale(2)
 		a.version = "0.1.0"
+		seedHistory(t, a) // history_page_test.go
 		suffix := "light"
 		if run.dark {
 			suffix = "dark"
@@ -85,6 +86,7 @@ func TestSnapshots(t *testing.T) {
 			}
 			save("page-" + name)
 		}
+		snapshotHistoryDetail(a, save) // history_page_test.go
 		// The settings dialog, section by section.
 		for _, s := range settingsSections() {
 			a.navigate("/settings/" + s.id)

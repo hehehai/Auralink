@@ -38,6 +38,7 @@ danger-triangle         # warning
 danger-circle           # error
 copy
 folder-open             # show in Finder
+trash-bin-minimalistic  # delete (a history entry)
 refresh                 # check again
 square-arrow-right-up   # open System Settings
 alt-arrow-down          # chevrons
