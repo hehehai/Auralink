@@ -297,7 +297,7 @@ func (a *app) overlayPill(c *ui.Context) {
 // liveText is the text the pill shows under it: the answer as the model
 // writes it, else what the speech service heard so far.
 func liveText(s session.Snapshot) string {
-	if d := strings.TrimSpace(s.Draft); d != "" && s.State == session.Composing {
+	if d := strings.TrimSpace(s.Draft); d != "" && (s.State == session.Composing || s.State == session.Delivering) {
 		return d
 	}
 	return strings.TrimSpace(s.Partial)
