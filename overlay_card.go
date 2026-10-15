@@ -19,8 +19,8 @@ package main
 //	line     a small one under it, when there is something to say (why
 //	         Insert did not work, another language that did not come)
 //
-// 560 wide (Voxt's, measured on the Mac: its card fills its 560 window),
-// 18 of padding on the sides and 16 under the text: as high as its text,
+// 480 wide (Voxt's card is 560, measured on the Mac: it fills its 560
+// window; the user found it too wide, 10-15), 18 of padding on the sides and 16 under the text: as high as its text,
 // so a short answer leaves no empty space (Voxt's card is always 220 of
 // text high, 295 in all). It grows and shrinks about the overlay's anchor,
 // as the pill does (overlay.go). It does not move, and nothing in it takes
@@ -45,7 +45,9 @@ import (
 // Sizes of the answer card, in DIPs: Voxt's (WaveformAnswerCard.swift,
 // WaveformView.swift).
 const (
-	ovAnswerW     = 560 // Voxt's answer window, which its card fills
+	// ovAnswerW is the card's width: 480. Voxt's card fills its 560
+	// window (measured on the Mac, 10-15); the user found that too wide.
+	ovAnswerW = 480
 	ovCardPadX = 18
 	ovCardPadY = 16 // under the text (Voxt's)
 	// The header: ovCardPadTop over it, ovCardRuleTop under it to the
@@ -74,7 +76,7 @@ const (
 	ovCardTextWeight = 500
 	ovCardBtn        = 24
 	ovCardBtnIcon    = 15
-	ovCardLangMaxW   = 112 // the language's name in its menu, at most (Voxt 92: "Simplified Chinese" did not fit)
+	ovCardLangMaxW   = 128 // the language's name in its capsule, at most (Voxt 92: "Simplified Chinese" did not fit)
 	ovCardWaveW      = 96 // a conversation's waveform
 
 	// A conversation's bubbles.

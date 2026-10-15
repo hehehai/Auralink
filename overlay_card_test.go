@@ -14,7 +14,9 @@ import (
 	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/helper/proto"
+	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/session"
+	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
 )
 
@@ -70,7 +72,7 @@ func cardSteps() []cardStep {
 			snap(a, session.Snapshot{ID: "r1", Kind: store.KindRewrite, State: session.Recording})
 			snap(a, session.Snapshot{ID: "r1", Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonCard, Raw: "write that I am late",
 				Title: "Running late", Result: "Sorry, I am running about ten minutes late: please start without me."})
-		}, insert: true, copy: true, followUp: true},
+		}, body: -1, insert: true, copy: true, followUp: true},
 		{name: "follow-up-recording", apply: func(a *app) {
 			a.followUp, a.answer.conversation = "r1", true
 			now := time.Now()
@@ -87,7 +89,7 @@ func cardSteps() []cardStep {
 }
 
 // TestAnswerCardStates: the answer card through its states, the overlay
-// at the bottom and at the top: 560 wide, as high as its text (Voxt's
+// at the bottom and at the top: 480 wide, as high as its text (Voxt's
 // chrome and up to 220 of text, no empty space; a line under it when
 // there is one), about the anchor; what its header offers.
 func TestAnswerCardStates(t *testing.T) {
@@ -330,5 +332,82 @@ func TestLanguageMenuPlace(t *testing.T) {
 				t.Error("the menu stays without the card")
 			}
 		})
+	}
+}
+
+// TestCardHeaderFits: at 480 the header holds its actions whatever the
+// title: the language capsule at its widest (128 of name) and three
+// buttons; Continue and three; Done and three over a conversation. A long
+// title ends in "…" before them; nothing overlaps or leaves the card.
+func TestCardHeaderFits(t *testing.T) {
+	long := "A very long answer title that the model wrote, longer than any header could hold in one line"
+	for _, c := range []struct {
+		name    string
+		apply   func(a *app)
+		actions []string // left to right
+	}{
+		{"translate", func(a *app) {
+			snap(a, session.Snapshot{ID: "h1", Kind: store.KindTranslate, State: session.Recording})
+			snap(a, session.Snapshot{ID: "h1", Kind: store.KindTranslate, State: session.Done, Card: true, Delivery: deliver.ReasonCard,
+				Selection: "x", TargetLanguage: "zh-Hant", Result: "你好。"}) // "Traditional Chinese": the widest name
+		}, []string{"Translate into", "Insert", "Copy", "Close"}},
+		{"rewrite", func(a *app) {
+			snap(a, session.Snapshot{ID: "h2", Kind: store.KindRewrite, State: session.Recording})
+			snap(a, session.Snapshot{ID: "h2", Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonCard,
+				Raw: "write", Title: long, Result: "Text."})
+		}, []string{"Continue", "Insert", "Copy", "Close"}},
+		{"conversation", func(a *app) {
+			snap(a, session.Snapshot{ID: "h3", Kind: store.KindRewrite, State: session.Recording})
+			snap(a, session.Snapshot{ID: "h3", Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonCard,
+				Raw: "write", Title: long, Result: "Text."})
+			a.followUp, a.answer.conversation = "h3", true
+			snap(a, session.Snapshot{ID: "h4", Kind: store.KindRewrite, State: session.Recording, StartedAt: time.Now(), HeardAt: time.Now(), Levels: wave()})
+		}, []string{"Done", "Insert", "Copy", "Close"}},
+	} {
+		for _, lang := range []string{"en", "zh-Hans"} {
+			t.Run(c.name+"/"+lang, func(t *testing.T) {
+				a, _, _ := newTestApp(t)
+				if lang != "en" {
+					a.updateSettings(func(s *settings.Settings) { s.General.Language = lang })
+				}
+				c.apply(a)
+				renderOverlay(t, a)
+				tt := ui.NewTester(a.overlayView, a.ov.w+2*ovPad, a.ov.h+2*ovPad)
+				frames(tt)
+				right := float32(ovPad + ovAnswerW - ovCardPadX)
+				prev := float32(-1)
+				for _, label := range c.actions {
+					r, ok := tt.Find(i18n.T(label))
+					if !ok {
+						t.Fatalf("no %q in %q", i18n.T(label), firstTexts(tt))
+					}
+					if r.X < prev || r.X+r.W > right+0.5 || r.H > ovCardBtn+0.5 {
+						t.Errorf("%q at %+v (after %v, the card's padding at %v)", label, r, prev, right)
+					}
+					prev = r.X + r.W
+				}
+				first, _ := tt.Find(i18n.T(c.actions[0]))
+				// The name at its widest (112) and the capsule's padding and
+				// chevron; Chinese names are short.
+				if want := map[string]float32{"en": 140, "zh-Hans": 70}[lang]; c.name == "translate" && first.W < want {
+					t.Errorf("the capsule is %v wide: the language's name is cut", first.W)
+				}
+				if c.name == "translate" {
+					title, ok := tt.Find(i18n.T("Translation"))
+					if !ok || title.X+title.W > first.X-ovCardHeadGap+0.5 {
+						t.Errorf("the title %+v runs into the capsule at %v", title, first.X)
+					}
+				}
+				if c.name == "rewrite" {
+					title, ok := tt.Find(long)
+					if !ok {
+						t.Fatalf("no title in %q", firstTexts(tt))
+					}
+					if title.X+title.W > first.X-ovCardHeadGap+0.5 {
+						t.Errorf("the title %+v runs into %q at %v", title, c.actions[0], first.X)
+					}
+				}
+			})
+		}
 	}
 }

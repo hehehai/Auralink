@@ -20,7 +20,7 @@ package main
 //	           inserting
 //	notice     an error (or a warning) in the waveform's place: an icon and
 //	           one line, for 5 s; a click opens where to fix it
-//	answer     the answer card (overlay_card.go, Voxt's): 560 wide, as
+//	answer     the answer card (overlay_card.go, Voxt's): 480 wide, as
 //	           high as its text up to Voxt's 220 for it; the result that
 //	           was not inserted, its actions in the header
 //
