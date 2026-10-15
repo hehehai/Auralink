@@ -117,3 +117,30 @@ func TestMemory(t *testing.T) {
 		t.Error("not updated")
 	}
 }
+
+func TestProvidersNormalized(t *testing.T) {
+	s := NewMemory()
+	err := s.Update(context.Background(), func(v *Settings) {
+		v.Providers.ASR = []Provider{
+			{ID: " doubao ", Preset: "doubao", Enabled: true, AppID: " 123 ", Model: " volc.seedasr.sauc.duration "},
+			{ID: "doubao", Model: "second"},
+			{ID: ""},
+		}
+		v.Providers.LLM = []Provider{{ID: "custom-2", Preset: "custom", Endpoint: " https://x.test/v1 "}}
+		v.Features.Transcribe.ASR = " doubao "
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := s.Get()
+	want := []Provider{{ID: "doubao", Enabled: true, AppID: "123", Model: "volc.seedasr.sauc.duration"}}
+	if !reflect.DeepEqual(got.Providers.ASR, want) {
+		t.Errorf("ASR %+v", got.Providers.ASR)
+	}
+	if l := got.Providers.LLM; len(l) != 1 || l[0].Preset != "custom" || l[0].Endpoint != "https://x.test/v1" {
+		t.Errorf("LLM %+v", l)
+	}
+	if got.Features.Transcribe.ASR != "doubao" {
+		t.Errorf("feature ASR %q", got.Features.Transcribe.ASR)
+	}
+}

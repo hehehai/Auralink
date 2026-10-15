@@ -120,19 +120,35 @@ type Overlay struct {
 	Margin   float64 `json:"margin"`   // DIPs from the screen's edge
 }
 
-// Providers lists the configured speech and language services (M2).
+// Providers lists the speech and language services the user set up on
+// the Model services page, in the order they were added. A preset nobody
+// set up has no entry; one entry per ID.
 type Providers struct {
 	ASR []Provider `json:"asr,omitempty"`
 	LLM []Provider `json:"llm,omitempty"`
 }
 
-// Provider is one configured service; its key is in the Keychain.
+// Provider is one service the user set up. Its key is in the Keychain
+// (internal/secrets: "asr.<ID>", "llm.<ID>"), never here. "" fields use
+// the preset's defaults (internal/providers).
 type Provider struct {
-	ID      string `json:"id"`               // unique within its list, also the Keychain account suffix
-	Preset  string `json:"preset,omitempty"` // "openai", "doubao", "dashscope", "deepseek"…
-	Name    string `json:"name,omitempty"`
-	BaseURL string `json:"baseURL,omitempty"`
-	Model   string `json:"model,omitempty"`
+	// ID is unique within its list and names the Keychain item; for a
+	// preset it is the preset's id ("openai", "doubao", "aliyun",
+	// "deepseek"…).
+	ID     string `json:"id"`
+	Preset string `json:"preset,omitempty"` // "" = ID
+	Name   string `json:"name,omitempty"`   // the user's label ("" = the preset's name)
+	// Enabled offers it to the features; off, it keeps its setup and key.
+	Enabled bool `json:"enabled"`
+	// Endpoint: an ASR service's full URL (wss://…, https://…/audio/
+	// transcriptions), an LLM's API root (https://…/v1).
+	Endpoint string `json:"endpoint,omitempty"`
+	Model    string `json:"model,omitempty"`
+	// AppID is Doubao's App ID (its Access Token is the key).
+	AppID string `json:"appID,omitempty"`
+	// Prompt is an ASR service's recognition prompt (context, spelling),
+	// for services that take one; the dictionary's terms are added to it.
+	Prompt string `json:"prompt,omitempty"`
 }
 
 // Hotkey is one binding of a feature: the keys ("Fn", "Fn+Shift",
@@ -159,8 +175,9 @@ type Features struct {
 }
 
 // Feature is what every feature has: its shortcuts, the providers it uses
-// (Provider.ID; "" = the first configured) and the user's addition to its
-// task prompt, which the composer merges with the built-in rules.
+// (Provider.ID; "" = the first one ready, in the Model services page's
+// order) and the user's addition to its task prompt, which the composer
+// merges with the built-in rules.
 type Feature struct {
 	Hotkeys []Hotkey `json:"hotkeys,omitempty"`
 	ASR     string   `json:"asr,omitempty"`

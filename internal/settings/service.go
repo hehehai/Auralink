@@ -169,7 +169,31 @@ func normalize(s Settings) Settings {
 		f.PasteLast = normalizeHotkey(f.PasteLast)
 	}
 	f.Rewrite.CardChars = max(f.Rewrite.CardChars, 0)
+	for _, f := range []*Feature{&f.Transcribe.Feature, &f.Translate.Feature, &f.Rewrite.Feature} {
+		f.ASR, f.LLM = strings.TrimSpace(f.ASR), strings.TrimSpace(f.LLM)
+	}
+	s.Providers.ASR = normalizeProviders(s.Providers.ASR)
+	s.Providers.LLM = normalizeProviders(s.Providers.LLM)
 	return s
+}
+
+// normalizeProviders trims the fields and drops entries without an ID
+// and repeated IDs (the first one stays).
+func normalizeProviders(list []Provider) []Provider {
+	var out []Provider
+	for _, p := range list {
+		p.ID, p.Preset, p.Name = strings.TrimSpace(p.ID), strings.TrimSpace(p.Preset), strings.TrimSpace(p.Name)
+		p.Endpoint, p.Model, p.AppID = strings.TrimSpace(p.Endpoint), strings.TrimSpace(p.Model), strings.TrimSpace(p.AppID)
+		p.Prompt = strings.TrimSpace(p.Prompt)
+		if p.Preset == p.ID {
+			p.Preset = ""
+		}
+		if p.ID == "" || slices.ContainsFunc(out, func(x Provider) bool { return x.ID == p.ID }) {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 func normalizeHotkey(h Hotkey) Hotkey {
