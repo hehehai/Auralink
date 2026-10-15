@@ -366,9 +366,13 @@ func (a *app) overlayCard(c *ui.Context) {
 
 // cardHeader is the card's header: what it is, then what it offers.
 func (a *app) cardHeader(c *ui.Context, v cardView) {
-	ui.Box(c).Size(ovCardIcon, ovCardIcon).Shrink(0).Center().Children(func() {
-		ui.Icon(c, kindIcon(v.kind).Bold).Size(18, 18).TextColor(ovIcon).Label(kindTitle(v.kind))
-	})
+	// Voxt's: one answer icon for every single result, the microphone over
+	// a conversation (its waveform beside it).
+	ic := icons.VoxtAnswer
+	if v.conversation {
+		ic = icons.VoxtTranscribe
+	}
+	ui.Icon(c, ic.Bold).Size(ovCardIcon, ovCardIcon).TextColor(ui.RGB(255, 255, 255)).Opacity(ovCardIconA(v)).Shrink(0).Label(kindTitle(v.kind))
 	if v.conversation {
 		// Voxt's: a small waveform in the title's place, moving while a
 		// follow-up records.
@@ -377,7 +381,9 @@ func (a *app) cardHeader(c *ui.Context, v cardView) {
 	} else {
 		ui.Text(c, v.title).FontSize(ovCardTitleSize).FontWeight(600).TextColor(ui.RGB(255, 255, 255)).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 		if v.streaming || v.busy {
-			ui.Spinner(c).Size(12, 12).TextColor(ui.RGBA(255, 255, 255, 0.88)).Shrink(0).Label(cmpOr(v.placeholder, i18n.T("Translating…")))
+			// Voxt's spinner: an arc turning once in 0.9 s, 88 %.
+			ui.Icon(c, icons.VoxtSpinner.Linear).Size(12, 12).TextColor(ui.RGBA(255, 255, 255, 0.88)).Shrink(0).
+				Rotate(float32(math.Mod(a.overlayPhase()*400, 360))).Label(cmpOr(v.placeholder, i18n.T("Translating…")))
 		}
 		ui.Box(c).Grow(1).MinWidth(0) // Voxt's Spacer(minLength: 12): the gap
 	}
@@ -422,6 +428,18 @@ func (a *app) cardHeader(c *ui.Context, v cardView) {
 		a.closeAnswer()
 	}
 }
+
+// ovCardIconA is how opaque the card's icon is: Voxt's microphone over a
+// conversation at 92 %, its answer icon whole (its bubble is dim itself).
+func ovCardIconA(v cardView) float32 {
+	if v.conversation {
+		return 0.92
+	}
+	return 1
+}
+
+// cardSpinning says whether the card shows a spinner (it turns).
+func (v cardView) spinning() bool { return !v.conversation && (v.streaming || v.busy) }
 
 // cardIconButton is one of the header's round buttons (Voxt's
 // AnswerHeaderActionButton): 24, white 8 % (16 % and a hairline under

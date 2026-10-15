@@ -696,7 +696,7 @@ func (a *app) overlayView(c *ui.Context) {
 		c.DisableAnimations()
 	}
 	switch {
-	case motion && (a.ov.mode == ovRecording || a.ov.mode == ovWorking || a.ov.mode == ovAnswer && a.cardRecording()):
+	case motion && (a.ov.mode == ovRecording || a.ov.mode == ovWorking || a.ov.mode == ovAnswer && (a.cardRecording() || a.cardNow().spinning())):
 		c.After(ovFrame)
 	case a.ov.mode == ovRecording && a.prefs.Overlay.ShowTime:
 		c.After(250 * time.Millisecond) // the time
@@ -776,7 +776,7 @@ func overlayPill(c *ui.Context, s session.Snapshot, mode overlayMode, look pillL
 	col.Children(func() {
 		ui.Row(c).Height(ovRowH).Shrink(0).Gap(ovGap).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Size(ovIconSlot, ovRowH).Shrink(0).Center().Children(func() {
-				ui.Icon(c, kindIcon(s.Kind).Bold).Size(ovIconSize, ovIconSize).TextColor(ovIcon).Shrink(0).Label(kindTitle(s.Kind))
+				ui.Icon(c, overlayKindIcon(s.Kind).Bold).Size(ovIconSize, ovIconSize).TextColor(ovIcon).Shrink(0).Label(kindTitle(s.Kind))
 			})
 			if mode == ovRecording {
 				waveform(c, s.Levels, !s.HeardAt.IsZero(), look)
@@ -923,6 +923,18 @@ func workingText(s session.Snapshot) string {
 		return i18n.T("Inserting…")
 	}
 	return i18n.T("Recognizing…")
+}
+
+// overlayKindIcon is a feature's icon in the overlay: Voxt's mode icons
+// (10-15: the overlay's icons are Voxt's, the app's pages keep Solar's).
+func overlayKindIcon(k store.Kind) icons.Icon {
+	switch k {
+	case store.KindTranslate:
+		return icons.VoxtTranslate
+	case store.KindRewrite:
+		return icons.VoxtRewrite
+	}
+	return icons.VoxtTranscribe
 }
 
 // kindIcon is a feature's icon; kindTitle its name.
