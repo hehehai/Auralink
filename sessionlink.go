@@ -236,7 +236,8 @@ func (a *app) sessionEnded(s session.Snapshot) {
 	if p := s.Problem; p != nil && s.State != session.Cancelled && !(s.Card && s.State == session.Failed) {
 		text, more, action := sessionProblemText(p)
 		if text != "" {
-			a.showNotice(sessionNotice{text: text, more: more, action: action, warn: p.Degraded})
+			// Nothing heard is not a failure: a warning.
+			a.showNotice(sessionNotice{text: text, more: more, action: action, warn: p.Degraded || p.Code == session.ProblemNoSpeech})
 		}
 	}
 	if s.State != session.Cancelled {

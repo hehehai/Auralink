@@ -433,7 +433,7 @@ func TestOverlayGoesAway(t *testing.T) {
 	// A notice, after its time.
 	snap(a, session.Snapshot{ID: "s3", State: session.Recording})
 	snap(a, session.Snapshot{ID: "s3", State: session.Done, Problem: &session.Problem{Code: session.ProblemNoSpeech}})
-	if a.ov.mode != ovNotice || a.notice == nil || a.notice.text != "Nothing was heard." {
+	if a.ov.mode != ovNotice || a.notice == nil || a.notice.text != "Nothing was heard." || !a.notice.warn {
 		t.Fatalf("no speech: %s %+v", a.ov.mode, a.notice)
 	}
 	ft.advance(noticeTime - time.Millisecond)
