@@ -35,13 +35,21 @@ import (
 )
 
 // fakeChat is a chat-completions server: it answers each request with
-// text (or status), and keeps the requests.
+// text (or texts in turn, the last repeating; or status), streamed as
+// server-sent events when the request streams, and keeps the requests.
 type fakeChat struct {
 	mu     sync.Mutex
 	text   string
+	texts  []string
 	status int
 	delay  time.Duration
 	bodies []map[string]any
+}
+
+func (f *fakeChat) set(text string, status int) {
+	f.mu.Lock()
+	f.text, f.texts, f.status = text, nil, status
+	f.mu.Unlock()
 }
 
 func (f *fakeChat) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -51,6 +59,9 @@ func (f *fakeChat) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	f.bodies = append(f.bodies, v)
 	text, status, delay := f.text, f.status, f.delay
+	if len(f.texts) > 0 {
+		text = f.texts[min(len(f.bodies), len(f.texts))-1]
+	}
 	f.mu.Unlock()
 	if delay > 0 {
 		select {
@@ -63,6 +74,22 @@ func (f *fakeChat) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if status != 0 {
 		w.WriteHeader(status)
 		w.Write([]byte(`{"error":{"message":"overloaded","type":"server_error"}}`))
+		return
+	}
+	if v["stream"] == true {
+		w.Header().Set("Content-Type", "text/event-stream")
+		rs := []rune(text)
+		for i := 0; i < len(rs); i += 6 {
+			chunk, _ := json.Marshal(map[string]any{"model": "deepseek-chat",
+				"choices": []any{map[string]any{"index": 0, "delta": map[string]any{"content": string(rs[i:min(i+6, len(rs))])}}}})
+			fmt.Fprintf(w, "data: %s\n\n", chunk)
+			if fl, ok := w.(http.Flusher); ok {
+				fl.Flush()
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		fmt.Fprint(w, `data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":120,"completion_tokens":6,"total_tokens":126}}`+"\n\n")
+		fmt.Fprint(w, "data: [DONE]\n\n")
 		return
 	}
 	out, _ := json.Marshal(map[string]any{
@@ -543,5 +570,208 @@ func TestE2ESessionReal(t *testing.T) {
 			t.Logf("%s → %q; %s → %q (asr %v, llm %v)", end.ASR.Model, end.Raw, end.LLM.Model, end.Result,
 				end.Timings.ASR.Round(time.Millisecond), end.Timings.LLM.Round(time.Millisecond))
 		})
+	}
+}
+
+// chatMessages are a chat request's messages: role and content.
+func chatMessages(req map[string]any) [][2]string {
+	var out [][2]string
+	msgs, _ := req["messages"].([]any)
+	for _, m := range msgs {
+		mm, _ := m.(map[string]any)
+		role, _ := mm["role"].(string)
+		content, _ := mm["content"].(string)
+		out = append(out, [2]string{role, content})
+	}
+	return out
+}
+
+// TestTranslateSelectionEndToEnd: with text selected, the Translate
+// shortcut records nothing: the selection is translated (streamed) and
+// pasted over it, and kept in the history with its target.
+func TestTranslateSelectionEndToEnd(t *testing.T) {
+	chat := &fakeChat{text: "早上好，团队。"}
+	set, keys, tr := fileSetup(t, "unused", chat)
+	ev := script(t, hotkeyLine(0, "translate/0", proto.PhaseTrigger))
+	a := newSessionApp(t, helpertest.Opt("selection", "Good morning, team.")+","+ev, func(s *settings.Settings) {
+		set(s)
+		s.Features.Translate.Target = "zh-Hans"
+	}, keys)
+	var states []session.State
+	a.pump("the end", func() bool {
+		if n := len(states); n == 0 || states[n-1] != a.sess.State {
+			states = append(states, a.sess.State)
+		}
+		return a.sess.State.Ended()
+	})
+	end := a.sess
+	if end.State != session.Done || end.Result != "早上好，团队。" || !end.Inserted || end.Selection != "Good morning, team." || end.SelectionVia != proto.ViaAX {
+		t.Fatalf("end %+v", end)
+	}
+	if got := fmt.Sprint(states); !strings.Contains(got, "reading composing") || strings.Contains(got, "recording") {
+		t.Errorf("states %s", got)
+	}
+	if p := a.pasted(); len(p) != 1 || p[0].Text != "早上好，团队。" || p[0].TargetPID != 812 {
+		t.Errorf("pasted %+v", p)
+	}
+	if tr.calls != 0 {
+		t.Errorf("%d uploads", tr.calls)
+	}
+	reqs := chat.requests()
+	if len(reqs) != 1 || reqs[0]["stream"] != true {
+		t.Fatalf("chats %v", reqs)
+	}
+	msgs := chatMessages(reqs[0])
+	if !strings.Contains(msgs[0][1], "into Simplified Chinese") || msgs[1][1] != "<input>\nGood morning, team.\n</input>" {
+		t.Errorf("messages %q", msgs)
+	}
+	es := a.history()
+	if len(es) != 1 || es[0].Kind != store.KindTranslate || es[0].SourceText != "Good morning, team." || es[0].TargetLang != "zh-Hans" ||
+		es[0].Delivery != "insert" || es[0].AudioMS != 0 {
+		t.Errorf("history %+v", es)
+	}
+}
+
+// TestTranslateCopySelection: Accessibility shows no selection, ⌘C is
+// allowed in Slack: the selection comes through the clipboard.
+func TestTranslateCopySelection(t *testing.T) {
+	chat := &fakeChat{text: "晚安"}
+	set, keys, _ := fileSetup(t, "unused", chat)
+	ev := script(t, hotkeyLine(0, "translate/0", proto.PhaseTrigger))
+	a := newSessionApp(t, helpertest.Opt("copy-selection", "Good night")+","+ev, set, keys)
+	a.pump("the end", func() bool { return a.sess.State.Ended() })
+	if a.sess.Result != "晚安" || a.sess.SelectionVia != proto.ViaCopy {
+		t.Errorf("end %+v", a.sess)
+	}
+}
+
+// TestTranslateSpeechCard: nothing selected, the speech is translated
+// into the card (the setting); the card's language select translates the
+// same text again, into Japanese, without recording.
+func TestTranslateSpeechCard(t *testing.T) {
+	chat := &fakeChat{texts: []string{"See you on Thursday.", "木曜日に会いましょう。"}}
+	set, keys, tr := fileSetup(t, "周四见", chat)
+	ev := script(t, hotkeyLine(0, "translate/0", proto.PhaseTrigger), hotkeyLine(500, "translate/0", proto.PhaseTrigger))
+	a := newSessionApp(t, ev, func(s *settings.Settings) {
+		set(s)
+		s.Features.Translate.ShowCard = true
+		s.Features.Translate.Cleanup = true
+		s.General.MainLanguage = "zh" // the target is English
+	}, keys)
+	streamed := false
+	a.pump("the end", func() bool {
+		streamed = streamed || a.sess.State == session.Composing && a.ov.mode == ovAnswer
+		return a.sess.State.Ended()
+	})
+	if !streamed {
+		t.Error("the answer did not stream into the card")
+	}
+	if a.sess.Result != "See you on Thursday." || a.sess.Raw != "周四见" || a.sess.Inserted || !a.answer.open || a.answer.lang != "en" || a.ov.mode != ovAnswer {
+		t.Fatalf("end %+v, card %+v", a.sess, a.answer)
+	}
+	if len(a.pasted()) != 0 || tr.calls != 1 {
+		t.Errorf("pasted %+v, %d uploads", a.pasted(), tr.calls)
+	}
+	if msgs := chatMessages(chat.requests()[0]); !strings.Contains(msgs[0][1], "基础清理") || msgs[1][1] != "<input>\n周四见\n</input>" {
+		t.Errorf("first request %q", msgs)
+	}
+	first := a.sess.ID
+	a.retryAnswer("ja")
+	a.pump("the second end", func() bool { return a.sess.ID != first && a.sess.State.Ended() })
+	if a.sess.Result != "木曜日に会いましょう。" || a.sess.TargetLanguage != "ja" || !a.answer.open || a.answer.lang != "ja" || tr.calls != 1 {
+		t.Errorf("again %+v, card %+v", a.sess, a.answer)
+	}
+	if msgs := chatMessages(chat.requests()[1]); !strings.Contains(msgs[0][1], "翻译成日语") || msgs[1][1] != "<input>\n周四见\n</input>" {
+		t.Errorf("second request %q", msgs)
+	}
+	if es := a.history(); len(es) != 2 || es[0].TargetLang != "ja" || es[0].Delivery != "card" {
+		t.Errorf("history %+v", es)
+	}
+}
+
+// TestTranslateFailureRetry: the model fails: the card shows why, with
+// Try again, which translates the selection again and pastes it.
+func TestTranslateFailureRetry(t *testing.T) {
+	chat := &fakeChat{status: 500}
+	set, keys, _ := fileSetup(t, "unused", chat)
+	ev := script(t, hotkeyLine(0, "translate/0", proto.PhaseTrigger))
+	a := newSessionApp(t, helpertest.Opt("selection", "Hello")+","+ev, set, keys)
+	a.pump("the end", func() bool { return a.sess.State.Ended() })
+	if a.sess.State != session.Failed || !a.answer.open || a.answer.problem == nil || a.answer.problem.Code != session.ProblemLLM || a.notice != nil {
+		t.Fatalf("end %+v card %+v notice %+v", a.sess, a.answer, a.notice)
+	}
+	if es := a.history(); len(es) != 1 || es[0].Status != store.StatusFailed || es[0].SourceText != "Hello" {
+		t.Errorf("history %+v", es)
+	}
+	chat.set("你好", 0)
+	first := a.sess.ID
+	a.retryAnswer("")
+	a.pump("the retry", func() bool { return a.sess.ID != first && a.sess.State.Ended() })
+	if a.sess.State != session.Done || a.sess.Result != "你好" || !a.sess.Inserted || a.answer.open {
+		t.Errorf("retry %+v card %+v", a.sess, a.answer)
+	}
+	if p := a.pasted(); len(p) != 1 || p[0].Text != "你好" {
+		t.Errorf("pasted %+v", p)
+	}
+}
+
+// TestRewriteSelectionEndToEnd: the spoken instruction rewrites the
+// selected text, which the answer replaces.
+func TestRewriteSelectionEndToEnd(t *testing.T) {
+	chat := &fakeChat{text: "Team: the release moves to Friday."}
+	set, keys, _ := fileSetup(t, "make it formal", chat)
+	ev := script(t, hotkeyLine(0, "rewrite/0", proto.PhaseTrigger), hotkeyLine(500, "rewrite/0", proto.PhaseTrigger))
+	a := newSessionApp(t, helpertest.Opt("selection", "hey all, ship friday")+","+ev, set, keys)
+	a.pump("the end", func() bool { return a.sess.State.Ended() })
+	if a.sess.State != session.Done || a.sess.Result != "Team: the release moves to Friday." || !a.sess.Inserted {
+		t.Fatalf("end %+v", a.sess)
+	}
+	msgs := chatMessages(chat.requests()[0])
+	if msgs[1][1] != "<instruction>\nmake it formal\n</instruction>\n\n<selected_text>\nhey all, ship friday\n</selected_text>" {
+		t.Errorf("user message %q", msgs[1][1])
+	}
+	es := a.history()
+	if len(es) != 1 || es[0].Kind != store.KindRewrite || es[0].PromptText != "make it formal" || es[0].SourceText != "hey all, ship friday" {
+		t.Errorf("history %+v", es)
+	}
+}
+
+// TestRewriteAnswerFollowUp: nothing selected and nothing takes text: the
+// JSON answer streams into the card with its title; the Rewrite shortcut
+// on the card records a follow-up, sent with the conversation so far,
+// whose answer replaces the card's.
+func TestRewriteAnswerFollowUp(t *testing.T) {
+	chat := &fakeChat{texts: []string{`{"title":"Late","content":"Sorry, I am running late."}`, `{"title":"Later","content":"Running late."}`}}
+	set, keys, tr := fileSetup(t, "write that I am late", chat)
+	ev := script(t, hotkeyLine(0, "rewrite/0", proto.PhaseTrigger), hotkeyLine(500, "rewrite/0", proto.PhaseTrigger))
+	a := newSessionApp(t, "readonly,"+ev, set, keys)
+	a.pump("the end", func() bool { return a.sess.State.Ended() })
+	if a.sess.Result != "Sorry, I am running late." || a.sess.Title != "Late" || !a.answer.open || a.answer.title != "Late" || len(a.answer.turns) != 1 {
+		t.Fatalf("end %+v card %+v", a.sess, a.answer)
+	}
+	if reqs := chat.requests(); reqs[0]["response_format"] == nil {
+		t.Errorf("no JSON asked: %v", reqs[0])
+	}
+	// The follow-up: the shortcut, a moment of speech, the shortcut.
+	tr.text = "shorter"
+	front := helpertest.Apps["com.tinyspeck.slackmacgap"]
+	a.hotkeyFired(proto.HotkeyEventParams{Binding: "rewrite/0", Phase: proto.PhaseTrigger, Behavior: proto.BehaviorTap, Front: &front})
+	a.pump("the follow-up's recording", func() bool { return a.sess.State == session.Recording && a.sess.HeardAt.After(a.sess.StartedAt) })
+	if !a.answer.open || a.ov.mode != ovRecording {
+		t.Errorf("card %v overlay %s while recording", a.answer.open, a.ov.mode)
+	}
+	time.Sleep(400 * time.Millisecond)
+	a.hotkeyFired(proto.HotkeyEventParams{Binding: "rewrite/0", Phase: proto.PhaseTrigger, Behavior: proto.BehaviorTap, Front: &front})
+	a.pump("the follow-up's end", func() bool { return a.sess.State.Ended() && a.answer.title == "Later" })
+	if a.answer.text != "Running late." || len(a.answer.turns) != 2 || !a.answer.open || len(a.pasted()) != 0 {
+		t.Errorf("card %+v", a.answer)
+	}
+	msgs := chatMessages(chat.requests()[1])
+	if len(msgs) != 4 || msgs[2][0] != "assistant" || !strings.Contains(msgs[2][1], "Sorry, I am running late.") || msgs[3][1] != "<instruction>\nshorter\n</instruction>" {
+		t.Errorf("follow-up messages %q", msgs)
+	}
+	a.hotkeyFired(proto.HotkeyEventParams{Binding: proto.HotkeyEscape, Phase: proto.PhaseTrigger})
+	if a.answer.open {
+		t.Error("Escape did not close the card")
 	}
 }

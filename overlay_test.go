@@ -20,6 +20,7 @@ import (
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/store"
 )
 
 var slackApp = proto.App{PID: 812, BundleID: "com.tinyspeck.slackmacgap", Name: "Slack"}
@@ -230,6 +231,23 @@ func overlayShots(t *testing.T, a *app, out, suffix string) {
 			Err: errors.New("timeout")}}, nil},
 		{"overlay-answer", session.Snapshot{State: session.Done, Card: true, Delivery: deliver.ReasonNotEditable,
 			Result: "Hello team, the release moves to Thursday.\n\n1. Finish the onboarding\n2. Polish the history page\n3. Ship the translation card\n\nThanks!"}, nil},
+		// Translate and Rewrite.
+		{"overlay-translate-recording", session.Snapshot{Kind: store.KindTranslate, State: session.Recording, StartedAt: now, HeardAt: now.Add(-5 * time.Second), Levels: wave(), TargetLanguage: "en"}, nil},
+		{"overlay-translate-selection", session.Snapshot{Kind: store.KindTranslate, State: session.Composing, Selection: "A goroutine is a lightweight thread.", TargetLanguage: "zh-Hans",
+			Draft: "goroutine 是一种轻量级"}, nil},
+		{"overlay-rewrite-writing", session.Snapshot{Kind: store.KindRewrite, State: session.Composing, Raw: "write a short note saying I will be late",
+			Draft: "Sorry, I'm running about ten minutes late"}, nil},
+		{"overlay-translate-card-streaming", session.Snapshot{Kind: store.KindTranslate, State: session.Composing, Card: true, Delivery: deliver.ReasonNotEditable,
+			Selection: "A goroutine is a lightweight thread managed by the Go runtime.", TargetLanguage: "zh-Hans", Draft: "goroutine 是由 Go 运行时管理的"}, nil},
+		{"overlay-translate-card", session.Snapshot{Kind: store.KindTranslate, State: session.Done, Card: true, Delivery: deliver.ReasonCard,
+			Selection: "A goroutine is a lightweight thread managed by the Go runtime.", TargetLanguage: "zh-Hans",
+			Result: "goroutine 是由 Go 运行时管理的轻量级线程。"}, nil},
+		{"overlay-rewrite-card", session.Snapshot{Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonLong,
+			Raw: "写一段两百字的自我介绍，用于技术分享会的开场", Title: "技术分享开场自我介绍",
+			Result: "大家好，我是关伟，一名专注于桌面应用和语音交互的工程师。过去几年，我主要在做跨平台的原生界面框架，也参与了几个语音输入工具的设计和开发。\n\n今天想和大家聊聊：怎样让语音输入真正融入日常的写作流程——从按下快捷键的那一刻，到文字出现在光标处，中间发生了什么，又有哪些地方值得打磨。"}, nil},
+		{"overlay-rewrite-failed", session.Snapshot{Kind: store.KindRewrite, State: session.Failed, Card: true,
+			Raw: "make it more formal", Selection: "hey, the release slips to thursday, sorry!",
+			Problem: &session.Problem{Code: session.ProblemLLM, Err: errors.New("deepseek: server error (503): overloaded")}}, nil},
 	}
 	for i, st := range states {
 		id := "shot" + itoa(i)

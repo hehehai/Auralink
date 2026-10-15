@@ -635,7 +635,7 @@ func (a *app) hotkeyPhase() hotkey.Phase {
 	switch a.sess.State {
 	case session.Recording:
 		return hotkey.Recording
-	case session.Recognizing, session.Composing, session.Delivering:
+	case session.Reading, session.Recognizing, session.Composing, session.Delivering:
 		return hotkey.Busy
 	}
 	return hotkey.Idle

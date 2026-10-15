@@ -388,8 +388,8 @@ func transcribeShots(a *app, tt *ui.Tester, save func(string)) {
 	a.sessionChanged(session.Snapshot{Rev: a.sess.Rev + 1})
 }
 
-// TestTranscribeFullPage renders the whole page (a tall window) with a
-// done try and the preview open, for looking at it:
+// TestTranscribeFullPage renders the whole feature pages (a tall window)
+// with a done try and the preview open, for looking at them:
 //
 //	AURALINK_SNAPSHOTS=/tmp/shots go test -run TestTranscribeFullPage .
 func TestTranscribeFullPage(t *testing.T) {
@@ -399,27 +399,43 @@ func TestTranscribeFullPage(t *testing.T) {
 	}
 	os.MkdirAll(out, 0o755)
 	w, _ := snapshotSize()
-	for _, dark := range []bool{false, true} {
-		a, tt := trTester(t)
-		tt.SetSize(w, 2600)
-		tt.SetDark(dark)
-		a.updateSettings(func(s *settings.Settings) {
-			s.Features.Transcribe.Hotkeys = append(s.Features.Transcribe.Hotkeys, settings.Hotkey{Keys: "Fn+Shift", Trigger: settings.TriggerDouble}, settings.Hotkey{Keys: "K"})
-		})
-		frames(tt)
-		a.fui(hotkey.Transcribe).rows[1].custom = true
-		a.fui(hotkey.Transcribe).preview = true
-		a.sessionChanged(trySnapshot(a, session.Done))
-		frames(tt)
-		name := "page-transcribe-full-light.png"
-		if dark {
-			name = "page-transcribe-full-dark.png"
+	for _, feature := range []string{hotkey.Transcribe, hotkey.Translate, hotkey.Rewrite} {
+		for _, dark := range []bool{false, true} {
+			a, tt := trTester(t)
+			a.navigate("/" + feature)
+			tt.SetSize(w, 2600)
+			tt.SetDark(dark)
+			readyServices(a)
+			if feature == hotkey.Transcribe {
+				a.updateSettings(func(s *settings.Settings) {
+					s.Features.Transcribe.Hotkeys = append(s.Features.Transcribe.Hotkeys, settings.Hotkey{Keys: "Fn+Shift", Trigger: settings.TriggerDouble}, settings.Hotkey{Keys: "K"})
+				})
+			}
+			frames(tt)
+			if feature == hotkey.Transcribe {
+				a.fui(feature).rows[1].custom = true
+			}
+			a.fui(feature).preview = true
+			s := trySnapshot(a, session.Done)
+			s.Kind = featureKind(feature)
+			switch feature {
+			case hotkey.Translate:
+				s.Raw, s.Result, s.TargetLanguage = "嗯 会议改到周四下午四点", "The meeting moves to Thursday at 4 pm.", "en"
+			case hotkey.Rewrite:
+				s.Raw, s.Title, s.Result = "write a short note saying I will be late", "Running late", "Sorry, I'm running about ten minutes late. Start without me."
+			}
+			a.sessionChanged(s)
+			frames(tt)
+			name := "page-" + feature + "-full-light.png"
+			if dark {
+				name = "page-" + feature + "-full-dark.png"
+			}
+			f, err := os.Create(filepath.Join(out, name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			png.Encode(f, tt.Image())
+			f.Close()
 		}
-		f, err := os.Create(filepath.Join(out, name))
-		if err != nil {
-			t.Fatal(err)
-		}
-		png.Encode(f, tt.Image())
-		f.Close()
 	}
 }

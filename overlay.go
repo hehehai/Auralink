@@ -518,9 +518,14 @@ func (a *app) overlayAnswer(c *ui.Context) {
 		ui.Scroll(c.Key("ov-answer-scroll")).Grow(1).MinHeight(0).Children(func() {
 			text := v.text
 			if v.failed != nil {
-				text = a.answer.input.Selection
+				// What it worked on: the instruction, then the selection.
+				in := a.answer.input
+				if v.kind == store.KindRewrite && in.Raw != "" && in.Selection != "" {
+					ui.Text(c, in.Raw).FontSize(13).TextColor(ovText).Selectable().Margin(0, 0, 6, 0)
+				}
+				text = in.Selection
 				if text == "" {
-					text = a.answer.input.Raw
+					text = in.Raw
 				}
 			}
 			tx := ui.Text(c, text).FontSize(14).TextColor(ovText).Selectable()
@@ -572,7 +577,7 @@ func (a *app) cardLanguage(c *ui.Context, v cardView) {
 	if a.answer.langSel == "" || !slices.Contains(opts, a.answer.langSel) || v.streaming {
 		a.answer.langSel = cur
 	}
-	sel := ui.Select(c.Key("ov-answer-lang"), &a.answer.langSel, opts).Label(i18n.T("Translate into")).Width(150).Disabled(v.streaming || a.sess.State.Live())
+	sel := ui.Select(c.Key("ov-answer-lang"), &a.answer.langSel, opts).Label(i18n.T("Translate into")).Width(190).Shrink(1).MinWidth(120).Disabled(v.streaming || a.sess.State.Live())
 	if sel.Changed() {
 		if j := slices.Index(opts, a.answer.langSel); j >= 0 && j < len(compose.TargetLanguages) && compose.TargetLanguages[j] != v.lang {
 			a.retryAnswer(compose.TargetLanguages[j])
