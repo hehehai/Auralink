@@ -197,6 +197,7 @@ func TestTryPlace(t *testing.T) {
 // in front) runs a try on the page; in another app, a session as usual.
 func TestHomeTryByShortcut(t *testing.T) {
 	a, tt := homeTester(t)
+	drain := queuePosts(a)
 	a.hotkeyFired(proto.HotkeyEventParams{Binding: "transcribe/0", Phase: proto.PhaseTrigger, Behavior: proto.BehaviorTap, Front: selfFront()})
 	frames(tt)
 	if a.sess.State.Live() || a.hm.block == nil || !has(tt, "No speech service is set up.") {
@@ -206,12 +207,15 @@ func TestHomeTryByShortcut(t *testing.T) {
 		t.Error("a try's problem went to the overlay")
 	}
 	readyServices(a)
+	drain()
 	a.hotkeyFired(proto.HotkeyEventParams{Binding: "transcribe/0", Phase: proto.PhaseTrigger, Behavior: proto.BehaviorTap, Front: selfFront()})
+	drain()
 	frames(tt)
 	if a.sess.ID == "" || !a.sess.Try || a.sess.Kind != store.KindTranscribe {
 		t.Fatalf("no try: %+v", a.sess)
 	}
 	a.cancelSession()
+	drain()
 	frames(tt)
 	// Done: the result shows on Home.
 	s := trySnapshot(a, session.Done)

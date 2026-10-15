@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/hehehai/Auralink/internal/settings"
 	"testing"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/helper/proto"
@@ -109,11 +108,14 @@ func TestOnboardingSteps(t *testing.T) {
 // with a result; another session, an older one or a failure does not.
 func TestOnboardingTryPasses(t *testing.T) {
 	a, tt := obTester(t)
+	drain := queuePosts(a)
 	readyServices(a)
+	drain()
 	a.obGo(obTranscribe)
 	frames(tt)
 	// The shortcut, Auralink in front: a try of this step.
 	a.hotkeyFired(proto.HotkeyEventParams{Binding: "transcribe/0", Phase: proto.PhaseTrigger, Behavior: proto.BehaviorTap, Front: selfFront()})
+	drain()
 	frames(tt)
 	id := a.ob.tries[obTranscribe]
 	if id == "" || a.sess.ID != id || !a.sess.Try {
@@ -133,6 +135,7 @@ func TestOnboardingTryPasses(t *testing.T) {
 	end := obSnap(a, id, store.KindTranscribe, session.Cancelled)
 	end.Rev = a.sess.Rev + 1
 	a.sessionChanged(end)
+	drain()
 	frames(tt)
 
 	// Another feature's shortcut does not start anything here.
@@ -169,6 +172,7 @@ func TestOnboardingTryPasses(t *testing.T) {
 	}
 	// Translate the sample: a try with the text, no recording.
 	click(t, tt, "Translate this text")
+	drain()
 	// (The test's own snapshots ran ahead of the manager's revisions: ask
 	// the manager.)
 	if cur := a.mgr.Current(); cur.ID == "" || cur.ID != a.ob.tries[obTranslate] || cur.Kind != store.KindTranslate || !cur.Try {
@@ -179,11 +183,11 @@ func TestOnboardingTryPasses(t *testing.T) {
 	live.Rev = a.sess.Rev + 1
 	a.sessionChanged(live)
 	a.closeOnboarding()
+	drain()
 	frames(tt)
 	if a.ob.open {
 		t.Error("still open")
 	}
-	time.Sleep(10 * time.Millisecond)
 }
 
 // onboardingShots saves each step of the setup guide (TestSnapshots):

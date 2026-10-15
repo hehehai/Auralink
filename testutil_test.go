@@ -177,3 +177,21 @@ func hasPrefix(tt *ui.Tester, s string) bool {
 	}
 	return false
 }
+
+// queuePosts makes a's posts wait in a queue that the returned drain runs
+// on the test's goroutine: for view tests that start real sessions, whose
+// goroutines would otherwise call into the app while the test reads it.
+func queuePosts(a *app) (drain func()) {
+	q := make(chan func(), 4096)
+	a.postQueue = func(fn func()) { q <- fn }
+	return func() {
+		for {
+			select {
+			case fn := <-q:
+				fn()
+			case <-time.After(20 * time.Millisecond):
+				return
+			}
+		}
+	}
+}
