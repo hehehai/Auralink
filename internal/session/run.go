@@ -593,7 +593,7 @@ func (r *run) compose(raw string) (string, string, error) {
 		Task: compose.Transcribe, Cleanup: f.Cleanup, Structure: f.Structure, TaskPrompt: f.Prompt,
 		MainLanguage: MainLanguage(r.settings, r.m.cfg.Locale()), OtherLanguages: r.settings.General.OtherLanguages, Text: raw,
 		Glossary: r.glossary(),
-		Scene: r.composeScene(),
+		Scene:    r.composeScene(),
 	}
 	out, err := compose.Build(in)
 	if err != nil {

@@ -5,11 +5,13 @@ package main
 // the app the user dictates into in front, with its caret. It always
 // uses the dark tokens, whatever the appearance.
 //
-//	recording   240×52, 380×120 with live text: the feature's icon, a
-//	            16-bar waveform, the time, the last lines of the live
-//	            text, Stop and × (cancel; Escape too, through the helper)
+//	recording   240×52 (400×52 with an app enhancement label), 380×120
+//	            with live text: the feature's icon, the matched group
+//	            ("Slack · Team chat"), a 16-bar waveform, the time, the last
+//	            lines of the live text, Stop and × (cancel; Escape too)
 //	working     recognising / cleaning up / translating / writing /
-//	            inserting, with a spinner, the answer as it comes, and ×
+//	            inserting, with a spinner, the matched group, the answer as
+//	            it comes, and ×
 //	done        a check for a moment after the text was inserted
 //	notice      one line, an action ("Open Model services"), × (4 s)
 //	answer      560×340: the result that was not inserted, Insert (ink),
@@ -30,6 +32,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/appctx"
 	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/hotkey"
@@ -62,6 +65,7 @@ func (m overlayMode) String() string {
 const (
 	ovPad       = 16
 	ovPillW     = 240
+	ovSceneW    = 400 // with the app enhancement label
 	ovPillH     = 52
 	ovLiveW     = 380
 	ovLiveH     = 120
@@ -122,6 +126,9 @@ func (a *app) overlaySize(mode overlayMode) (int, int) {
 	case ovRecording, ovWorking:
 		if liveText(a.sess) != "" {
 			return ovLiveW, ovLiveH
+		}
+		if sceneLabel(a.sess) != "" {
+			return ovSceneW, ovPillH
 		}
 	}
 	return ovPillW, ovPillH
@@ -265,6 +272,7 @@ func (a *app) overlayPill(c *ui.Context) {
 			switch a.ov.mode {
 			case ovRecording:
 				ui.Icon(c, kindIcon(s.Kind).Bold).Size(18, 18).TextColor(tok(t).Record).Label(kindTitle(s.Kind))
+				overlaySceneLabel(c, s)
 				a.waveform(c, s.Levels, !s.HeardAt.IsZero())
 				ui.Text(c, clock(s.Elapsed(time.Now()))).FontSize(12).Font("monospace").TextColor(ovText2).Shrink(0)
 				if ui.ButtonBase(c.Key("ov-stop")).Size(28, 28).Center().Radius(14).Background(tok(t).Record).Label(i18n.T("Stop")).Children(func() {
@@ -274,6 +282,7 @@ func (a *app) overlayPill(c *ui.Context) {
 				}
 			case ovWorking:
 				ui.Spinner(c)
+				overlaySceneLabel(c, s)
 				ui.Text(c, workingText(s)).FontSize(13).TextColor(ovText).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
 			case ovDone:
 				ui.Icon(c, icons.CheckCircle.Bold).Size(18, 18).TextColor(tok(t).Success)
@@ -301,6 +310,32 @@ func liveText(s session.Snapshot) string {
 		return d
 	}
 	return strings.TrimSpace(s.Partial)
+}
+
+// sceneLabel is the app enhancement group a session falls in, as the
+// overlay shows it: "Slack · Team chat"; "" for none.
+func sceneLabel(s session.Snapshot) string {
+	if s.Scene == nil || !s.Scene.Matched() {
+		return ""
+	}
+	app := s.Target.Name
+	if s.Scene.Source == appctx.SourceURL && s.Scene.Host != "" {
+		app = s.Scene.Host // a website rule: the site, not the browser
+	}
+	if app == "" {
+		return s.Scene.GroupName()
+	}
+	return app + " · " + s.Scene.GroupName()
+}
+
+// overlaySceneLabel is the group label in the pill.
+func overlaySceneLabel(c *ui.Context, s session.Snapshot) {
+	label := sceneLabel(s)
+	if label == "" {
+		return
+	}
+	ui.Text(c, label).FontSize(11).TextColor(ovText).SingleLine().Ellipsis("…").MaxWidth(150).MinWidth(0).Shrink(1).
+		Padding(2, 7).Radius(6).Background(ui.RGBA(255, 255, 255, 0.12)).Tooltip(label)
 }
 
 // workingText says what a session does after recording.

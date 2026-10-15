@@ -15,6 +15,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/appctx"
 	"github.com/hehehai/Auralink/internal/asr"
 	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/helper/proto"
@@ -223,6 +224,10 @@ func overlayShots(t *testing.T, a *app, out, suffix string) {
 		{"overlay-recording", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-12 * time.Second), Levels: wave()}, nil},
 		{"overlay-live-text", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-47 * time.Second), Levels: wave(),
 			Partial: "So the plan for the release is to finish the onboarding first, then the history page, and after that we look at the translation card"}, nil},
+		{"overlay-recording-scene", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-5 * time.Second), Levels: wave(),
+			Target: proto.App{Name: "Slack"}, Scene: sceneMatch("Team chat", appctx.SourceApp, "")}, nil},
+		{"overlay-working-scene", session.Snapshot{State: session.Composing, Target: proto.App{Name: "Google Chrome"},
+			Scene: sceneMatch("Code review", appctx.SourceURL, "github.com")}, nil},
 		{"overlay-recognizing", session.Snapshot{State: session.Recognizing}, nil},
 		{"overlay-composing", session.Snapshot{State: session.Composing, Partial: "那个我们明天，不对，后天下午三点开会，讨论一下 Auralink 的发布计划"}, nil},
 		{"overlay-done", session.Snapshot{State: session.Done, Result: "x", Inserted: true}, nil},
@@ -278,6 +283,34 @@ func overlayShots(t *testing.T, a *app, out, suffix string) {
 	}
 	a.answer, a.notice = answerCard{}, nil
 	snap(a, session.Snapshot{ID: "shot-end", State: session.Cancelled})
+}
+
+// sceneMatch is a matched group for a snapshot.
+func sceneMatch(name string, src appctx.Source, host string) *appctx.Match {
+	return &appctx.Match{Source: src, Group: &appctx.Group{ID: "g", Name: name}, Host: host, Pattern: host}
+}
+
+func TestOverlaySceneLabel(t *testing.T) {
+	for _, tc := range []struct {
+		s    session.Snapshot
+		want string
+	}{
+		{session.Snapshot{}, ""},
+		{session.Snapshot{Target: proto.App{Name: "Slack"}, Scene: &appctx.Match{Source: appctx.SourceGlobal}}, ""},
+		{session.Snapshot{Target: proto.App{Name: "Slack"}, Scene: sceneMatch("Team chat", appctx.SourceApp, "")}, "Slack · Team chat"},
+		{session.Snapshot{Target: proto.App{Name: "Google Chrome"}, Scene: sceneMatch("Code review", appctx.SourceURL, "github.com")}, "github.com · Code review"},
+		{session.Snapshot{Target: proto.App{Name: "Google Chrome"}, Scene: sceneMatch("Work", appctx.SourceBrowserApp, "news.ycombinator.com")}, "Google Chrome · Work"},
+		{session.Snapshot{Scene: sceneMatch("Work", appctx.SourceApp, "")}, "Work"},
+	} {
+		if got := sceneLabel(tc.s); got != tc.want {
+			t.Errorf("sceneLabel = %q, want %q", got, tc.want)
+		}
+	}
+	a, _, _ := newTestApp(t)
+	snap(a, session.Snapshot{ID: "s1", State: session.Recording, Target: proto.App{Name: "Slack"}, Scene: sceneMatch("Team chat", appctx.SourceApp, "")})
+	if a.ov.w != ovSceneW || a.ov.h != ovPillH {
+		t.Errorf("size %dx%d", a.ov.w, a.ov.h)
+	}
 }
 
 func TestOverlayPlace(t *testing.T) {

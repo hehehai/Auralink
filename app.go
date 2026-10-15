@@ -21,6 +21,8 @@ import (
 //	overlayState      overlay.go      the recording overlay
 //	transcribeState   transcribe_page.go  the feature pages (Transcribe, Translate, Rewrite)
 //	historyState      history_page.go the History page
+//	appEnhanceState   appenhance.go   App enhancement: the groups, address reads, the page
+//	dictionaryState   dictionary_page.go  the Dictionary page
 //
 // Add fields to your area's struct, not here.
 type app struct {
@@ -41,6 +43,8 @@ type app struct {
 	overlayState
 	transcribeState
 	historyState
+	appEnhanceState
+	dictionaryState
 }
 
 func newApp(lib *library, h *helperHost) *app {
@@ -49,6 +53,7 @@ func newApp(lib *library, h *helperHost) *app {
 	a.openShell(lib)
 	a.openPermissions()
 	a.openProviders()
+	a.openAppEnhancement() // appenhance.go
 	return a
 }
 

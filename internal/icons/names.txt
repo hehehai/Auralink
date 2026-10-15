@@ -56,3 +56,14 @@ chat-round-line          # language models
 
 # Transcribe (transcribe_page.go).
 accessibility            # a shortcut that needs Accessibility
+
+# App enhancement (appenhance_page.go).
+widget-2                 # member apps
+link-minimalistic-2      # website rules
+arrow-to-down-left       # the key after inserting (↵)
+window-frame             # the app in front (preview)
+
+# Dictionary (dictionary_page.go).
+pen-2                    # edit a term
+import                   # import terms
+export                   # export terms

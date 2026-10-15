@@ -100,6 +100,7 @@ func (a *app) helperChanged(st helper.Status) {
 		helperCall(a, proto.MethodAppFrontmost, nil, 5*time.Second, func(front proto.App, err error) {
 			if err == nil && a.front.PID == 0 {
 				a.front = front
+				a.frontChanged(front) // appenhance.go
 			}
 		})
 	}
@@ -134,6 +135,7 @@ func (a *app) helperNotified(m proto.Message) {
 		var front proto.App
 		if m.DecodeParams(&front) == nil {
 			a.front = front
+			a.frontChanged(front) // appenhance.go
 		}
 	}
 }

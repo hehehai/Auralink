@@ -2,11 +2,11 @@ package main
 
 // The pages of the sidebar (plan §3.1). A page not built yet is its
 // header and an empty state that says what it will hold; the milestones
-// replace them one by one (App enhancement and Dictionary M5, Home M6).
-// Logs (shell_logs.go), Model services (providers_page.go), Transcribe,
-// Translate and Rewrite (transcribe_page.go) and History
-// (history_page.go) work; Permissions is a section of the settings dialog
-// (permissions.go).
+// replace them one by one (Home M6). Logs (shell_logs.go), Model
+// services (providers_page.go), Transcribe, Translate and Rewrite
+// (transcribe_page.go), History (history_page.go), App enhancement
+// (appenhance_page.go) and Dictionary (dictionary_page.go) work;
+// Permissions is a section of the settings dialog (permissions.go).
 
 import (
 	"github.com/egoist/mygo/ui"
@@ -35,6 +35,10 @@ func (a *app) pageShown(path string) {
 	switch path {
 	case "/history":
 		a.historyShown() // history_page.go
+	case "/app-enhancement":
+		a.aeShown() // appenhance_page.go
+	case "/dictionary":
+		a.dictShown() // dictionary_page.go
 	}
 }
 
@@ -59,6 +63,12 @@ func (a *app) page(c *ui.Context, p navPage) {
 	case "/history":
 		a.historyPage(c) // history_page.go
 		return
+	case "/app-enhancement":
+		a.appEnhancementPage(c) // appenhance_page.go
+		return
+	case "/dictionary":
+		a.dictionaryPage(c) // dictionary_page.go
+		return
 	}
 	pageHeader(c, pageTitle(p.path), nil)
 	title, body := placeholderText(p.path)
@@ -71,12 +81,6 @@ func placeholderText(path string) (title, body string) {
 	case "/home":
 		return i18n.T("Speak anywhere, get text where your cursor is"),
 			i18n.T("Home will list what is still missing (a service, a permission), let you try each feature without leaving the page, and show today's results.")
-	case "/app-enhancement":
-		return i18n.T("Rules for the app or website in front"),
-			i18n.T("Group apps and website addresses, give each group its own scene prompt (a chat app, your mail), and see which group matches right now.")
-	case "/dictionary":
-		return i18n.T("Names and terms you use"),
-			i18n.T("Words you add here go to speech recognition as hints and to the language model as a glossary, so they come back spelled right.")
 	}
 	return "", ""
 }

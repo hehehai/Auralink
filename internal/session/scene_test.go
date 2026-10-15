@@ -69,7 +69,7 @@ func TestScene(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		target  proto.App
-		url     fakeURL
+		url     *fakeURL
 		off     bool // app enhancement off
 		group   string
 		source  appctx.Source
@@ -79,22 +79,25 @@ func TestScene(t *testing.T) {
 		press   []proto.KeyPress
 		urlRead bool
 	}{
-		{name: "url group", target: safari, url: fakeURL{urls: map[string]string{safari.BundleID: "https://github.com/hehehai/Auralink"}},
+		{name: "url group", target: safari, url: &fakeURL{urls: map[string]string{safari.BundleID: "https://github.com/hehehai/Auralink"}},
 			group: "g-code", source: appctx.SourceURL, host: "github.com", prompt: "Use Markdown for code.", app: "Safari", urlRead: true},
-		{name: "browser app group", target: chrome, url: fakeURL{urls: map[string]string{chrome.BundleID: "https://news.ycombinator.com/"}},
+		{name: "browser app group", target: chrome, url: &fakeURL{urls: map[string]string{chrome.BundleID: "https://news.ycombinator.com/"}},
 			group: "g-browser", source: appctx.SourceBrowserApp, host: "news.ycombinator.com", prompt: "Keep it formal in Google Chrome.", app: "Google Chrome", urlRead: true},
 		{name: "app group with an auto key", target: slack, group: "g-chat", source: appctx.SourceApp, prompt: "Short and casual.", app: "Slack",
 			press: []proto.KeyPress{{Key: 36}}},
-		{name: "no group", target: safari, url: fakeURL{urls: map[string]string{safari.BundleID: "https://example.com/"}},
+		{name: "no group", target: safari, url: &fakeURL{urls: map[string]string{safari.BundleID: "https://example.com/"}},
 			source: appctx.SourceGlobal, host: "example.com", urlRead: true},
 		{name: "disabled group", target: notes, source: appctx.SourceGlobal},
-		{name: "url times out", target: chrome, url: fakeURL{urls: map[string]string{chrome.BundleID: "https://github.com/"}, delay: 5 * time.Second},
+		{name: "url times out", target: chrome, url: &fakeURL{urls: map[string]string{chrome.BundleID: "https://github.com/"}, delay: 5 * time.Second},
 			group: "g-browser", source: appctx.SourceBrowserApp, prompt: "Keep it formal in Google Chrome.", app: "Google Chrome", urlRead: true},
-		{name: "url fails", target: safari, url: fakeURL{err: errors.New("no focused window")}, source: appctx.SourceGlobal, urlRead: true},
+		{name: "url fails", target: safari, url: &fakeURL{err: errors.New("no focused window")}, source: appctx.SourceGlobal, urlRead: true},
 		{name: "app enhancement off", target: slack, off: true, source: appctx.SourceGlobal},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			u := tc.url
+			if u == nil {
+				u = &fakeURL{}
+			}
 			h := newHarness(t, &fakeStreamer{final: "hello"}, &fakeLLM{text: "Hello."}, func(c *Config, s *settings.Settings) {
 				c.Scene = &SceneConfig{
 					Rules:      func() (appctx.Rules, bool) { return sceneRules(), !tc.off },
@@ -110,7 +113,7 @@ func TestScene(t *testing.T) {
 			}
 			// The decision shows in the snapshot while it records.
 			rec := h.rec.waitFor(t, "a scene", func(s Snapshot) bool { return s.Scene != nil })
-			if !tc.off && rec.State != Recording && tc.url.delay == 0 {
+			if !tc.off && rec.State != Recording && u.delay == 0 {
 				t.Errorf("scene decided in %s", rec.State)
 			}
 			h.speak(id, 3)

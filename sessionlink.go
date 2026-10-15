@@ -126,6 +126,7 @@ func (a *app) openSessions() {
 		},
 		Settings: st.Get,
 		Locale:   i18n.Locale,
+		Scene:    a.sceneConfig(), // appenhance.go
 		Self:     os.Getpid(),
 		Activate: func(pid int) bool { ok, _ := activateTarget(pid); return ok },
 		OnChange: func(s session.Snapshot) { a.post(func() { a.sessionChanged(s) }) },

@@ -480,7 +480,7 @@ func (a *app) historyDetail(c *ui.Context, e store.Entry) {
 			[2]string{i18n.T("Delivery"), deliveryLabel(e)},
 			[2]string{i18n.T("Speech recognition"), a.entryService(providers.ASR, e.ASRProvider, e.ASRModel)},
 			[2]string{i18n.T("Language model"), a.entryService(providers.LLM, e.LLMProvider, e.LLMModel)},
-			[2]string{i18n.T("App rule"), e.RuleName})
+			[2]string{i18n.T("App rule"), ruleText(e)})
 		sections := []struct {
 			title string
 			rows  [][2]string
@@ -507,6 +507,18 @@ func (a *app) historyDetail(c *ui.Context, e store.Entry) {
 			}
 		})
 	})
+}
+
+// ruleText is an entry's app enhancement group and how it matched:
+// "Team chat (app)"; "" for none.
+func ruleText(e store.Entry) string {
+	if e.RuleName == "" {
+		return ""
+	}
+	if how := ruleSourceLabel(e.RuleSource); how != "" { // appenhance_page.go
+		return i18n.T("%s (%s)", e.RuleName, how)
+	}
+	return e.RuleName
 }
 
 // historyDeleteDialog confirms Delete.
