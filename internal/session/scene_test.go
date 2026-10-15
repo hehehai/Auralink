@@ -255,3 +255,57 @@ func TestSceneAnswerCard(t *testing.T) {
 		t.Errorf("end %+v", end)
 	}
 }
+
+// TestSceneWrite: Translate and Rewrite take the scene when the group
+// applies to them, and press its key only after writing new text, never
+// after a translation or a replaced selection.
+func TestSceneWrite(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		kind     Kind
+		sel      string
+		features appctx.Features
+		answer   string
+		scene    bool
+		press    bool
+	}{
+		{"translate, group off for it", store.KindTranslate, "Good morning", appctx.DefaultFeatures, "早上好", false, false},
+		{"translate, group on for it", store.KindTranslate, "Good morning", appctx.Features{Translate: true}, "早上好", true, false},
+		{"translate speech, group on", store.KindTranslate, "", appctx.Features{Translate: true}, "你好", true, false},
+		{"rewrite a selection", store.KindRewrite, "hey team", appctx.DefaultFeatures, "Hello team.", true, false},
+		{"rewrite from scratch", store.KindRewrite, "", appctx.DefaultFeatures, `{"title":"Hi","content":"Hello team."}`, true, true},
+		{"rewrite, group off for it", store.KindRewrite, "", appctx.Features{Transcribe: true}, `{"title":"Hi","content":"Hello team."}`, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rules := appctx.Rules{Groups: []appctx.Group{{ID: "g", Name: "Chat", Enabled: true, Prompt: "Short and casual.",
+				Apps: []appctx.App{{BundleID: slack.BundleID}}, AutoKey: "Return", Features: tc.features}}}
+			model := &fakeLLM{text: tc.answer}
+			h := newHarness(t, &fakeFile{text: "hello"}, model, func(c *Config, s *settings.Settings) {
+				c.Select = &fakeSelector{text: tc.sel}
+				c.Scene = &SceneConfig{Rules: func() (appctx.Rules, bool) { return rules, true }}
+			})
+			id, err := h.m.Start(StartRequest{Kind: tc.kind, Target: slack})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.sel == "" || tc.kind == store.KindRewrite { // Rewrite always hears its instruction
+				h.rec.waitFor(t, "recording", func(s Snapshot) bool { return s.State == Recording })
+				h.speak(id, 3)
+			}
+			end := h.rec.wait(t)
+			if end.State != Done || !end.Inserted {
+				t.Fatalf("end %+v", end)
+			}
+			sys := h.llmRequest(t)
+			if strings.Contains(sys, "Short and casual.") != tc.scene || strings.Contains(end.Profile, "scene") != tc.scene {
+				t.Errorf("scene in the prompt: %v (%s)\n%s", !tc.scene, end.Profile, sys)
+			}
+			h.text.mu.Lock()
+			presses := h.text.presses
+			h.text.mu.Unlock()
+			if len(presses) != 1 || (presses[0] != nil) != tc.press {
+				t.Errorf("presses %+v", presses)
+			}
+		})
+	}
+}
