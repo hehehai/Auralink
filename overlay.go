@@ -874,14 +874,20 @@ func fadeSpans(text string, off float32, measure func(string) float32) (string, 
 	return string(r[lo:]), from, spans
 }
 
-// liveText is the text the pill shows under it: the answer as the model
-// writes it, else what the speech service heard so far (a file service's
-// whole text, while it is cleaned up).
+// liveText is the text the pill shows under it, the same in every flow
+// (10-15, third round): the answer as the model writes it; until then
+// what it works on: what the speech service heard so far (a file
+// service's whole text, while it is cleaned up), else the selection it
+// translates.
 func liveText(s session.Snapshot) string {
-	if d := strings.TrimSpace(s.Draft); d != "" && (s.State == session.Composing || s.State == session.Delivering) {
+	working := s.State == session.Composing || s.State == session.Delivering
+	if d := strings.TrimSpace(s.Draft); d != "" && working {
 		return d
 	}
-	return strings.TrimSpace(s.Partial)
+	if p := strings.TrimSpace(s.Partial); p != "" || !working {
+		return p
+	}
+	return strings.TrimSpace(s.Selection)
 }
 
 // sceneLabel is the app enhancement group a session falls in, as the
