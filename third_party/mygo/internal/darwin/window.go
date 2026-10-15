@@ -130,9 +130,21 @@ func (w *window) create() {
 		content = msgRectForRect(class("NSWindow"), sel("contentRectForFrameRect:styleMask:"), size, style)
 		content.Origin = NSPoint{}
 	}
-	w.win = msgInitWindow(send(class("MyGoWindow"), "alloc"), sel("initWithContentRect:styleMask:backing:defer:"),
+	cls := "MyGoWindow"
+	if !o.Focusable {
+		// WindowOptions.NonActivating: the style must be there at init,
+		// for the window server to know the window never activates.
+		cls = "MyGoPanel"
+		style |= styleNonactivatingPanel
+	}
+	w.win = msgInitWindow(send(class(cls), "alloc"), sel("initWithContentRect:styleMask:backing:defer:"),
 		content, style, nsBackingStoreBuffered, false)
 	send(w.win, "setReleasedWhenClosed:", 0)
+	if !o.Focusable {
+		send(w.win, "setFloatingPanel:", 1)
+		send(w.win, "setBecomesKeyOnlyIfNeeded:", 1)
+		send(w.win, "setHidesOnDeactivate:", 0)
+	}
 	w.delegate = alloc("MyGoWindowDelegate")
 	send(w.win, "setDelegate:", uintptr(w.delegate))
 	send(w.win, "setTitle:", uintptr(nsString(o.Title)))
@@ -1306,6 +1318,14 @@ func registerWindowClasses() {
 		method("canBecomeMainWindow", func(self id, _ objc.SEL) bool { return true }),
 		method("selectKeyViewFollowingView:", selectKeyView("MyGoWindow", false)),
 		method("selectKeyViewPrecedingView:", selectKeyView("MyGoWindow", true)),
+	})
+
+	// A non-activating window (WindowOptions.NonActivating) is a panel
+	// that never becomes the key or the main window: clicks reach its
+	// content and leave the app in front, and its first responder alone.
+	classDef("MyGoPanel", "NSPanel", nil, []objc.MethodDef{
+		method("canBecomeKeyWindow", func(self id, _ objc.SEL) bool { return false }),
+		method("canBecomeMainWindow", func(self id, _ objc.SEL) bool { return false }),
 	})
 
 	// A flyout's panel becomes the key window only when it takes the

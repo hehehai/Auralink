@@ -117,6 +117,15 @@ type WindowOptions struct {
 	Maximized bool
 	// SkipTaskbar hides the window from the taskbar (Linux, Windows).
 	SkipTaskbar bool
+	// NonActivating makes a window that never activates the app nor takes
+	// the keyboard: a press on it reaches its content while the app in
+	// front keeps the focus and its caret, as for a floating HUD over the
+	// text the user is typing into (dictation, a color picker). On macOS
+	// the window is an NSPanel with NSWindowStyleMaskNonactivatingPanel
+	// that never becomes the key or main window; on Windows it has
+	// WS_EX_NOACTIVATE. Linux ignores it. Its content cannot take the
+	// keyboard: no text inputs.
+	NonActivating bool
 	// AutoHideMenuBar keeps the window's menu bar out of sight until the
 	// user presses Alt or F10, and hides it again once they leave it
 	// (Linux, Windows). Its keyboard shortcuts work all along.
@@ -471,7 +480,7 @@ func (w *Window) platformOptions(o *WindowOptions) *platform.WindowOptions {
 		Minimizable:    !o.DisableMinimize,
 		Maximizable:    !o.DisableMaximize,
 		Closable:       !o.DisableClose,
-		Focusable:      true,
+		Focusable:      !o.NonActivating,
 		Fullscreenable: !o.DisableFullScreen,
 		AlwaysOnTop:    o.AlwaysOnTop,
 		FullScreen:     o.FullScreen,
