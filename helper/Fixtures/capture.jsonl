@@ -1,0 +1,16 @@
+{"to":"helper","msg":{"id":"c2","method":"capture.devices"}}
+{"to":"app","msg":{"id":"c2","result":{"devices":[{"id":"BuiltInMicrophoneDevice","name":"MacBook Air Microphone","channels":1,"sampleRate":48000,"default":true,"transport":"builtin"},{"id":"AirPodsPro:input","name":"AirPods Pro","channels":1,"sampleRate":24000,"transport":"bluetooth"}]}}}
+{"to":"helper","msg":{"id":"01JB0C1000000000000000000A","method":"capture.start","params":{"devices":["AirPodsPro:input"],"sampleRate":16000,"channels":1,"encoding":"pcm16le","frameMs":100,"maxSeconds":300}}}
+{"to":"app","msg":{"method":"log","params":{"level":"warning","message":"AirPods Pro gave no audio within 1.2 s: recording from the default input","job":"01JB0C1000000000000000000A"}}}
+{"to":"app","msg":{"method":"capture.level","params":{"job":"01JB0C1000000000000000000A","seconds":0.05,"rms":-52.3,"peak":-40.1}}}
+{"to":"app","msg":{"method":"capture.pcm","params":{"job":"01JB0C1000000000000000000A","seq":0,"sampleRate":16000,"channels":1,"encoding":"pcm16le","data":"AQAHAAEABwABAAcAAQAHAA=="}}}
+{"to":"app","msg":{"method":"capture.level","params":{"job":"01JB0C1000000000000000000A","seconds":0.1,"rms":-21.7,"peak":-0.0001,"clipped":true}}}
+{"to":"app","msg":{"method":"capture.pcm","params":{"job":"01JB0C1000000000000000000A","seq":1,"sampleRate":16000,"channels":1,"encoding":"pcm16le","data":"AgAOAAIADgACAA4AAgAOAA=="}}}
+{"to":"helper","msg":{"id":"c3","method":"capture.stop","params":{"job":"01JB0C1000000000000000000A"}}}
+{"to":"app","msg":{"id":"01JB0C1000000000000000000A","result":{"device":"BuiltInMicrophoneDevice","fallback":true,"audioSeconds":0.2,"frames":2,"peak":-0.0001,"reason":"stopped"}}}
+{"to":"app","msg":{"id":"c3","result":{"stopped":true}}}
+{"to":"helper","msg":{"id":"c4","method":"capture.stop","params":{"job":"01JB0C1000000000000000000A"}}}
+{"to":"app","msg":{"id":"c4","result":{"stopped":false}}}
+{"to":"helper","msg":{"id":"01JB0C2000000000000000000A","method":"capture.start","params":{"sampleRate":16000,"channels":1,"encoding":"pcm16le","maxSeconds":0.1,"output":"/Users/me/Library/Application Support/Auralink/audio/01JB0C2.wav"}}}
+{"to":"app","msg":{"method":"capture.pcm","params":{"job":"01JB0C2000000000000000000A","seq":0,"sampleRate":16000,"channels":1,"encoding":"pcm16le","data":"AwAVAAMAFQADABUAAwAVAA=="}}}
+{"to":"app","msg":{"id":"01JB0C2000000000000000000A","result":{"device":"BuiltInMicrophoneDevice","audioSeconds":0.1,"frames":1,"peak":-12.5,"reason":"maxSeconds","output":"/Users/me/Library/Application Support/Auralink/audio/01JB0C2.wav"}}}

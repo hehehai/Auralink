@@ -1,0 +1,10 @@
+{"to":"helper","msg":{"id":"c10","method":"browser.url","params":{"bundleId":"com.google.Chrome","pid":901,"timeoutMs":800}}}
+{"to":"app","msg":{"id":"c10","result":{"url":"https://mail.google.com/mail/u/0/#inbox","title":"Inbox","source":"applescript"}}}
+{"to":"helper","msg":{"id":"c11","method":"browser.url","params":{"bundleId":"company.thebrowser.Browser"}}}
+{"to":"app","msg":{"id":"c11","result":{"url":"https://linear.app/team/issue/AUR-12","source":"ax"}}}
+{"to":"helper","msg":{"id":"c12","method":"browser.url","params":{"bundleId":"com.apple.Safari"}}}
+{"to":"app","msg":{"id":"c12","error":{"code":"permission_denied","message":"Auralink may not control Safari: allow it in System Settings → Privacy & Security → Automation","data":{"permission":"automation"}}}}
+{"to":"helper","msg":{"id":"c13","method":"automation.probe","params":{"bundleIds":["com.apple.Safari","com.google.Chrome","com.microsoft.edgemac","com.brave.Browser","company.thebrowser.Browser"]}}}
+{"to":"app","msg":{"id":"c13","result":{"browsers":[{"bundleId":"com.apple.Safari","state":"denied"},{"bundleId":"com.google.Chrome","state":"granted"},{"bundleId":"com.microsoft.edgemac","state":"notRunning"},{"bundleId":"com.brave.Browser","state":"notDetermined"},{"bundleId":"company.thebrowser.Browser","state":"granted"}]}}}
+{"to":"helper","msg":{"id":"c14","method":"automation.probe","params":{"bundleIds":["com.brave.Browser"],"prompt":true}}}
+{"to":"app","msg":{"id":"c14","result":{"browsers":[{"bundleId":"com.brave.Browser","state":"granted"}]}}}

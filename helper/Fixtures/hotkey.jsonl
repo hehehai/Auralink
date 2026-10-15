@@ -1,0 +1,9 @@
+{"to":"helper","msg":{"id":"c7","method":"hotkey.configure","params":{"bindings":[{"id":"transcribe/0","keys":"Fn","trigger":"tap"},{"id":"translate/0","keys":"Fn+Shift","trigger":"tap"},{"id":"rewrite/0","keys":"Fn+Control","trigger":"tap"},{"id":"paste-last","keys":"Control+Command+V","trigger":"tap"}],"doubleMs":300,"longMs":400}}}
+{"to":"app","msg":{"id":"c7","result":{"active":["transcribe/0","translate/0","rewrite/0","paste-last"],"trusted":true}}}
+{"to":"app","msg":{"method":"hotkey.event","params":{"binding":"transcribe/0","action":"down","app":{"bundleId":"com.tinyspeck.slackmacgap","name":"Slack","pid":812}}}}
+{"to":"app","msg":{"method":"hotkey.event","params":{"binding":"transcribe/0","action":"up"}}}
+{"to":"app","msg":{"method":"hotkey.event","params":{"binding":"transcribe/0","action":"tap","app":{"bundleId":"com.tinyspeck.slackmacgap","name":"Slack","pid":812}}}}
+{"to":"helper","msg":{"id":"c8","method":"hotkey.configure","params":{"bindings":[{"id":"transcribe/0","keys":"Fn","trigger":"tap"}]}}}
+{"to":"app","msg":{"id":"c8","result":{"active":[],"trusted":false}}}
+{"to":"helper","msg":{"id":"c9","method":"hotkey.configure","params":{"bindings":[]}}}
+{"to":"app","msg":{"id":"c9","result":{"active":[],"trusted":true}}}
