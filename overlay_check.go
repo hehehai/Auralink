@@ -128,7 +128,10 @@ func cardCheckSteps(lang string) []ovCheckStep {
 			a.sess = tr(lang+"-t1", session.Composing, "", string([]rune(short)[:len([]rune(short))/2]), lang)
 		}, true},
 		{"card-short", end(tr(lang+"-t1", session.Done, short, short, lang)), true},
+		// Our language menu, a window of its own over the card.
+		{"card-menu", func(a *app) { a.answer.langOpen = true }, true},
 		{"card-redo", func(a *app) {
+			a.answer.langOpen = false
 			a.answer.redo, a.answer.redoLang = lang+"-t2", "ja"
 			a.sess = tr(lang+"-t2", session.Composing, "", "", "ja")
 		}, true},
@@ -208,9 +211,10 @@ func (a *app) overlayCheck(dir string) {
 		var region mygo.Rectangle
 		onMain(func() {
 			area := a.overlayArea()
-			// The backdrop: under the largest face (the answer card), 20
-			// below the face's bottom edge (or above its top).
-			wide := overlayFrame(area, a.prefs.Overlay, max(ovNoticeW2, ovAnswerW), ovCardMaxH)
+			// The backdrop: under the largest face (the answer card) and
+			// the language menu over it, 20 below the face's bottom edge
+			// (or above its top).
+			wide := overlayFrame(area, a.prefs.Overlay, max(ovNoticeW2, ovAnswerW), ovCardMaxH+langMenuHeight()+ovLangGap)
 			bw, bh := wide.Width+60, wide.Height+40
 			region = mygo.Rectangle{X: wide.X - 30, Y: wide.Y + wide.Height - ovPad + 20 - bh, Width: bw, Height: bh}
 			opts := floatingWindowOptions("Auralink overlay check", bw, bh, ui.View(func(c *ui.Context) { ovCheckBackdrop(c, bd.dark) }))
@@ -238,6 +242,15 @@ func (a *app) overlayCheck(dir string) {
 					wid = macx.WindowNumber(a.ov.win.NativeHandle())
 				}
 			})
+			var menu, menuWin mygo.Rectangle
+			var menuShown bool
+			onMain(func() {
+				menu, menuShown = a.ov.lang.frame, a.ov.lang.shown
+				if a.ov.lang.win != nil {
+					menuWin = a.ov.lang.win.Bounds()
+					menuShown = menuShown && a.ov.lang.win.IsVisible()
+				}
+			})
 			var front macx.App
 			onMain(func() { front = macx.Frontmost() })
 			name := fmt.Sprintf("%s/%s", bd.lang, st.name)
@@ -250,6 +263,20 @@ func (a *app) overlayCheck(dir string) {
 				logf("FAIL %s: the window is not where it was asked to be", name)
 			case shown && !visible, !shown && visible:
 				logf("FAIL %s: shown %v, on screen %v", name, shown, visible)
+			}
+			// The language menu: only in its step; over the card, 6 above
+			// its top edge, its right edge under the capsule's.
+			wantMenu := st.name == "card-menu"
+			switch {
+			case wantMenu != menuShown:
+				logf("FAIL %s: the language menu shows %v", name, menuShown)
+			case wantMenu && menuWin != menu:
+				logf("FAIL %s: the menu is not where it was asked to be", name)
+			case wantMenu && menu != langMenuFrame(got, a.prefs.Overlay.Position == "top"):
+				logf("FAIL %s: the menu is at %+v, not by the capsule", name, menu)
+			case wantMenu:
+				logf("  menu %d,%d,%d,%d: its bottom %d over the card's top %d", menu.X, menu.Y, menu.Width, menu.Height,
+					got.Y+ovPad-(menu.Y+menu.Height-ovPad), got.Y+ovPad)
 			}
 			if shown {
 				if anchor.Width == 0 {
