@@ -1,12 +1,11 @@
 package main
 
-// The pages of the sidebar (plan §3.1). A page not built yet is its
-// header and an empty state that says what it will hold; the milestones
-// replaced them one by one. Home (home_page.go), Logs (shell_logs.go), Model
-// services (providers_page.go), Transcribe, Translate and Rewrite
-// (transcribe_page.go), History (history_page.go), App enhancement
-// (appenhance_page.go) and Dictionary (dictionary_page.go) work;
-// Permissions is a section of the settings dialog (permissions.go).
+// The pages of the sidebar (plan §3.1): Home (home_page.go), History
+// (history_page.go), Transcribe, Translate and Rewrite
+// (transcribe_page.go), App enhancement (appenhance_page.go), Model
+// services (providers_page.go), Dictionary (dictionary_page.go) and Logs
+// (shell_logs.go). Permissions is a section of the settings dialog
+// (permissions.go).
 
 import (
 	"github.com/egoist/mygo/ui"

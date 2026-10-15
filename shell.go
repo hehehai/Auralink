@@ -10,7 +10,7 @@ package main
 //	shell_status.go    status bar, notification centre, the helper's popover
 //	shell_logs.go      logs page and panel
 //	shell_settings.go  settings service wiring, the settings dialog, language, theme
-//	pages.go           the pages of the sidebar (placeholders in M1)
+//	pages.go           the pages of the sidebar
 
 import (
 	"context"

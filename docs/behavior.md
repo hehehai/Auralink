@@ -27,7 +27,7 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | 2.2 | 录音、热键、粘贴都在 app 主进程里 | 录音、事件 tap、AX 读写放在 Swift helper 子进程；Go 进程负责 UI、业务和网络 | MyGo 不能录音；事件 tap 的回调必须同步决定是否吞键；helper 崩溃不会带走 UI（方案 §4.1） | ✅ helper（`helper/`，Swift）和协议 1（`docs/helper-protocol.md`）已完成：录音、热键、textio、前台 App、浏览器 URL、权限 |
 | 2.3 | 历史存在自己的数据库（`Core/VoxtDatabase.swift`） | SQLite（MyGo 插件）迁移 001：`history`（带 trigram FTS，覆盖原文、选中文本、口述指令、结果）、`dictionary_terms`、`documents`；迁移前自动备份，拒绝打开更新版本 app 的数据库 | 中文子串搜索可用；数据可以整体搬家（设置 → 存储） | ✅ |
 | 2.4 | API Key 存在钥匙串 | 钥匙串 service "Auralink"，账号 `asr.<id>`、`llm.<id>`（`internal/secrets`） | 同样的做法 | ✅ |
-| 2.5 | 权限说明分散在 onboarding 和各设置页 | 权限是设置对话框里的一节（设置 → 权限，在“通用”之后，`/settings/permissions`）：只有麦克风和辅助功能两行，各自说明用途并提供授权入口；首页“检查权限”、⌘K、深链 `auralink://permissions` 和旧路径 `/permissions` 都打开这一节（`permissions.go`、`shell.go` 的 `movedPaths`） | 只剩两项权限，看一次就走，不值得占侧边栏的位置；浏览器网址只用辅助功能（AX）读，不需要浏览器自动化授权（用户 10-15 决定） | ✅ 状态和授权都走 helper（`permissions.*`）；helper 没起来时由 app 自己读。M5 已删除 helper 的 `automation.*`、AppleScript 和 Apple Events 声明 |
+| 2.5 | 权限说明分散在 onboarding 和各设置页 | 权限是设置对话框里的一节（设置 → 权限，在“通用”之后，`/settings/permissions`）：只有麦克风和辅助功能两行，各自说明用途并提供授权入口；首页的“打开权限”、⌘K、深链 `auralink://permissions` 和旧路径 `/permissions` 都打开这一节（`permissions.go`、`shell.go` 的 `movedPaths`） | 只剩两项权限，看一次就走，不值得占侧边栏的位置；浏览器网址只用辅助功能（AX）读，不需要浏览器自动化授权（用户 10-15 决定） | ✅ 状态和授权都走 helper（`permissions.*`）；helper 没起来时由 app 自己读。M5 已删除 helper 的 `automation.*`、AppleScript 和 Apple Events 声明 |
 | 2.6 | 主窗口 820×560 | 主窗口默认 880×580，最小 720×480（`shell.go`）；窗口记住的尺寸优先，旧版本留下的大窗口不会被缩小；最小尺寸下侧边栏列表滚动，设置对话框左栏至少 240 宽，快捷键表可滚动 | 和 Voxt 相近的小窗口，比 AudioSmith 的 1100×720 更适合常驻的输入工具 | ✅ |
 
 ## 3. 远程模型（M2）
@@ -131,7 +131,19 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | 7.9 | 词典：ASR 提示按服务商分别处理（`DoubaoDictionaryPayloadBuilder` 最多 5000 个热词外加 correct_words），LLM 术语只在命中时加入 | `internal/dict`：启用的词条去重（忽略大小写），**最近修改的排在前面**，不含别名（别名是识别错的写法）；OpenAI 兼容接在 ASR 提示词之后放进 `prompt`（800 字节）、豆包放进 `corpus.context` 的热词（按文档限额截断）、阿里百炼 fun-asr 放进 `input.context`、qwen-audio 放进 `parameters.vocabulary`（三家都有 golden 请求测试）；LLM 术语表见 5.16 | 服务只收有限数量时，最近加的词更可能是用户正在用的；把别名当热词会让识别更偏向错的写法 | ✅ |
 | 7.10 | 词典页：分类、建议、学习、一键导入 | 0.1 只手动维护：增删改、别名、备注（不发给任何地方）、启用开关、搜索（词条、别名、备注）、导入导出 CSV（`term,aliases,note,enabled`，别名用 `;` 分隔，带 BOM 方便 Excel）和文本（每行“词条 = 别名, 别名”，`#` 注释）；导入时同一个词条（忽略大小写）合并别名、补备注 | 自动学习放到以后（方案 D4）；CSV 能和表格软件互通 | ✅ |
 
-## 8. 待补（按里程碑）
+## 8. 首页与设置引导（M6）
+
+| # | Voxt 怎么做 | Auralink 怎么做 | 为什么 | 状态 |
+|---|---|---|---|---|
+| 8.1 | 主窗口首页是功能入口和最近记录 | 首页（`home_page.go`）：还缺什么（服务、麦克风、辅助功能、转录快捷键、helper），每项一条 notice 加跳转按钮，就绪的项收成一行勾选；“试一试”（转录）；今日次数、字数（不含空白）和按功能的次数；最近 5 条结果（复制、在历史中打开） | 首次使用最常见的问题是没配服务、没授权，放在打开 app 就能看到的地方；今日统计和最近结果在 goroutine 里从历史读（`readHome`），会话写入历史后刷新 | ✅ |
+| 8.2 | 六步引导（`Settings/Onboarding/*`，`docs/OnboardingGuide.zh-CN.md`）：权限 → 模型 → 语音输入 → 语音翻译 → 选中翻译 → 探索更多 | 七步（`onboarding.go`）：欢迎和隐私说明 → 权限 → 服务（复用模型服务页的卡片和对话框）→ 试转录 → 试翻译（翻译示例文本，或说一句话）→ 试转写（按指令生成）→ 应用增强和词典 | 方案 §2.3 的顺序；隐私承诺（方案 §6）放在第一步；模型服务页的对话框已经有 Key、测试连接，不另做一套 | ✅ |
+| 8.3 | 体验步骤在引导里的输入框中真实插入；只接受匹配当前步骤、来源窗口和 session ID 的事件，迟到回调不能完成步骤；进行中禁止翻页，关闭引导取消它的会话 | 同样只认本步骤自己发起的会话（按 session ID，`ob.tries`），以 Done 且结果非空判定通过；进行中禁止前后翻页，关闭引导取消它的试用。差异：试用是 Try 会话（真实录音、识别、LLM，但结果显示在引导里，不插入、不写历史），不往输入框里粘贴 | 往 Auralink 自己的窗口里粘贴依赖 MyGo 文本框的 AX 表现，没法在 Linux 上测；插入链路已经在各 App 里验证过（M3），引导要验证的是“服务和权限能用” | ✅ |
+| 8.4 | 选中翻译：在引导里选中示例再按翻译热键 | “翻译这段文字”按钮把示例作为选区发起翻译（`StartRequest.Text`），或按热键说一句话 | Auralink 不读自己窗口的选区（`session.canSelect` 排除自身），按钮更可靠 | ✅ |
+| 8.5 | 引导中按其他功能的热键会走正常流程 | Auralink 在前台时：引导打开且在试用步骤，只有本步骤功能的热键发起试用，其他功能的热键只提示“刚才按的是 X 的快捷键”；首页和功能页上按热键在页面里试用（`tryPlace`）；其他页面照常 | 在自己的窗口里按热键，用户想看的是演示结果，而不是往 Auralink 的输入框里粘贴 | ✅ |
+| 8.6 | 引导完成状态和旧版本步骤迁移 | 关闭或完成都记 `settings.Setup.Done`，之后不再自动弹出；设置 → 通用、首页右上角、⌘K 都能重新打开 | 没有旧版本 | ✅ |
+| 8.7 | — | 日志面板最多占窗口高度的一半（`shell.go`），720×480 下首页和各页的按钮不会被挡住 | M2 遗留问题 | ✅ |
+
+## 9. 待补（按里程碑）
 
 每节在对应里程碑落地时补上。下面先列出方案里已经确定的差异。
 

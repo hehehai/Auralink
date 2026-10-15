@@ -1,6 +1,6 @@
 # Auralink architecture
 
-*State: M5, app enhancement and the dictionary on top of M4's Translate and Rewrite (2026-10-15). Product plan: the project's `plan/auralink-plan.md` (§4 architecture, §5 data, §8 engineering). Behaviour compared with Voxt: [behavior.md](behavior.md). Helper wire format: [helper-protocol.md](helper-protocol.md).*
+*State: M6, polish for 0.1: Home, the setup guide, the settings' remaining sections, the menu bar (2026-10-15). Product plan: the project's `plan/auralink-plan.md` (§4 architecture, §5 data, §8 engineering). Behaviour compared with Voxt: [behavior.md](behavior.md). Helper wire format: [helper-protocol.md](helper-protocol.md).*
 
 Auralink is a Go app on MyGo (native UI, no cgo) with one small Swift helper process. It reuses AudioSmith's engineering (AudioSmith @f171c86, Apache-2.0): its window shell, UI kit and tokens, settings, store, i18n, logs and notification code, and its engine supervisor reduced to one helper. What it took and how it changed is in §5.
 
@@ -148,7 +148,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `a.lib` (`*library`: store, bus, settings) | library.go | every area |
 | `a.navigate(path)`, `a.showPage(name)`, `a.currentPage()`, `a.shownPath()`; `movedPaths` (old paths, e.g. `/permissions` → `/settings/permissions`) | shell.go, shell_settings.go | palette, deep links, notifications, tests |
 | `navGroups`, `shortcutPages` (⌘1–⌘6), `pageTitle`, `a.navBadge` | shell.go | sidebar, rail, palette, Go menu |
-| `a.page(c, p)`, `placeholderText`, `a.pageShown(path)` | pages.go | the router; milestones replace a page's placeholder here |
+| `a.page(c, p)`, `a.pageShown(path)` | pages.go | the router: each page's view, and what it reads when it shows |
 | `a.updateSettings(fn)`, `a.prefs`, `settingsSections()`, `a.settingsShown(sub)` | shell_settings.go | every area that changes a setting; sections that read something when they open |
 | `a.helperStatus()`, `helperCall[T](a, method, params, timeout, then)`, `a.helperNotified(m)`, `a.restartHelper()`, `a.hotkeys` (hotkey.state), `a.front` (app.activated) | helperlink.go | status bar, permissions, Diagnostics, sessions |
 | `a.mgr` (`*session.Manager`), `a.sess` (the newest snapshot), `a.startSession(req)`, `a.startTranscribe(target, hold, try)`, `a.sessionBlocker(kind)`, `a.stopSession()`, `a.cancelSession()`, `a.toggleTranscribe()`, `a.pasteLast(target)`, `a.answer` + `openAnswer` / `insertAnswer` / `copyAnswer` / `closeAnswer` / `retryAnswer(lang)` / `followUpAnswer(hold)`, `a.showNotice`, `sessionProblemText(p)`, `a.syncHotkeys()` | sessionlink.go | the overlay, the feature pages' Try areas, the menu bar, helperlink.go |
@@ -158,7 +158,10 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `a.aeBook` (`ruleBook`: the groups for sessions, goroutine-safe), `a.aeRules` + `a.setRules(r)`, `a.sceneConfig()`, `a.urlReads`, `a.frontChanged(app)`, `a.lastOther`, `a.previewApp()`, `a.refreshPreview(force)`, `a.previewMatch()` | appenhance.go | sessionlink.go (the manager's Scene), helperlink.go (app.activated), the App enhancement page |
 | `ruleSourceLabel(source)`, `sourceText(source, pattern)` | appenhance_page.go | History's details |
 | `a.loadDict()`, `a.openTerm(term)`, `chooseImportFile`, `chooseExportFile` (test seams) | dictionary_page.go | the Dictionary page |
-| `a.permSys` (`permission.System`), `a.recheckPermissions()`, `a.askPermission(which)` | permissions.go | Settings → Permissions, Diagnostics, onboarding (M6) |
+| `a.permSys` (`permission.System`), `a.recheckPermissions()`, `a.askPermission(which)` | permissions.go | Settings → Permissions, Diagnostics, Home, the setup guide |
+| `a.tryCard(c, tryOpts)` (a Try area), `a.tryIntro(feature)`, `a.startTry(kind)`, `a.startSessionID(req)` (the id, to tell a try from another session) | transcribe_page.go, sessionlink.go | the feature pages, Home, the setup guide |
+| `a.tryPlace(kind, target)` (where a shortcut pressed while Auralink is in front runs as a try), `a.tryStarted`, `a.homeChanged()`, `readHome` (today's numbers and the recent results, off the main thread), `a.readinessList()`, `a.openHistoryEntry(e)` | home_page.go | sessionlink.go (`hotkeyFired`), history_page.go (`historyChanged`) |
+| `a.openOnboarding()`, `a.maybeOnboard()` (first start), `a.obSessionChanged(s)` (a step passes on its own session's result), `a.obOwns(id)`, `a.onboardingRow(c)` | onboarding.go | shell.go (`openWindow`), sessionlink.go, Settings → General, Home, ⌘K |
 | `floatingWindowOptions(…)`, `showFloating(w, x, y)` (non-activating windows, mygo patch 0003), `activateTarget(pid)` (`macx.Activate`) | floating.go | the recording pill and the answer card (M3, M4) |
 | `a.toast(msg)`, `a.notify(…)`, `a.post(fn)`, `a.async(fn)` | app.go, shell_status.go | everyone |
 | `a.keys` (`keyring`: the Keychain; memory in tests), `a.keyMasks`, `a.hasKey(account)`, `a.providerSummary()`, `providerName(kind, p)`, `providerErrorText(err)` | providers_page.go | Model services page, status bar; sessions read keys through `a.keys` off the main thread (`resolver`, sessionlink.go) |
