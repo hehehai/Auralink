@@ -34,6 +34,7 @@ monitor                 # overlay style
 menu-dots               # overflow "⋯"
 close                   # close, remove
 close-circle            # failed check
+check                   # the chosen language (the answer card's menu)
 check-circle            # success
 danger-triangle         # warning
 danger-circle           # error

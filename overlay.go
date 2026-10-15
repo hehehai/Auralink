@@ -190,6 +190,8 @@ type overlayState struct {
 		cardScrollKey string
 		bubbleCopied  string
 		bubbleSeq     int
+		// lang is the card's language menu (overlay_lang.go).
+		lang langMenuState
 	}
 	// laterHook replaces the timers of later in tests (nil: none run
 	// without a window).
@@ -481,6 +483,7 @@ func (a *app) overlaySync() {
 		if was {
 			a.overlayFadeOut()
 		}
+		a.syncLangMenu()
 		return
 	}
 	w, h := a.overlayFace(mode)
@@ -497,6 +500,7 @@ func (a *app) overlaySync() {
 		a.ov.epoch = time.Now()
 	}
 	pass := mode == ovRecording || mode == ovWorking
+	defer a.syncLangMenu() // overlay_lang.go: the language menu follows the card
 	if !a.overlayNative() {
 		a.ov.passThrough = pass
 		return // tests: the state is enough
@@ -639,6 +643,7 @@ func (a *app) overlayRestyle() {
 	frame := overlayFrame(a.ov.area, a.prefs.Overlay, w, h)
 	moved := frame != a.ov.frame
 	a.ov.w, a.ov.h, a.ov.frame = w, h, frame
+	a.syncLangMenu()
 	if a.ov.win == nil {
 		return
 	}
@@ -651,6 +656,7 @@ func (a *app) overlayRestyle() {
 
 // closeOverlay destroys the window (quit).
 func (a *app) closeOverlay() {
+	a.closeLangWindow()
 	if a.ov.win != nil {
 		a.ov.win.Destroy()
 		a.ov.win = nil

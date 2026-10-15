@@ -399,6 +399,7 @@ func (a *app) cardHeader(c *ui.Context, v cardView) {
 	switch {
 	case v.canStop:
 		if cardCapsule(c.Key("ov-card-stop"), i18n.T("Done"), i18n.T("Stop recording the follow-up")) {
+			a.closeLangMenu()
 			a.stopSession()
 		}
 	case v.canFollowUp:
@@ -407,10 +408,12 @@ func (a *app) cardHeader(c *ui.Context, v cardView) {
 			tip = i18n.T("Follow up by voice (%s)", v.follow)
 		}
 		if cardCapsule(c.Key("ov-card-continue"), i18n.T("Continue"), tip) {
+			a.closeLangMenu()
 			a.followUpAnswer("")
 		}
 	case v.canRetry:
 		if cardCapsule(c.Key("ov-card-retry"), i18n.T("Try again"), "") {
+			a.closeLangMenu()
 			a.retryAnswer("")
 		}
 	}
@@ -420,6 +423,7 @@ func (a *app) cardHeader(c *ui.Context, v cardView) {
 			tip = v.why
 		}
 		if cardIconButton(c.Key("ov-card-insert"), i18n.T("Insert"), tip, icons.Pen, v.canInsert) {
+			a.closeLangMenu()
 			a.insertAnswer()
 		}
 		copyIcon, copyLabel := icons.Copy, i18n.T("Copy")
@@ -427,6 +431,7 @@ func (a *app) cardHeader(c *ui.Context, v cardView) {
 			copyIcon, copyLabel = icons.CopyCheck, i18n.T("Copied")
 		}
 		if cardIconButton(c.Key("ov-card-copy"), copyLabel, copyLabel, copyIcon, v.canCopy) {
+			a.closeLangMenu()
 			a.copyAnswer(c.Services().WriteClipboard)
 		}
 	}
@@ -490,34 +495,40 @@ func cardCapsule(c *ui.Context, label, tip string) bool {
 	}).Clicked()
 }
 
-// cardLanguage is Translate's target in the card (Voxt's language menu):
-// a capsule with the language's name, opening the system's menu of the
-// languages; choosing another translates the card's text again, into the
-// card.
+// cardLanguage is Translate's target in the card (Voxt's capsule): its
+// name and a chevron; a click opens our own menu of the languages
+// (overlay_lang.go), where another translates the card's text again,
+// into the card.
 func (a *app) cardLanguage(c *ui.Context, v cardView) {
+	open := a.answer.langOpen && v.canLang
 	b := ui.ButtonBase(c.Key("ov-card-lang")).Height(ovCardBtn).Padding(0, 10-ovBorder).Radius(ovCardBtn / 2).Shrink(0).
-		Label(i18n.T("Translate into")).Disabled(!v.canLang)
-	line := ui.RGBA(255, 255, 255, 0.12)
-	if v.canLang && b.Hovered() {
+		Label(i18n.T("Translate into")).Disabled(!v.canLang).Checked(open)
+	line, bg := ui.RGBA(255, 255, 255, 0.12), ui.RGBA(255, 255, 255, 0.08)
+	switch {
+	case open:
+		line, bg = tok(c.Theme()).Accent.Alpha(0.5), ui.RGBA(255, 255, 255, 0.14)
+	case v.canLang && b.Hovered():
 		line = tok(c.Theme()).Accent.Alpha(0.28)
 	}
-	b.Background(ui.RGBA(255, 255, 255, 0.08)).Border(1, line)
-	b.Menu(func(m *ui.Menu) {
-		for _, code := range compose.TargetLanguages {
-			if m.Item(targetLanguageLabel(code)).Checked(code == v.lang).Chosen() && code != v.lang {
-				a.retryAnswer(code)
-			}
-		}
-	})
+	b.Background(bg).Border(1, line)
 	alpha := float32(1)
 	if !v.canLang && !v.busy {
 		alpha = 0.6
 	}
+	chevron := icons.AltArrowDown
+	if open && a.prefs.Overlay.Position != "top" {
+		chevron = icons.AltArrowUp // it opens upward
+	}
+	defer func() {
+		if b.Clicked() {
+			a.toggleLangMenu()
+		}
+	}()
 	b.Children(func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, targetLanguageLabel(v.lang)).FontSize(11).FontWeight(600).TextColor(ui.RGBA(255, 255, 255, 0.92*alpha)).
 				SingleLine().Ellipsis("…").MaxWidth(ovCardLangMaxW).MinWidth(0)
-			ui.Icon(c, icons.AltArrowDown.Bold).Size(10, 10).TextColor(ui.RGBA(255, 255, 255, 0.72*alpha)).Shrink(0)
+			ui.Icon(c, chevron.Bold).Size(10, 10).TextColor(ui.RGBA(255, 255, 255, 0.72*alpha)).Shrink(0)
 		})
 	})
 }

@@ -141,6 +141,7 @@ func (a *app) helperNotified(m proto.Message) {
 		if m.DecodeParams(&front) == nil {
 			a.front = front
 			a.frontChanged(front) // appenhance.go
+			a.closeLangMenu()     // overlay_lang.go: the user went elsewhere
 		}
 	}
 }

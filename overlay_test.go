@@ -375,6 +375,9 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 			a.answer.redo, a.answer.redoLang = id+"-ja", "ja"
 			snap(a, session.Snapshot{ID: id + "-ja", Kind: store.KindTranslate, State: session.Composing, Card: true, TargetLanguage: "ja"})
 		}},
+		{"overlay-translate-card-menu", session.Snapshot{Kind: store.KindTranslate, State: session.Done, Card: true, Delivery: deliver.ReasonNotEditable,
+			Target: proto.App{PID: 77, Name: "Arc"}, Selection: "A goroutine is a lightweight thread managed by the Go runtime.", TargetLanguage: "zh-Hans",
+			Result: "goroutine 是由 Go 运行时管理的轻量级线程。"}, nil, nil},
 		{"overlay-translate-card-copied", session.Snapshot{Kind: store.KindTranslate, State: session.Done, Card: true, Delivery: deliver.ReasonNotEditable,
 			Target: proto.App{PID: 77, Name: "Arc"}, Selection: "A goroutine is a lightweight thread managed by the Go runtime.", TargetLanguage: "zh-Hans",
 			Result: "goroutine 是由 Go 运行时管理的轻量级线程。"}, nil, func(string) { a.answer.copied = true }},
@@ -404,6 +407,7 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 	for i, st := range states {
 		id := "shot" + itoa(i)
 		a.answer, a.notice, a.followUp = answerCard{}, nil, ""
+		a.syncLangMenu()
 		if st.name == "overlay-rewrite-conversation" {
 			// The follow-up of a card that held the first answer.
 			a.answer = answerCard{open: true, id: "first", kind: store.KindRewrite, conversation: true}
@@ -432,6 +436,14 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 		renderOverlay(t, a) // its texts measured, the face fitted to them
 		w, h := a.ov.w+2*ovPad, a.ov.h+2*ovPad
 		radius := faceRadius(a.prefs.Overlay, a.ov.mode, a.ov.h)
+		// With the language menu open: its window over the card's, where
+		// it shows on the screen (the picture is as tall as both).
+		var menuDY int
+		if st.name == "overlay-translate-card-menu" {
+			a.toggleLangMenu()
+			menuDY = a.ov.frame.Y - a.ov.lang.frame.Y
+			h += menuDY
+		}
 		tt := ui.NewTester(func(c *ui.Context) {
 			// The desktop: a page of text lines.
 			ui.Column(c).Absolute().Fill().Background(desk).Padding(10, 14).Gap(8).Children(func() {
@@ -440,9 +452,13 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 				}
 			})
 			// The window's material: what is under the face, blurred.
-			ui.Box(c).Absolute().Left(ovPad).Top(ovPad).Right(ovPad).Bottom(ovPad).Radius(radius).Material(glass.Blur{Radius: 8})
+			ui.Box(c).Absolute().Left(ovPad).Top(float32(ovPad+menuDY)).Right(ovPad).Bottom(ovPad).Radius(radius).Material(glass.Blur{Radius: 8})
 			// Positioned too, to paint over the blur.
-			ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).Children(func() { a.overlayView(c) })
+			ui.Box(c).Absolute().Left(0).Top(float32(menuDY)).Right(0).Bottom(0).Children(func() { a.overlayView(c) })
+			if menuDY > 0 {
+				m := a.ov.lang.frame
+				ui.Box(c).Absolute().Left(float32(m.X-a.ov.frame.X)).Top(0).Width(float32(m.Width)).Height(float32(m.Height)).Children(func() { a.langMenuView(c) })
+			}
 		}, w, h)
 		tt.SetScale(2)
 		frames(tt)

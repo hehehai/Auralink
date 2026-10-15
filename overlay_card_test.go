@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/helper/proto"
@@ -190,20 +191,35 @@ func TestAnswerCardInteraction(t *testing.T) {
 	if has(tt, a.answer.why) || !strings.HasPrefix(a.answer.why, "The selection in Arc cannot be edited") {
 		t.Errorf("why %q shows", a.answer.why)
 	}
-	// The language menu: the system's, the language checked; another
-	// asks again (here nothing is set up: the line says so).
-	if err := tt.Click("Translate into"); err != nil {
+	// The language menu: ours, in a window of its own; the language
+	// checked; another asks again (here nothing is set up: the line says
+	// so); the card does not move.
+	card := a.ov.frame
+	click(t, tt, "Translate into")
+	if !a.answer.langOpen || !a.ov.lang.shown || a.ov.frame != card {
+		t.Fatalf("menu: open %v shown %v, card %+v (was %+v)", a.answer.langOpen, a.ov.lang.shown, a.ov.frame, card)
+	}
+	mt := ui.NewTester(a.langMenuView, a.ov.lang.frame.Width, a.ov.lang.frame.Height)
+	frames(mt)
+	for _, s := range []string{"English", "Japanese", "Simplified Chinese"} {
+		if !has(mt, s) {
+			t.Errorf("menu: no %q in %q", s, firstTexts(mt))
+		}
+	}
+	if err := mt.Click("Japanese"); err != nil {
 		t.Fatal(err)
 	}
-	if m := tt.Menu(); len(m) != len(compose.TargetLanguages) {
-		t.Fatalf("menu %q", m)
+	frames(mt)
+	if a.answer.langOpen || a.ov.lang.shown || a.answer.msg != "No language model is set up." || a.answer.lang != "zh-Hans" || !a.answer.open || a.ov.frame.Y+a.ov.frame.Height != card.Y+card.Height {
+		t.Errorf("another language: %+v, menu %v", a.answer, a.ov.lang.shown)
 	}
-	if err := tt.ChooseMenuItem("Japanese"); err != nil {
-		t.Fatal(err)
-	}
-	frames(tt)
-	if a.answer.msg != "No language model is set up." || a.answer.lang != "zh-Hans" || !a.answer.open {
-		t.Errorf("another language: %+v", a.answer)
+	// Escape closes the menu, not the card.
+	a.answer.msg = ""
+	a.overlaySync()
+	click(t, tt, "Translate into")
+	a.hotkeyFired(proto.HotkeyEventParams{Binding: proto.HotkeyEscape, Phase: proto.PhaseTrigger})
+	if a.answer.langOpen || a.ov.lang.shown || !a.answer.open {
+		t.Errorf("Escape on the menu: open %v, card %v", a.answer.langOpen, a.answer.open)
 	}
 	// Copy: the mark, then Copy again.
 	click(t, tt, "Copy")
@@ -268,5 +284,51 @@ func TestAnswerCardInteraction(t *testing.T) {
 	a.hotkeyFired(proto.HotkeyEventParams{Binding: proto.HotkeyEscape, Phase: proto.PhaseTrigger})
 	if a.answer.open {
 		t.Error("the second Escape left the card")
+	}
+}
+
+// TestLanguageMenuPlace: the language menu opens over the card when the
+// overlay is at the bottom of the screen, under the capsule when it is at
+// the top, its right edge under the capsule's; it goes when the card
+// goes, or another app comes to the front.
+func TestLanguageMenuPlace(t *testing.T) {
+	for _, pos := range []string{"bottom", "top"} {
+		t.Run(pos, func(t *testing.T) {
+			a, _, _ := newTestApp(t)
+			a.prefs.Overlay.Position = pos
+			cardSteps()[3].apply(a) // a translation in the card
+			a.overlaySync()
+			card := a.ov.frame
+			a.toggleLangMenu()
+			m := a.ov.lang.frame
+			if !a.ov.lang.shown || a.ov.frame != card {
+				t.Fatalf("shown %v, card %+v (was %+v)", a.ov.lang.shown, a.ov.frame, card)
+			}
+			faceX, faceY := card.X+ovPad, card.Y+ovPad
+			capRight := faceX + ovAnswerW - ovCardPadX - 3*ovCardBtn - 3*ovCardHeadGap
+			if m.X+m.Width-ovPad != capRight || m.Width != ovLangW+2*ovPad || m.Height != langMenuHeight()+2*ovPad {
+				t.Errorf("menu %+v, the capsule's right edge %d", m, capRight)
+			}
+			switch {
+			case pos == "bottom" && m.Y+m.Height-ovPad != faceY-ovLangGap:
+				t.Errorf("bottom: the menu ends at %d, the card's top is %d", m.Y+m.Height-ovPad, faceY)
+			case pos == "top" && m.Y+ovPad != faceY+ovCardPadTop+ovCardHeadH+ovLangGap:
+				t.Errorf("top: the menu starts at %d", m.Y+ovPad)
+			}
+			if len(compose.TargetLanguages)*ovLangRowH+2*ovLangPad > ovLangMaxH && langMenuHeight() != ovLangMaxH {
+				t.Errorf("height %d", langMenuHeight())
+			}
+			// Another app in front: it goes; the card stays.
+			a.helperNotified(appActivated(proto.App{PID: 9, BundleID: "com.apple.Notes", Name: "Notes"}))
+			if a.ov.lang.shown || a.answer.langOpen || !a.answer.open {
+				t.Errorf("another app: menu %v", a.ov.lang.shown)
+			}
+			// The card going takes it.
+			a.toggleLangMenu()
+			a.closeAnswer()
+			if a.ov.lang.shown || a.answer.langOpen {
+				t.Error("the menu stays without the card")
+			}
+		})
 	}
 }

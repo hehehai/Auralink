@@ -85,8 +85,8 @@ type answerCard struct {
 	// input is what it worked on, for Try again and another language.
 	problem *session.Problem
 	input   session.TextInput
-	lang    string // Translate's target
-	langSel string // the language select's label
+	lang     string // Translate's target
+	langOpen bool   // the language menu shows (overlay_lang.go)
 	// turns are a Rewrite conversation so far, the shown answer last
 	// (a follow-up adds to them); conversation: a follow-up began, and
 	// the card shows them as one (Voxt's conversation mode), from then on.
@@ -755,6 +755,10 @@ func (a *app) hotkeyFired(e proto.HotkeyEventParams) {
 	target := a.front
 	if e.Front != nil {
 		target = *e.Front
+	}
+	if e.Binding == proto.HotkeyEscape && a.answer.langOpen {
+		a.closeLangMenu() // Escape closes the menu first, then the card
+		return
 	}
 	if e.Binding == proto.HotkeyEscape && a.answer.open {
 		switch {
