@@ -126,3 +126,12 @@ func activate(pid int, wait time.Duration, runOnMain func(func())) (bool, time.D
 		time.Sleep(10 * time.Millisecond)
 	}
 }
+
+var selWindowNumber = objc.RegisterName("windowNumber")
+
+func windowNumber(handle uintptr) int {
+	if handle == 0 || load() != nil {
+		return 0
+	}
+	return int(objc.Send[int](objc.ID(handle), selWindowNumber))
+}

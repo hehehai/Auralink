@@ -9,3 +9,5 @@ func activate(int, time.Duration, func(func())) (bool, time.Duration) { return f
 func frontmost() App { return App{} }
 
 func play(Sound) error { return nil }
+
+func windowNumber(uintptr) int { return 0 }

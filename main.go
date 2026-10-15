@@ -17,6 +17,12 @@ import (
 )
 
 func main() {
+	// The overlay check (overlay_check.go) runs instead of the app: no
+	// data, no lock, no helper.
+	if dir := overlayCheckDir(); dir != "" {
+		runOverlayCheck(dir)
+		return
+	}
 	// Dev builds are "Auralink Dev"; share data with the installed app.
 	mygo.App.SetName("Auralink")
 	// One Auralink at a time (one library, one set of global shortcuts);

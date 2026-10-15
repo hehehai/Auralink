@@ -30,3 +30,8 @@ func Activate(pid int, wait time.Duration, runOnMain func(func())) (bool, time.D
 
 // Frontmost is the app in front (NSWorkspace); zero off macOS.
 func Frontmost() App { return frontmost() }
+
+// WindowNumber is the window server's number of the NSWindow at handle
+// (mygo.Window.NativeHandle), as screencapture -l takes it; 0 off macOS.
+// Main thread.
+func WindowNumber(handle uintptr) int { return windowNumber(handle) }

@@ -1,7 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -220,4 +227,70 @@ func TestOverlayTwoSessionsEndToEnd(t *testing.T) {
 		t.Fatalf("second starts: %+v, face %d×%d", s, a.ov.w, a.ov.h)
 	}
 	a.pump("the second's end", func() bool { return a.sess.ID != first && a.sess.State.Ended() })
+}
+
+// TestOverlayCheckSteps: the Mac overlay check's states (overlay_check.go)
+// are what they say, at one anchor; its sheet renders; its flag parses.
+func TestOverlayCheckSteps(t *testing.T) {
+	a, _, _ := newTestApp(t)
+	ft := new(fakeTimers).install(a)
+	want := map[string]overlayMode{"pill": ovRecording, "live-short": ovRecording, "live-long": ovRecording, "working": ovWorking,
+		"inserted": ovHidden, "pill-again": ovRecording, "notice": ovNotice, "gone": ovHidden}
+	var first mygo.Rectangle
+	for _, lang := range []string{"en", "zh-Hans"} {
+		for _, st := range ovCheckSteps(lang) {
+			st.apply(a)
+			a.overlaySync()
+			ft.advance(ovGone)
+			if a.ov.mode != want[st.name] || a.ov.visible != (want[st.name] != ovHidden) {
+				t.Errorf("%s/%s: %s, visible %v", lang, st.name, a.ov.mode, a.ov.visible)
+			}
+			if a.ov.visible {
+				if first.Width == 0 {
+					first = a.ov.frame
+				}
+				anchored(t, lang+"/"+st.name, a.prefs.Overlay, a.ov.frame)
+			}
+			switch st.name {
+			case "pill", "pill-again":
+				if a.ov.frame != pillFrame(a.prefs.Overlay) {
+					t.Errorf("%s/%s: %+v", lang, st.name, a.ov.frame)
+				}
+			case "live-long":
+				if a.ov.w != ovLiveMaxW || a.ov.h != ovLiveH {
+					t.Errorf("%s/%s: %d×%d", lang, st.name, a.ov.w, a.ov.h)
+				}
+			}
+		}
+	}
+	old := os.Args
+	t.Cleanup(func() { os.Args = old })
+	os.Args = []string{"Auralink", "--overlay-check", "/tmp/x"}
+	if overlayCheckDir() != "/tmp/x" {
+		t.Error("the flag")
+	}
+	os.Args = []string{"Auralink"}
+	if overlayCheckDir() != "" {
+		t.Error("no flag")
+	}
+	// The sheet, from two captures.
+	dir := t.TempDir()
+	region := mygo.Rectangle{X: 100, Y: 700, Width: 516, Height: 150}
+	var col []ovCheckShot
+	for i := range 2 {
+		img := image.NewRGBA(image.Rect(0, 0, 2*region.Width, 2*region.Height))
+		draw.Draw(img, img.Bounds(), image.NewUniform(color.RGBA{40, 40, 50, 255}), image.Point{}, draw.Src)
+		f := filepath.Join(dir, fmt.Sprint(i, ".png"))
+		var b bytes.Buffer
+		png.Encode(&b, img)
+		os.WriteFile(f, b.Bytes(), 0o644)
+		col = append(col, ovCheckShot{name: fmt.Sprint("step ", i), file: f, region: region, anchor: first})
+	}
+	out := filepath.Join(dir, "sheet.png")
+	if err := ovCheckSheet(out, [][]ovCheckShot{col, col}); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Stat(out); err != nil || fi.Size() < 1000 {
+		t.Errorf("sheet %v %v", fi, err)
+	}
 }
