@@ -97,6 +97,7 @@ func WSError(ctx context.Context, provider string, err error) *Error {
 		case websocket.StatusMessageTooBig:
 			x.Kind = KindAudio
 		case websocket.StatusNormalClosure, websocket.StatusGoingAway:
+			x.Code = "" // not an error code of the service's
 			x.Detail = "the service closed the connection early" + reasonSuffix(ce.Reason)
 		}
 		return x
