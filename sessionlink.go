@@ -303,37 +303,42 @@ func (a *app) helperReady() bool {
 	return a.hstatus.State == helper.Ready
 }
 
-// canTranscribe checks, without I/O, what a session needs: a running
-// helper and a speech service. It shows a notice and reports false when
-// one is missing.
-func (a *app) canTranscribe() bool {
+// transcribeBlocker checks, without I/O, what a session needs: a running
+// helper and a speech service. It returns the notice that says what is
+// missing, or nil.
+func (a *app) transcribeBlocker() *sessionNotice {
 	if !a.helperReady() {
-		a.showNotice(sessionNotice{text: i18n.T("The helper is not running."), action: actionHelper})
-		return false
+		return &sessionNotice{text: i18n.T("The helper is not running."), action: actionHelper}
 	}
 	f := a.prefs.Features.Transcribe.Feature
 	if _, ok := providers.Choose(a.prefs, providers.ASR, f.ASR, a.hasKey); !ok {
-		a.showNotice(sessionNotice{text: i18n.T("No speech service is set up."), action: actionProviders})
-		return false
+		return &sessionNotice{text: i18n.T("No speech service is set up."), action: actionProviders}
 	}
-	return true
+	return nil
 }
 
 // startTranscribe starts a Transcribe session for the app target (the app
-// in front when the shortcut fired); hold names the long-pressed binding.
-func (a *app) startTranscribe(target proto.App, hold string, try bool) bool {
+// in front when the shortcut fired); hold names the long-pressed binding;
+// try keeps the result on the Transcribe page. When something it needs is
+// missing it returns the notice saying so, which a shortcut's session
+// shows in the overlay (a try shows it on the page); nil when it started
+// (or a session runs already).
+func (a *app) startTranscribe(target proto.App, hold string, try bool) *sessionNotice {
 	if a.mgr == nil || a.sess.State.Live() {
-		return false
+		return nil
 	}
-	if !a.canTranscribe() {
-		return false
+	if n := a.transcribeBlocker(); n != nil {
+		if !try {
+			a.showNotice(*n)
+		}
+		return n
 	}
 	a.answer = answerCard{}
 	a.notice = nil
 	if _, err := a.mgr.Start(session.StartRequest{Kind: store.KindTranscribe, Target: target, HoldBinding: hold, Try: try}); err != nil {
-		return false
+		return nil // a session runs already
 	}
-	return true
+	return nil
 }
 
 // stopSession stops the recording (the overlay's Stop, the menu bar).
