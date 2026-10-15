@@ -220,7 +220,7 @@ func (a *app) providersPage(c *ui.Context) {
 	t := c.Theme()
 	pageHeader(c, i18n.T("Model services"), func() {
 		if ghostIconButton(c.Key("prov-network"), icons.WiFiRouterMinimalistic, i18n.T("Network")).Label(i18n.T("Network settings")).Clicked() {
-			a.openSettings("network")
+			a.openSettings("/network")
 		}
 	})
 	kind := providers.ASR
