@@ -89,6 +89,7 @@ func (a *app) clearHistory() {
 				return
 			}
 			a.toast(i18n.N(n, "Deleted %d entry", "Deleted %d entries", n))
+			a.historyChanged() // history_page.go
 		})
 	})
 }
