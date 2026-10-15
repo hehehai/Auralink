@@ -33,7 +33,8 @@ func (a *app) pages(c *ui.Context) {
 func (a *app) pageShown(path string) {
 	switch path {
 	case "/home":
-		a.loadHome() // home_page.go
+		a.hm.tryOn = false // a new visit (homeShowsTry)
+		a.loadHome()       // home_page.go
 	case "/history":
 		a.historyShown() // history_page.go
 	case "/app-enhancement":

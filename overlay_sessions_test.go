@@ -75,7 +75,8 @@ func TestOverlaySessionsStartSmall(t *testing.T) {
 		t.Run(pos, func(t *testing.T) {
 			a, _, _ := newTestApp(t)
 			ft := new(fakeTimers).install(a)
-			a.prefs.Overlay.Position = pos
+			// Saved, so that a later save (Setup.Tried) keeps it.
+			a.updateSettings(func(s *settings.Settings) { s.Overlay.Position = pos })
 			o := a.prefs.Overlay
 			pill := pillFrame(o)
 			check := func(what string, want ovStep) {

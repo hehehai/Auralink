@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/helper"
 	"github.com/hehehai/Auralink/internal/helper/proto"
+	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/permission"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
@@ -26,6 +28,17 @@ func homeTester(t *testing.T) (*app, *ui.Tester) {
 	return a, tt
 }
 
+// hasSuffix reports whether a text on screen ends with s.
+func hasSuffix(tt *ui.Tester, s string) bool {
+	frames(tt)
+	for _, x := range tt.Texts() {
+		if strings.HasSuffix(x, s) {
+			return true
+		}
+	}
+	return false
+}
+
 // allowAll makes the Microphone and Accessibility allowed, as the helper
 // would say.
 func allowAll(a *app) {
@@ -36,9 +49,8 @@ func allowAll(a *app) {
 func TestHomeReadiness(t *testing.T) {
 	a, tt := homeTester(t)
 	for _, s := range []string{
-		"Still to set up",
-		"Services · No speech service or language model is ready: set up one of each to start.",
-		"Accessibility · Without Accessibility results are copied for you to paste, and fn shortcuts do not work.",
+		"No speech service or language model is ready: set up one of each to start.",
+		"Without Accessibility results are copied for you to paste, and fn shortcuts do not work.",
 		"fn (once Accessibility is allowed)",
 		"Try it", "Today", "Recent results", "Results show here once you use a shortcut.",
 	} {
@@ -46,7 +58,11 @@ func TestHomeReadiness(t *testing.T) {
 			t.Errorf("no %q in %q", s, tt.Texts())
 		}
 	}
-	click(t, tt, "Open Model services")
+	if !hasSuffix(tt, " steps to go") {
+		t.Errorf("no steps to go: %q", tt.Texts())
+	}
+	// The whole line is the way to fix it.
+	click(t, tt, "Services: Open Model services")
 	if a.shownPath() != "/providers" {
 		t.Fatalf("went to %s", a.shownPath())
 	}
@@ -55,29 +71,198 @@ func TestHomeReadiness(t *testing.T) {
 	// A speech service only: the language model is missing.
 	a.updateSettings(func(s *settings.Settings) { s.Providers.ASR = []settings.Provider{{ID: "doubao", Enabled: true}} })
 	a.keyMasks["asr.doubao"] = "tok…abcd"
-	if !has(tt, "Language model · No language model is ready: Translate and Rewrite need one, and Transcribe types the text as recognised.") || !has(tt, "Doubao (Volcengine)") {
+	if !has(tt, "No language model is ready: Translate and Rewrite need one, and Transcribe types the text as recognised.") || !has(tt, "Doubao (Volcengine)") {
 		t.Errorf("no language model: %q", tt.Texts())
 	}
 
+	// All ready: no list at all, neither its title nor what is ready.
 	readyServices(a)
 	allowAll(a)
-	for _, s := range []string{"Ready to go", "Doubao (Volcengine)", "DeepSeek", "fn"} {
-		if !has(tt, s) {
-			t.Errorf("ready: no %q in %q", s, tt.Texts())
+	for _, s := range []string{"Doubao (Volcengine)", "DeepSeek", "Speech recognition", "Microphone"} {
+		if hasExact(tt, s) {
+			t.Errorf("ready, still %q: %q", s, tt.Texts())
 		}
 	}
-	if has(tt, "Still to set up") || hasPrefix(tt, "Accessibility · ") {
-		t.Errorf("ready, still notices: %q", tt.Texts())
+	if hasSuffix(tt, " to go") {
+		t.Errorf("ready, still the list: %q", tt.Texts())
 	}
 
 	// A shortcut macOS takes says so, and opens Transcribe.
 	a.updateSettings(func(s *settings.Settings) {
 		s.Features.Transcribe.Hotkeys = []settings.Hotkey{{Keys: "Command+Space", Trigger: settings.TriggerTap}}
 	})
-	if !has(tt, "Shortcut · Transcribe's shortcut ⌘ Space: macOS uses these keys for Spotlight.") {
+	if !has(tt, "1 step to go") || !has(tt, "Transcribe's shortcut ⌘ Space: macOS uses these keys for Spotlight.") {
 		t.Errorf("no clash: %q", tt.Texts())
 	}
-	click(t, tt, "Open Transcribe")
+	// What is ready shows again, quieter, under what is missing.
+	if !hasExact(tt, "DeepSeek") {
+		t.Errorf("not ready, no ready line: %q", tt.Texts())
+	}
+	click(t, tt, "Shortcut: Open Transcribe")
+	if a.router.Path() != "/transcribe" {
+		t.Errorf("went to %s", a.router.Path())
+	}
+}
+
+// TestHomeReadinessLive: the list comes and goes as things stop or
+// start being ready, while Home shows.
+func TestHomeReadinessLive(t *testing.T) {
+	a, tt := homeTester(t)
+	readyServices(a)
+	allowAll(a)
+	if hasSuffix(tt, " to go") {
+		t.Fatalf("ready, a list: %q", tt.Texts())
+	}
+	// Accessibility taken away.
+	a.perms.access = false
+	if !has(tt, "1 step to go") || !has(tt, "Without Accessibility results are copied for you to paste, and fn shortcuts do not work.") {
+		t.Errorf("access revoked: %q", tt.Texts())
+	}
+	a.perms.access = true
+	if hasSuffix(tt, " to go") {
+		t.Errorf("access back, still a list: %q", tt.Texts())
+	}
+	// The language model deleted.
+	a.updateSettings(func(s *settings.Settings) { s.Providers.LLM = nil })
+	if !has(tt, "1 step to go") || !has(tt, "No language model is ready: Translate and Rewrite need one, and Transcribe types the text as recognised.") {
+		t.Errorf("model deleted: %q", tt.Texts())
+	}
+	readyServices(a)
+	if hasSuffix(tt, " to go") {
+		t.Errorf("model back, still a list: %q", tt.Texts())
+	}
+	// The Microphone denied; the helper failed.
+	a.perms.mic = permission.Denied
+	a.host.sup.(*fakeSupervisor).set(helper.Status{State: helper.Failed, Reason: helper.FailCrashed, Err: "exit status 2"})
+	if !has(tt, "2 steps to go") {
+		t.Errorf("mic denied, helper failed: %q", tt.Texts())
+	}
+	// A helper that is starting is not a step.
+	a.host.sup.(*fakeSupervisor).set(helper.Status{State: helper.Starting})
+	if !has(tt, "1 step to go") {
+		t.Errorf("helper starting: %q", tt.Texts())
+	}
+}
+
+// TestHomeTryFirstUse: Home offers Try it until Auralink has given a
+// result once; then never again, the history cleared or not.
+func TestHomeTryFirstUse(t *testing.T) {
+	a, tt := homeTester(t)
+	readyServices(a)
+	allowAll(a)
+	if !hasExact(tt, "Try it") || a.prefs.Setup.Tried {
+		t.Fatalf("first use, no Try it: %q", tt.Texts())
+	}
+	// A try that is done keeps its result in view on this visit.
+	a.sessionChanged(trySnapshot(a, session.Done))
+	frames(tt)
+	if !a.prefs.Setup.Tried {
+		t.Error("a try's result did not mark Tried")
+	}
+	if !hasExact(tt, "Try it") || !has(tt, "The meeting moves to Thursday at four.") {
+		t.Errorf("the try's result went: %q", tt.Texts())
+	}
+	// Another visit: no Try it.
+	a.navigate("/history")
+	a.navigate("/home")
+	if hasExact(tt, "Try it") {
+		t.Errorf("tried, Try it on the next visit: %q", tt.Texts())
+	}
+	// The history cleared: still none.
+	a.clearHistory()
+	frames(tt)
+	if hasExact(tt, "Try it") {
+		t.Errorf("history cleared, Try it again: %q", tt.Texts())
+	}
+}
+
+// TestHomeTryGoesAfterASession: a real session's result (any feature)
+// counts as the first use too; a failure or nothing heard does not.
+func TestHomeTryGoesAfterASession(t *testing.T) {
+	a, tt := homeTester(t)
+	readyServices(a)
+	allowAll(a)
+	rev := func() uint64 { return a.sess.Rev + 1 }
+	a.sessionChanged(session.Snapshot{Rev: rev(), ID: "s1", Kind: store.KindTranslate, State: session.Recording})
+	a.sessionChanged(session.Snapshot{Rev: rev(), ID: "s1", Kind: store.KindTranslate, State: session.Done, Result: "  "})
+	a.sessionChanged(session.Snapshot{Rev: rev(), ID: "s2", Kind: store.KindRewrite, State: session.Recording})
+	a.sessionChanged(session.Snapshot{Rev: rev(), ID: "s2", Kind: store.KindRewrite, State: session.Failed})
+	if a.prefs.Setup.Tried || !hasExact(tt, "Try it") {
+		t.Fatalf("no result yet, but tried: %v %q", a.prefs.Setup.Tried, tt.Texts())
+	}
+	a.sessionChanged(session.Snapshot{Rev: rev(), ID: "s3", Kind: store.KindTranslate, State: session.Recording})
+	a.sessionChanged(session.Snapshot{Rev: rev(), ID: "s3", Kind: store.KindTranslate, State: session.Done, Result: "Hello."})
+	frames(tt)
+	if !a.prefs.Setup.Tried {
+		t.Error("a translation's result did not mark Tried")
+	}
+	// Not Home's try: the area goes at once.
+	if hasExact(tt, "Try it") {
+		t.Errorf("Try it after a session's result: %q", tt.Texts())
+	}
+}
+
+// TestHomeTryHistoryBeforeTheFlag: a history from before Tried existed
+// (an upgrade) hides Try it and sets the flag.
+func TestHomeTryHistoryBeforeTheFlag(t *testing.T) {
+	a, tt := homeTester(t)
+	readyServices(a)
+	allowAll(a)
+	seedHistory(t, a)
+	a.historyChanged()
+	frames(tt)
+	if hasExact(tt, "Try it") || !a.prefs.Setup.Tried {
+		t.Errorf("history, Try it %v tried %v: %q", hasExact(tt, "Try it"), a.prefs.Setup.Tried, tt.Texts())
+	}
+}
+
+func TestSloganHint(t *testing.T) {
+	join := func(h *settings.Hotkey) string {
+		b, k, a := sloganHint(h)
+		return b + "[" + k + "]" + a
+	}
+	for _, tc := range []struct {
+		h      *settings.Hotkey
+		en, zh string
+	}{
+		{&settings.Hotkey{Keys: "Fn", Trigger: settings.TriggerTap}, "Press [fn] to start", "按 [fn] 开始"},
+		{&settings.Hotkey{Keys: "Fn"}, "Press [fn] to start", "按 [fn] 开始"},
+		{&settings.Hotkey{Keys: "RightCommand", Trigger: settings.TriggerDouble}, "Double-press [Right ⌘] to start", "双击 [右 ⌘] 开始"},
+		{&settings.Hotkey{Keys: "Option+Space", Trigger: settings.TriggerLong}, "Hold [⌥ Space] and speak", "按住 [⌥ 空格] 说话"},
+		{nil, "Add a shortcut to start[]", "先设置一个快捷键[]"},
+	} {
+		i18n.SetLocale("en")
+		if got := join(tc.h); got != tc.en {
+			t.Errorf("en %+v: %q, want %q", tc.h, got, tc.en)
+		}
+		i18n.SetLocale("zh-Hans")
+		if got := join(tc.h); got != tc.zh {
+			t.Errorf("zh %+v: %q, want %q", tc.h, got, tc.zh)
+		}
+	}
+	i18n.SetLocale("en")
+}
+
+// TestHomeSlogan: the slogan shows Transcribe's first shortcut in a key
+// cap, and without one, a link to add it.
+func TestHomeSlogan(t *testing.T) {
+	a, tt := homeTester(t)
+	for _, s := range []string{"Speak anywhere, it types at your cursor", "Press", "fn", "to start"} {
+		if !hasExact(tt, s) {
+			t.Errorf("no %q in %q", s, tt.Texts())
+		}
+	}
+	a.updateSettings(func(s *settings.Settings) {
+		s.Features.Transcribe.Hotkeys = []settings.Hotkey{{Keys: "Option+Space", Trigger: settings.TriggerLong}, {Keys: "Fn"}}
+	})
+	if !hasExact(tt, "Hold") || !hasExact(tt, "⌥ Space") || !hasExact(tt, "and speak") {
+		t.Errorf("long: %q", tt.Texts())
+	}
+	a.updateSettings(func(s *settings.Settings) { s.Features.Transcribe.Hotkeys = nil })
+	if !hasExact(tt, "Add a shortcut to start") {
+		t.Errorf("no shortcut: %q", tt.Texts())
+	}
+	click(t, tt, "Add a shortcut to start")
 	if a.router.Path() != "/transcribe" {
 		t.Errorf("went to %s", a.router.Path())
 	}

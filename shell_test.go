@@ -309,7 +309,7 @@ func TestPermissionsMoved(t *testing.T) {
 		func() { a.navigate("/permissions") },
 		func() { a.openURL("auralink://permissions") },
 		func() { a.openURL("auralink://settings/permissions") },
-		func() { a.navigate("/home"); frames(tt); click(t, tt, "Open Permissions") },
+		func() { a.navigate("/home"); frames(tt); click(t, tt, "Accessibility: Open Permissions") },
 	} {
 		a.settingsOpen = false
 		a.navigate("/home")

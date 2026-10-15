@@ -296,6 +296,10 @@ type Dictionary struct {
 // Setup: the first-run guide (M6).
 type Setup struct {
 	Done bool `json:"done,omitempty"`
+	// Tried: a session (a try or a real one, any feature) has given a
+	// result once, or the history had one: Home stops offering its Try
+	// area. It stays when the history is cleared.
+	Tried bool `json:"tried,omitempty"`
 }
 
 // Defaults returns the settings of a fresh install. The shortcuts are

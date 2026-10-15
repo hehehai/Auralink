@@ -327,6 +327,15 @@ func tagChip(c *ui.Context, text string) ui.Element {
 		Radius(px(t, 4)).Background(k.Hover).Shrink(0)
 }
 
+// keycap is keys ("fn", "⌥ Space") as a key cap in a line of text:
+// kbd's face at the text's size, for a shortcut the line tells to press.
+func keycap(c *ui.Context, keys string) ui.Element {
+	t := c.Theme()
+	k := tok(t)
+	return ui.Text(c, keys).FontSize(px(t, fsCaption)).FontWeight(600).TextColor(k.Text).Padding(px(t, 1), px(t, 7)).
+		Radius(px(t, 5)).Background(k.Subtle).Border(1, k.Line).SingleLine().Shrink(0)
+}
+
 // chip is a filter chip: plain text, on the grey fill while on; count
 // ("" for none) follows its label in the tertiary grey.
 func chip(c *ui.Context, label, count string, on bool) ui.Element {

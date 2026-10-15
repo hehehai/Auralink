@@ -1,11 +1,13 @@
 package main
 
-// Home (/home, plan §3.1): what is still missing before Auralink can work
-// (a speech service, a language model, the Microphone, Accessibility,
-// the shortcut), each with the way to fix it; a Try area that runs a
-// whole transcription on the page (Start, or the shortcut pressed while
-// Auralink is in front); today's count of results and characters; the
-// last five results, to copy or open in History.
+// Home (/home, plan §3.1): a slogan with Transcribe's shortcut in a key
+// cap; what is still missing before Auralink can work (a speech service,
+// a language model, the Microphone, Accessibility, the shortcut), each
+// line the way to fix it, and nothing once all is ready; until Auralink
+// has given a result once, a Try area that runs a whole transcription on
+// the page (Start, or the shortcut pressed while Auralink is in front);
+// today's count of results and characters; the last five results, to
+// copy or open in History.
 //
 // Today's numbers and the recent results are read from the history in the
 // background: when Home shows, and again when a session keeps an entry
@@ -27,6 +29,7 @@ import (
 	"github.com/hehehai/Auralink/internal/permission"
 	"github.com/hehehai/Auralink/internal/providers"
 	"github.com/hehehai/Auralink/internal/session"
+	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
 )
 
@@ -46,6 +49,8 @@ type homeState struct {
 		err                  string
 		// block says why the Try area's Start did not start.
 		block *sessionNotice
+		// tryOn: the Try area showed in this visit to Home (homeShowsTry).
+		tryOn bool
 	}
 }
 
@@ -125,6 +130,9 @@ func (a *app) loadHome() {
 				return
 			}
 			hm.today, hm.recent, hm.err = st, recent, ""
+			if len(recent) > 0 {
+				a.markTried() // a history from before the flag
+			}
 		})
 	})
 }
@@ -200,39 +208,30 @@ type readiness struct {
 	ok    bool
 	warn  bool   // ok, but it waits for something another line asks for
 	text  string // ok: what is used; else what is missing
-	more  string // ⓘ
 	kind  noticeKind
-	act   func(c *ui.Context) // the way to fix it, nil for none
+	// action names the way to fix it ("" for none), which fix takes: the
+	// whole line is its button.
+	action string
+	fix    func()
 }
 
-// readinessList says what is ready and what is missing (memory only).
+// readinessList says what is ready and what is missing (memory only). A
+// helper that is starting is neither: it is ready in a moment.
 func (a *app) readinessList() []readiness {
 	var out []readiness
-	openProv := func(key string) func(c *ui.Context) {
-		return func(c *ui.Context) {
-			if ui.Button(c.Key(key), i18n.T("Open Model services")).Clicked() {
-				a.navigate("/providers")
-			}
-		}
-	}
-	openPerms := func(key string) func(c *ui.Context) {
-		return func(c *ui.Context) {
-			if ui.Button(c.Key(key), i18n.T("Open Permissions")).Clicked() {
-				a.navigate("/settings/permissions")
-			}
-		}
-	}
+	openProv := func() { a.navigate("/providers") }
+	openPerms := func() { a.navigate("/settings/permissions") }
 	f := a.prefs.Features.Transcribe.Feature
 	pa, okA := providers.Choose(a.prefs, providers.ASR, f.ASR, a.hasKey)
 	pl, okL := providers.Choose(a.prefs, providers.LLM, f.LLM, a.hasKey)
 	switch {
 	case !okA && !okL:
-		// Nothing set up: one notice, one button.
+		// Nothing set up: one line, one way.
 		out = append(out, readiness{key: "home-services", title: i18n.T("Services"), kind: noticeWarn,
-			text: i18n.T("No speech service or language model is ready: set up one of each to start."), act: openProv("home-services-open")})
+			text: i18n.T("No speech service or language model is ready: set up one of each to start."), action: i18n.T("Open Model services"), fix: openProv})
 	case !okA:
 		out = append(out, readiness{key: "home-asr", title: i18n.T("Speech recognition"), kind: noticeWarn,
-			text: i18n.T("No speech service is ready: set one up to transcribe, translate and rewrite by voice."), act: openProv("home-asr-open")})
+			text: i18n.T("No speech service is ready: set one up to transcribe, translate and rewrite by voice."), action: i18n.T("Open Model services"), fix: openProv})
 	default:
 		out = append(out, readiness{key: "home-asr", title: i18n.T("Speech recognition"), ok: true, text: providerName(providers.ASR, pa)})
 	}
@@ -240,7 +239,7 @@ func (a *app) readinessList() []readiness {
 	case !okA && !okL:
 	case !okL:
 		out = append(out, readiness{key: "home-llm", title: i18n.T("Language model"), kind: noticeWarn,
-			text: i18n.T("No language model is ready: Translate and Rewrite need one, and Transcribe types the text as recognised."), act: openProv("home-llm-open")})
+			text: i18n.T("No language model is ready: Translate and Rewrite need one, and Transcribe types the text as recognised."), action: i18n.T("Open Model services"), fix: openProv})
 	default:
 		out = append(out, readiness{key: "home-llm", title: i18n.T("Language model"), ok: true, text: providerName(providers.LLM, pl)})
 	}
@@ -251,14 +250,11 @@ func (a *app) readinessList() []readiness {
 		out = append(out, readiness{key: "home-mic", title: i18n.T("Microphone"), ok: true, text: i18n.T("Allowed")})
 	case a.perms.mic == permission.NotDetermined:
 		out = append(out, readiness{key: "home-mic", title: i18n.T("Microphone"), kind: noticeInfo,
-			text: i18n.T("macOS asks for the microphone the first time you record."), act: func(c *ui.Context) {
-				if ui.Button(c.Key("home-mic-ask"), i18n.T("Ask now")).Clicked() {
-					a.askPermission(proto.PermissionMicrophone)
-				}
-			}})
+			text: i18n.T("macOS asks for the microphone the first time you record."), action: i18n.T("Ask now"),
+			fix: func() { a.askPermission(proto.PermissionMicrophone) }})
 	default:
 		out = append(out, readiness{key: "home-mic", title: i18n.T("Microphone"), kind: noticeError,
-			text: i18n.T("Auralink may not use the microphone: allow it in System Settings."), act: openPerms("home-mic-open")})
+			text: i18n.T("Auralink may not use the microphone: allow it in System Settings."), action: i18n.T("Open Permissions"), fix: openPerms})
 	}
 	// Accessibility.
 	switch {
@@ -267,22 +263,16 @@ func (a *app) readinessList() []readiness {
 		out = append(out, readiness{key: "home-access", title: i18n.T("Accessibility"), ok: true, text: i18n.T("Allowed")})
 	default:
 		out = append(out, readiness{key: "home-access", title: i18n.T("Accessibility"), kind: noticeWarn,
-			text: i18n.T("Without Accessibility results are copied for you to paste, and fn shortcuts do not work."), act: openPerms("home-access-open")})
+			text: i18n.T("Without Accessibility results are copied for you to paste, and fn shortcuts do not work."), action: i18n.T("Open Permissions"), fix: openPerms})
 	}
 	// The shortcut.
 	out = append(out, a.shortcutReadiness())
 	// The helper.
-	switch st := a.helperStatus(); {
-	case st.State == helper.Ready:
-	case st.State == helper.Starting:
-		out = append(out, readiness{key: "home-helper", title: i18n.T("Helper"), kind: noticeInfo, text: i18n.T("Helper starting…")})
+	switch st := a.helperStatus(); st.State {
+	case helper.Ready, helper.Starting:
 	default:
 		out = append(out, readiness{key: "home-helper", title: i18n.T("Helper"), kind: noticeError,
-			text: helperFailText(st), act: func(c *ui.Context) {
-				if ui.Button(c.Key("home-helper-restart"), i18n.T("Restart the helper")).Clicked() {
-					a.restartHelper()
-				}
-			}})
+			text: helperFailText(st), action: i18n.T("Restart the helper"), fix: a.restartHelper})
 	}
 	return out
 }
@@ -291,31 +281,61 @@ func (a *app) readinessList() []readiness {
 // one, nothing else takes its keys, and the event tap it may need runs.
 func (a *app) shortcutReadiness() readiness {
 	r := readiness{key: "home-keys", title: i18n.T("Shortcut")}
-	openTr := func(c *ui.Context) {
-		if ui.Button(c.Key("home-keys-open"), i18n.T("Open Transcribe")).Clicked() {
-			a.navigate("/transcribe")
-		}
-	}
+	openTr := func() { a.navigate("/transcribe") }
 	hs := hotkey.HotkeysOf(a.prefs.Features, hotkey.Transcribe)
 	if len(hs) == 0 {
-		r.kind, r.text, r.act = noticeWarn, i18n.T("Transcribe has no shortcut: add one, or start from the menu bar."), openTr
+		r.kind, r.text, r.action, r.fix = noticeWarn, i18n.T("Transcribe has no shortcut: add one, or start from the menu bar."), i18n.T("Open Transcribe"), openTr
 		return r
 	}
 	// Its own problems only: a clash is reported on the later binding,
 	// and the first one (Transcribe's) wins.
 	for _, p := range hotkey.Check(a.prefs.Features) {
 		if p.Feature == hotkey.Transcribe && p.Index == 0 {
-			r.kind, r.text, r.act = noticeWarn, i18n.T("Transcribe's shortcut %s: %s", hotkeyText(hs[0].Keys), hotkeyProblemText(p)), openTr
+			r.kind, r.text, r.action, r.fix = noticeWarn, i18n.T("Transcribe's shortcut %s: %s", hotkeyText(hs[0].Keys), hotkeyProblemText(p)), i18n.T("Open Transcribe"), openTr
 			return r
 		}
 	}
 	r.ok, r.text = true, hotkeyText(hs[0].Keys)
 	if hotkey.NeedsTap(hs[0]) && !a.hotkeys.Installed {
-		// The Accessibility notice says what to do; the line says it waits.
+		// The Accessibility line says what to do; this one says it waits.
 		r.warn = true
 		r.text = i18n.T("%s (once Accessibility is allowed)", hotkeyText(hs[0].Keys))
 	}
 	return r
+}
+
+// homeMissing is what is still missing, from the readiness list.
+func homeMissing(list []readiness) (missing, ready []readiness) {
+	for _, r := range list {
+		if r.ok {
+			ready = append(ready, r)
+		} else {
+			missing = append(missing, r)
+		}
+	}
+	return missing, ready
+}
+
+// homeShowsTry says whether Home offers its Try area: until Auralink has
+// given a result once (Setup.Tried, or a result in the history, read
+// before the flag existed). Once shown, it stays through this visit to
+// Home while its try runs or shows a result, or says why it did not
+// start, so a finished try does not take its result away.
+func (a *app) homeShowsTry(mine bool) bool {
+	hm := &a.hm
+	if !a.prefs.Setup.Tried && len(hm.recent) == 0 {
+		hm.tryOn = true
+		return true
+	}
+	return hm.tryOn && (mine || hm.block != nil)
+}
+
+// markTried records that Auralink has given a result (Home's Try area
+// goes for good, the history cleared or not).
+func (a *app) markTried() {
+	if !a.prefs.Setup.Tried {
+		a.updateSettings(func(s *settings.Settings) { s.Setup.Tried = true })
+	}
 }
 
 func (a *app) homePage(c *ui.Context) {
@@ -337,59 +357,147 @@ func (a *app) homePage(c *ui.Context) {
 	})
 	ui.Scroll(c.Key("home-scroll")).Grow(1).MinHeight(0).Children(func() {
 		ui.Column(c).Padding(0, px(t, sp6), px(t, sp6)).Gap(px(t, sp3)).MaxWidth(px(t, 880)).Children(func() {
-			caption(c, i18n.T("Press a shortcut in any app, speak, and the text is typed where your cursor is."))
+			a.homeSlogan(c)
 			a.homeReadiness(c)
-			sectionTitle(c, i18n.T("Try it"))
-			a.tryCard(c, tryOpts{
-				prefix: "home", feature: hotkey.Transcribe, mine: a.sess.Try && a.sess.ID != "" && !a.obOwns(a.sess.ID),
-				intro: a.tryIntro(hotkey.Transcribe), block: &hm.block,
-				start: func() *sessionNotice { _, n := a.startTry(featureKind(hotkey.Transcribe)); return n },
-			})
+			mine := a.sess.Try && a.sess.ID != "" && !a.obOwns(a.sess.ID)
+			if a.homeShowsTry(mine) {
+				sectionTitle(c, i18n.T("Try it"))
+				a.tryCard(c, tryOpts{
+					prefix: "home", feature: hotkey.Transcribe, mine: mine,
+					intro: a.tryIntro(hotkey.Transcribe), block: &hm.block,
+					start: func() *sessionNotice { _, n := a.startTry(featureKind(hotkey.Transcribe)); return n },
+				})
+			}
 			a.homeToday(c)
 			a.homeRecentList(c)
 		})
 	})
 }
 
-// homeReadiness is the list of what is ready (a line each, in a card)
-// and what is not (a notice each, with the way to fix it).
+// ---- The slogan ----
+
+// sloganMark stands for the keys in a translated hint, which is cut
+// around it to put a key cap there.
+const sloganMark = "\x00"
+
+// sloganHint is the slogan's second half, how to start Transcribe with
+// its first shortcut (h, nil for none), cut around the keys: "Press ",
+// "fn", " to start". keys is "" without a shortcut: then before is the
+// whole hint.
+func sloganHint(h *settings.Hotkey) (before, keys, after string) {
+	if h == nil {
+		return i18n.T("Add a shortcut to start"), "", ""
+	}
+	var hint string
+	switch h.Trigger {
+	case settings.TriggerDouble:
+		hint = i18n.T("Double-press %s to start", sloganMark)
+	case settings.TriggerLong:
+		hint = i18n.T("Hold %s and speak", sloganMark)
+	default:
+		hint = i18n.T("Press %s to start", sloganMark)
+	}
+	before, after, _ = strings.Cut(hint, sloganMark)
+	return before, hotkeyText(h.Keys), after
+}
+
+// homeSlogan is the line under Home's title: what Auralink does, then how
+// to start it (Transcribe's shortcut in a key cap, or a link to add one).
+func (a *app) homeSlogan(c *ui.Context) {
+	t := c.Theme()
+	k := tok(t)
+	var first *settings.Hotkey
+	if hs := hotkey.HotkeysOf(a.prefs.Features, hotkey.Transcribe); len(hs) > 0 {
+		first = &hs[0]
+	}
+	before, keys, after := sloganHint(first)
+	text := func(s string, col ui.Color) {
+		if s = strings.TrimSpace(s); s != "" {
+			ui.Text(c, s).FontSize(px(t, fsBody)).TextColor(col).SingleLine()
+		}
+	}
+	ui.Row(c.Key("home-slogan")).Wrap().GapX(px(t, 6)).GapY(px(t, sp1)).AlignItems(ui.Center).Children(func() {
+		text(i18n.T("Speak anywhere, it types at your cursor"), k.Text)
+		text("·", k.Text3)
+		if keys == "" {
+			l := ui.ButtonBase(c.Key("home-slogan-add")).Label(before)
+			l.Children(func() {
+				lt := ui.Text(c, before).FontSize(px(t, fsBody)).TextColor(k.AccentInk).SingleLine()
+				if l.Hovered() {
+					lt.Underline()
+				}
+			})
+			if l.Clicked() {
+				a.navigate("/transcribe")
+			}
+			return
+		}
+		// The hint's words and its key cap, in one piece that wraps whole.
+		ui.Row(c).Gap(px(t, 6)).AlignItems(ui.Center).Shrink(0).Children(func() {
+			text(before, k.Text2)
+			keycap(c, keys)
+			text(after, k.Text2)
+		})
+	})
+}
+
+// homeReadiness is what is still missing, a line each (the whole line
+// fixes it), and below it, quieter, what is ready. Nothing when all is
+// ready: Home is then the day's numbers and the recent results.
 func (a *app) homeReadiness(c *ui.Context) {
 	t := c.Theme()
 	k := tok(t)
-	list := a.readinessList()
-	var ready, missing []readiness
-	for _, r := range list {
-		if r.ok {
-			ready = append(ready, r)
-		} else {
-			missing = append(missing, r)
-		}
-	}
+	missing, ready := homeMissing(a.readinessList())
 	if len(missing) == 0 {
-		sectionTitle(c, i18n.T("Ready to go"))
-	} else {
-		sectionTitle(c, i18n.T("Still to set up"))
+		return
 	}
-	for _, r := range missing {
-		var act func()
-		if r.act != nil {
-			act = func() { r.act(c) }
+	sectionTitle(c, i18n.N(len(missing), "%d step to go", "%d steps to go", len(missing)))
+	card(c.Key("home-missing")).Padding(px(t, sp1)).Gap(0).Children(func() {
+		for _, r := range missing {
+			ic, col := icons.InfoCircle, k.Text2
+			switch r.kind {
+			case noticeWarn:
+				ic, col = icons.DangerTriangle, k.Warning
+			case noticeError:
+				ic, col = icons.DangerCircle, k.Danger
+			}
+			row := ui.ButtonBase(c.Key(r.key)).Padding(px(t, sp2), px(t, sp3)).Radius(px(t, radiusControl)).
+				Gap(px(t, sp3)).AlignItems(ui.Center).Label(i18n.T("%s: %s", r.title, r.action)).Tooltip(r.action).Disabled(r.fix == nil)
+			if row.Hovered() && r.fix != nil {
+				row.Background(k.Hover)
+			}
+			row.Children(func() {
+				ui.Icon(c, ic.Linear).Size(px(t, 16), px(t, 16)).TextColor(col).Shrink(0)
+				ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 2)).Children(func() {
+					ui.Text(c, r.title).FontWeight(600).SingleLine().Ellipsis("…").MinWidth(0)
+					ui.Text(c, r.text).FontSize(px(t, fsCaption)).TextColor(k.Text2).MinWidth(0)
+				})
+				if r.fix != nil {
+					ui.Row(c).Gap(px(t, 2)).AlignItems(ui.Center).Shrink(0).Children(func() {
+						ui.Text(c, r.action).FontSize(px(t, fsCaption)).TextColor(k.Text2).SingleLine()
+						ui.Icon(c, icons.AltArrowRight.Linear).Size(px(t, 14), px(t, 14)).TextColor(k.Text3)
+					})
+				}
+			})
+			if row.Clicked() && r.fix != nil {
+				r.fix()
+			}
 		}
-		notice(c, r.key, r.kind, r.title+" · "+r.text, r.more, act, nil)
-	}
+	})
 	if len(ready) == 0 {
 		return
 	}
-	ui.Row(c.Key("home-ready")).Wrap().GapX(px(t, sp4)).GapY(px(t, sp1)).Padding(px(t, sp1), px(t, 2)).Children(func() {
+	// What is ready, quieter: a mark and a name each.
+	ui.Row(c.Key("home-ready")).Wrap().GapX(px(t, sp4)).GapY(px(t, sp1)).Padding(0, px(t, sp1)).Children(func() {
 		for _, r := range ready {
-			ui.Row(c.Key(r.key)).Gap(px(t, 6)).AlignItems(ui.Center).MinWidth(0).Children(func() {
-				if r.warn {
-					ui.Icon(c, icons.DangerTriangle.Linear).Size(px(t, 14), px(t, 14)).TextColor(k.Warning).Shrink(0)
-				} else {
-					ui.Icon(c, icons.CheckCircle.Linear).Size(px(t, 14), px(t, 14)).TextColor(k.Success).Shrink(0)
-				}
-				ui.Text(c, r.title).FontSize(px(t, fsCaption)).TextColor(k.Text2).SingleLine()
-				ui.Text(c, r.text).FontSize(px(t, fsCaption)).SingleLine().Ellipsis("…").MinWidth(0).MaxWidth(px(t, 220)).Tooltip(r.text)
+			ic, col := icons.CheckCircle, k.Success
+			if r.warn {
+				ic, col = icons.DangerTriangle, k.Warning
+			}
+			ui.Row(c.Key(r.key)).Gap(px(t, 6)).AlignItems(ui.Center).MinWidth(0).Tooltip(r.text).Children(func() {
+				ui.Icon(c, ic.Linear).Size(px(t, 14), px(t, 14)).TextColor(col).Shrink(0)
+				ui.Text(c, r.title).FontSize(px(t, fsCaption)).TextColor(k.Text3).SingleLine()
+				ui.Text(c, r.text).FontSize(px(t, fsCaption)).TextColor(k.Text2).SingleLine().Ellipsis("…").MinWidth(0).MaxWidth(px(t, 220))
 			})
 		}
 	})
@@ -451,7 +559,9 @@ func (a *app) homeRecentList(c *ui.Context) {
 	t := c.Theme()
 	k := tok(t)
 	hm := &a.hm
-	ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Margin(px(t, sp2), 0, 0, 0).Children(func() {
+	// No margin above, unlike sectionTitle's: Open History's face makes
+	// the row taller than its title, which keeps Today's distance.
+	ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
 		sectionTitleText(c, i18n.T("Recent results")).Grow(1)
 		if ghostButton(c.Key("home-history"), i18n.T("Open History")).Clicked() {
 			a.navigate("/history")

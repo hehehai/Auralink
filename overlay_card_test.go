@@ -96,7 +96,8 @@ func TestAnswerCardStates(t *testing.T) {
 	for _, pos := range []string{"bottom", "top"} {
 		t.Run(pos, func(t *testing.T) {
 			a, _, _ := newTestApp(t)
-			a.prefs.Overlay.Position = pos
+			// Saved, so that a later save (Setup.Tried) keeps it.
+			a.updateSettings(func(s *settings.Settings) { s.Overlay.Position = pos })
 			for _, st := range cardSteps() {
 				st.apply(a)
 				a.overlaySync()
@@ -297,7 +298,8 @@ func TestLanguageMenuPlace(t *testing.T) {
 	for _, pos := range []string{"bottom", "top"} {
 		t.Run(pos, func(t *testing.T) {
 			a, _, _ := newTestApp(t)
-			a.prefs.Overlay.Position = pos
+			// Saved, so that a later save (Setup.Tried) keeps it.
+			a.updateSettings(func(s *settings.Settings) { s.Overlay.Position = pos })
 			cardSteps()[3].apply(a) // a translation in the card
 			a.overlaySync()
 			card := a.ov.frame
