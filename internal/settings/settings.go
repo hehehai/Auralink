@@ -1,0 +1,281 @@
+// Package settings is the user's preferences: one typed, versioned
+// document (Settings), stored as JSON in the store's documents table under
+// Key, read from memory by any goroutine, changed through Service.Update
+// and announced with Changed on the core.Bus.
+//
+// Version 1 is Auralink's first: it owes nothing to Voxt's UserDefaults
+// keys and has no migration code yet. A field added later reads as its
+// zero value in an older document until Migrate fills it in, so zero
+// values must be valid.
+//
+// Fields that only hold a place for a later milestone say which one owns
+// them (M2 providers, M3 sessions and hotkeys, M4 translate and rewrite, M5
+// app enhancement and the dictionary, M6 the overlay and onboarding);
+// nothing reads them before that milestone does.
+//
+// Not settings: API keys live in the macOS Keychain (internal/secrets);
+// app enhancement rules are a document of their own ("appctx:rules", M5);
+// window geometry stays with MyGo (WindowOptions.StateKey).
+//
+// Imports: nothing internal (Changed satisfies core.Event structurally).
+package settings
+
+import (
+	"context"
+	"encoding/json"
+)
+
+// Version is the schema version Defaults writes. Bump it when a field's
+// meaning changes, and migrate older documents in Migrate.
+const Version = 1
+
+// Settings is the whole document.
+type Settings struct {
+	Version    int        `json:"version"`
+	General    General    `json:"general"`
+	Appearance Appearance `json:"appearance"`
+	Network    Network    `json:"network"`
+	Privacy    Privacy    `json:"privacy"`
+	Audio      Audio      `json:"audio"`
+	Overlay    Overlay    `json:"overlay"`
+	// Providers are the ASR and LLM services set up on the Models page
+	// (M2); their keys are in the Keychain as "asr.<id>" and "llm.<id>".
+	Providers      Providers      `json:"providers"`
+	Features       Features       `json:"features"`
+	AppEnhancement AppEnhancement `json:"appEnhancement"`
+	Dictionary     Dictionary     `json:"dictionary"`
+	Setup          Setup          `json:"setup"`
+}
+
+// General: languages and how the app stays around.
+type General struct {
+	// Language is the UI language as a BCP-47 tag ("en", "zh-Hans"), or ""
+	// to follow the system (mygo.App.Locale()); see i18n.Match.
+	Language string `json:"language"`
+	// MainLanguage is the language the user mostly speaks and writes (a
+	// lang code, "zh"); OtherLanguages the ones they mix in. The prompt
+	// composer fills {{USER_MAIN_LANGUAGE}} and {{USER_OTHER_LANGUAGES}}
+	// with them (M3), and translation defaults its target from them (M4).
+	// "" = from the UI language.
+	MainLanguage   string   `json:"mainLanguage,omitempty"`
+	OtherLanguages []string `json:"otherLanguages,omitempty"`
+	// LaunchAtLogin opens Auralink when the user logs in (M6).
+	LaunchAtLogin bool `json:"launchAtLogin,omitempty"`
+	// MenuBar shows the menu bar icon; CloseToTray keeps Auralink running
+	// there when its window closes, so the shortcuts keep working.
+	MenuBar     bool `json:"menuBar"`
+	CloseToTray bool `json:"closeToTray"`
+}
+
+// Appearance: theme, scale and the sidebar.
+type Appearance struct {
+	Theme        string  `json:"theme"`        // "system" | "light" | "dark"
+	Scale        float64 `json:"scale"`        // UI scale, 0.9–1.25 (1 = 100 %)
+	ReduceMotion bool    `json:"reduceMotion"` // in addition to the system setting
+	// Rail shows the sidebar as icons only; SidebarWidth is its width in
+	// DIPs at 100 % (0 = the default); ClosedSections the sidebar sections
+	// the user closed.
+	Rail           bool     `json:"rail,omitempty"`
+	SidebarWidth   float64  `json:"sidebarWidth,omitempty"`
+	ClosedSections []string `json:"closedSections,omitempty"`
+}
+
+// Network: how Auralink reaches the providers.
+type Network struct {
+	// Proxy: "" = automatic (the environment, then the macOS system
+	// proxy), ProxyDirect, or a proxy URL (http, https, socks5).
+	Proxy string `json:"proxy,omitempty"`
+}
+
+// ProxyDirect is Network.Proxy for no proxy at all.
+const ProxyDirect = "direct"
+
+// Privacy: what Auralink keeps on this Mac and what it logs.
+type Privacy struct {
+	// KeepHistory saves each result in the history; KeepAudio also saves
+	// its recording (M3).
+	KeepHistory bool `json:"keepHistory"`
+	KeepAudio   bool `json:"keepAudio"`
+	// LogText writes recognised and generated text to the log; off, the
+	// log has only lengths and timings (M3).
+	LogText bool `json:"logText,omitempty"`
+}
+
+// Audio: the microphone and the sounds around a recording (M3).
+type Audio struct {
+	// Devices are capture device ids in the user's order of preference;
+	// the first one present records, else the system's default input.
+	Devices []string `json:"devices,omitempty"`
+	// MuteOutput lowers the system's output while recording, restoring
+	// only what Auralink changed (P1). Sounds plays start and end cues.
+	MuteOutput bool `json:"muteOutput,omitempty"`
+	Sounds     bool `json:"sounds"`
+}
+
+// Overlay: the recording overlay's place and look (M6).
+type Overlay struct {
+	Position string  `json:"position"` // "bottom" | "top"
+	Opacity  float64 `json:"opacity"`  // 0.5–1
+	Radius   float64 `json:"radius"`   // DIPs
+	Margin   float64 `json:"margin"`   // DIPs from the screen's edge
+}
+
+// Providers lists the configured speech and language services (M2).
+type Providers struct {
+	ASR []Provider `json:"asr,omitempty"`
+	LLM []Provider `json:"llm,omitempty"`
+}
+
+// Provider is one configured service; its key is in the Keychain.
+type Provider struct {
+	ID      string `json:"id"`               // unique within its list, also the Keychain account suffix
+	Preset  string `json:"preset,omitempty"` // "openai", "doubao", "dashscope", "deepseek"…
+	Name    string `json:"name,omitempty"`
+	BaseURL string `json:"baseURL,omitempty"`
+	Model   string `json:"model,omitempty"`
+}
+
+// Hotkey is one binding of a feature: the keys ("Fn", "Fn+Shift",
+// "Control+Command+V") and how they trigger (M3 owns the grammar).
+type Hotkey struct {
+	Keys    string `json:"keys"`
+	Trigger string `json:"trigger,omitempty"` // TriggerTap (default) | TriggerDouble | TriggerLong
+}
+
+// Hotkey triggers.
+const (
+	TriggerTap    = "tap"
+	TriggerDouble = "double"
+	TriggerLong   = "long"
+)
+
+// Features: the three features and the shared paste-last shortcut.
+type Features struct {
+	Transcribe Transcribe `json:"transcribe"`
+	Translate  Translate  `json:"translate"`
+	Rewrite    Rewrite    `json:"rewrite"`
+	// PasteLast pastes the latest result again (⌃⌘V).
+	PasteLast Hotkey `json:"pasteLast"`
+}
+
+// Feature is what every feature has: its shortcuts, the providers it uses
+// (Provider.ID; "" = the first configured) and the user's addition to its
+// task prompt, which the composer merges with the built-in rules.
+type Feature struct {
+	Hotkeys []Hotkey `json:"hotkeys,omitempty"`
+	ASR     string   `json:"asr,omitempty"`
+	LLM     string   `json:"llm,omitempty"`
+	Prompt  string   `json:"prompt,omitempty"`
+}
+
+// Transcribe: speech → text, inserted where the cursor is (M3).
+type Transcribe struct {
+	Feature
+	// Enhance runs the LLM over the transcript; Cleanup and Structure
+	// are the composer's capability layers it uses.
+	Enhance   bool `json:"enhance"`
+	Cleanup   bool `json:"cleanup"`
+	Structure bool `json:"structure,omitempty"`
+}
+
+// Translate: speech or selected text → a translation (M4).
+type Translate struct {
+	Feature
+	Cleanup bool `json:"cleanup"`
+	// Target is the language to translate into (a lang code); "" = from
+	// General.MainLanguage.
+	Target string `json:"target,omitempty"`
+	// ShowCard shows the result in a card instead of inserting it.
+	ShowCard bool `json:"showCard,omitempty"`
+}
+
+// Rewrite: a spoken instruction rewrites the selection, or writes new
+// text when nothing is selected (M4).
+type Rewrite struct {
+	Feature
+	// CardChars: a result longer than this shows in the answer card
+	// instead of being inserted.
+	CardChars int `json:"cardChars"`
+}
+
+// AppEnhancement: scene rules by app and URL (M5). The groups are the
+// document "appctx:rules"; these are the switches around them.
+type AppEnhancement struct {
+	Enabled bool `json:"enabled"`
+	// Browsers are browsers the user added to the built-in ones, whose
+	// tab URL Auralink tries to read.
+	Browsers []Browser `json:"browsers,omitempty"`
+}
+
+// Browser is a browser by bundle id.
+type Browser struct {
+	BundleID string `json:"bundleID"`
+	Name     string `json:"name,omitempty"`
+}
+
+// Dictionary: the user's terms (M5). The terms are a table of the store
+// (dictionary_terms); these say where they go.
+type Dictionary struct {
+	Enabled bool `json:"enabled"`
+	// ASRHints sends the terms to the speech service as hints; Glossary
+	// adds them to the LLM prompt.
+	ASRHints bool `json:"asrHints"`
+	Glossary bool `json:"glossary"`
+}
+
+// Setup: the first-run guide (M6).
+type Setup struct {
+	Done bool `json:"done,omitempty"`
+}
+
+// Defaults returns the settings of a fresh install. The shortcuts are
+// Voxt's (plan D2): fn transcribes, fn+Shift translates, fn+Control
+// rewrites, Control+Command+V pastes the last result.
+func Defaults() Settings {
+	return Settings{
+		Version:    Version,
+		General:    General{MenuBar: true, CloseToTray: true},
+		Appearance: Appearance{Theme: "system", Scale: 1},
+		Privacy:    Privacy{KeepHistory: true},
+		Audio:      Audio{Sounds: true},
+		Overlay:    Overlay{Position: "bottom", Opacity: 1, Radius: 16, Margin: 96},
+		Features: Features{
+			Transcribe: Transcribe{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn", Trigger: TriggerTap}}}, Enhance: true, Cleanup: true},
+			Translate:  Translate{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn+Shift", Trigger: TriggerTap}}}, Cleanup: true},
+			Rewrite:    Rewrite{Feature: Feature{Hotkeys: []Hotkey{{Keys: "Fn+Control", Trigger: TriggerTap}}}, CardChars: 400},
+			PasteLast:  Hotkey{Keys: "Control+Command+V", Trigger: TriggerTap},
+		},
+		AppEnhancement: AppEnhancement{Enabled: true},
+		Dictionary:     Dictionary{Enabled: true, ASRHints: true, Glossary: true},
+	}
+}
+
+// Migrate reads a stored document, fills what it lacks with the defaults
+// and brings it to Version. Unknown fields are dropped.
+func Migrate(data []byte) (Settings, error) {
+	s := Defaults()
+	if len(data) == 0 {
+		return s, nil
+	}
+	if err := json.Unmarshal(data, &s); err != nil {
+		return Defaults(), err
+	}
+	// Version 1 is the first; later versions add their steps here.
+	s.Version = Version
+	return normalize(s), nil
+}
+
+// Changed is published after an update is saved. Topic "settings.changed".
+type Changed struct{ Old, New Settings }
+
+func (Changed) Topic() string { return "settings.changed" }
+
+// Service holds the current settings. Goroutine-safe.
+type Service interface {
+	// Get returns the current settings: a copy, from memory (no I/O), so
+	// views may call it while building.
+	Get() Settings
+	// Update applies fn to a copy, saves it, swaps it in and publishes
+	// Changed; a no-op change publishes nothing. fn must not block.
+	Update(ctx context.Context, fn func(*Settings)) error
+}
