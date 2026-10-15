@@ -63,7 +63,6 @@ public struct LogParams: Codable, Sendable {
 public enum PermissionName {
     public static let microphone = "microphone"
     public static let accessibility = "accessibility"
-    public static let automation = "automation"
 }
 
 public struct PermissionsResult: Codable, Sendable {
@@ -403,14 +402,15 @@ public struct PasteResult: Codable, Sendable {
     }
 }
 
-// MARK: browser.url, automation.*
+// MARK: browser.url
 
 public struct BrowserURLParams: Codable, Sendable {
     public var bundleId: String?
+    public var pid: Int?
 }
 
 public enum URLVia {
-    public static let appleScript = "applescript"
+    public static let axFocus = "ax-focus"
     public static let axDocument = "ax-document"
     public static let axWebURL = "ax-weburl"
     public static let none = "none"
@@ -421,74 +421,42 @@ public struct BrowserURLResult: Codable, Sendable {
     public var url: String?
     public var via: String
     public var ms: Double
-    public var appleScriptMs: Double?
-    public var axMs: Double?
-    public var automation: String?
     public var error: String?
 
-    public init(bundleId: String, url: String? = nil, via: String = URLVia.none, ms: Double = 0, appleScriptMs: Double? = nil,
-                axMs: Double? = nil, automation: String? = nil, error: String? = nil) {
+    public init(bundleId: String, url: String? = nil, via: String = URLVia.none, ms: Double = 0, error: String? = nil) {
         self.bundleId = bundleId
         self.url = url
         self.via = via
         self.ms = ms
-        self.appleScriptMs = appleScriptMs
-        self.axMs = axMs
-        self.automation = automation
         self.error = error
     }
 }
 
-public struct AutomationProbeParams: Codable, Sendable {
-    public var bundleIds: [String]?
+// MARK: app.list
+
+public struct AppListParams: Codable, Sendable {
+    public var installed: Bool?
 }
 
-public enum AutomationStateName {
-    public static let granted = "granted"
-    public static let denied = "denied"
-    public static let notDetermined = "notDetermined"
-    public static let notRunning = "notRunning"
-    public static let notInstalled = "notInstalled"
-    public static let unknown = "unknown"
-
-    /// The state of an AEDeterminePermissionToAutomateTarget status.
-    public static func of(_ code: Int) -> String {
-        switch code {
-        case 0: granted
-        case -1743: denied // errAEEventNotPermitted
-        case -1744: notDetermined // errAEEventWouldRequireUserConsent
-        case -600: notRunning // procNotFound
-        default: unknown
-        }
-    }
-}
-
-public struct AutomationState: Codable, Sendable {
+public struct AppInfo: Codable, Sendable, Equatable {
     public var bundleId: String
     public var name: String
-    public var installed: Bool
     public var running: Bool
-    public var state: String
-    public var code: Int
+    public var pid: Int?
+    public var path: String?
 
-    public init(bundleId: String, name: String, installed: Bool, running: Bool, state: String, code: Int) {
+    public init(bundleId: String, name: String, running: Bool, pid: Int? = nil, path: String? = nil) {
         self.bundleId = bundleId
         self.name = name
-        self.installed = installed
         self.running = running
-        self.state = state
-        self.code = code
+        self.pid = pid
+        self.path = path
     }
 }
 
-public struct AutomationProbeResult: Codable, Sendable {
-    public var browsers: [AutomationState]
-    public init(browsers: [AutomationState]) { self.browsers = browsers }
-}
-
-public struct AutomationRequestParams: Codable, Sendable {
-    public var bundleId: String
-    public var launch: Bool?
+public struct AppListResult: Codable, Sendable {
+    public var apps: [AppInfo]
+    public init(apps: [AppInfo]) { self.apps = apps }
 }
 
 // MARK: - Types by method (the fixture tests; the server's routing)
@@ -509,8 +477,7 @@ public enum WireTypes {
         case Method.textSelection: SelectionParams.self
         case Method.textPaste: PasteParams.self
         case Method.browserURL: BrowserURLParams.self
-        case Method.automationProbe: AutomationProbeParams.self
-        case Method.automationRequest: AutomationRequestParams.self
+        case Method.appList: AppListParams.self
         case Method.captureStarted: CaptureStartedParams.self
         case Method.captureLevel: LevelParams.self
         case Method.capturePCM: PCMParams.self
@@ -539,8 +506,7 @@ public enum WireTypes {
         case Method.textSelection: SelectionResult.self
         case Method.textPaste: PasteResult.self
         case Method.browserURL: BrowserURLResult.self
-        case Method.automationProbe: AutomationProbeResult.self
-        case Method.automationRequest: AutomationState.self
+        case Method.appList: AppListResult.self
         default: nil
         }
     }

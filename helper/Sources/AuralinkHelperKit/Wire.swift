@@ -34,9 +34,8 @@ public enum Method {
     public static let textFocus = "textio.focus"
     public static let textSelection = "textio.selection"
     public static let textPaste = "textio.paste"
+    public static let appList = "app.list"
     public static let browserURL = "browser.url"
-    public static let automationProbe = "automation.probe"
-    public static let automationRequest = "automation.request"
     // Notifications, helper → app.
     public static let captureStarted = "capture.started"
     public static let captureLevel = "capture.level"
@@ -51,8 +50,8 @@ public enum Method {
     public static let requests = [
         hello, shutdown, jobCancel, permissionsStatus, permissionsRequest,
         captureDevices, captureStart, captureStop, hotkeyConfigure, hotkeyStatus,
-        appFrontmost, textFocus, textSelection, textPaste,
-        browserURL, automationProbe, automationRequest,
+        appFrontmost, appList, textFocus, textSelection, textPaste,
+        browserURL,
     ]
     public static let notifications = [
         captureStarted, captureLevel, capturePCM, captureRestarted, hotkeyEvent, hotkeyState, appActivated, log,

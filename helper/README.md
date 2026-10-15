@@ -6,7 +6,7 @@ The small Swift process Auralink runs beside its window, for what MyGo cannot do
 - **hotkeys**: watch the keyboard with a CGEventTap, so that `fn`, a single modifier, chords, double taps and long presses can be shortcuts, deciding on the tap's thread whether to swallow each key (`hotkey.*`);
 - **text in and out**: what is focused in the app in front, its selected text (Accessibility, else ⌘C when the app allows), and pasting through the clipboard with keys after it and the clipboard put back (`textio.*`);
 - **the app in front**: kept from NSWorkspace and told to the app (`app.frontmost`, `app.activated`, and `front` in each `hotkey.event`);
-- **browser URLs**: the front tab's URL by AppleScript when allowed, else the Accessibility tree, and each browser's Automation permission (`browser.url`, `automation.*`);
+- **browser URLs**: the front tab's URL from the Accessibility tree only, with no Automation consent to ask (`browser.url`), and the apps to pick from for app enhancement (`app.list`);
 - **permissions**: the Microphone and Accessibility as the helper sees them, and macOS's prompts (`permissions.*`).
 
 It speaks [helper protocol 1](../docs/helper-protocol.md) over stdin and stdout; `internal/helper` supervises it (handshake, restarts, stderr to `~/Library/Logs/Auralink/helper.log`, call timings). The helper keeps no settings: Go decides (which device, when ⌘C may run, the delays, the keys) and passes it in the params. Its shapes come from the M0 spikes on a Mac (the project's `research/spikes.md`).
@@ -22,14 +22,14 @@ helper/
     Wire.swift, WireTypes.swift   the protocol (mirror of internal/helper/proto)
     HotkeyRecognizer.swift        chords, taps, double taps, long presses, swallowing
     PCMFramer.swift               PCM16 frames and levels
-    Browsers.swift                the browsers it scripts
+    Apps.swift                    app.list's merge; the web area around the focus
   Sources/AuralinkHelper/    the executable:
     main.swift, Server.swift      stdin/stdout, hello, routing, the capture job, slow-request lines
     Capture.swift                 AVAudioEngine, devices, watchdog
     Hotkey.swift                  the event tap
     FrontApps.swift               the app in front, AXManualAccessibility for Electron apps
     TextIO.swift                  focus, selection, paste
-    Browser.swift                 AppleScript, AX URLs, Automation
+    Browser.swift                 browser URLs (AX), app.list
     Permissions.swift             Microphone, Accessibility
   Tests/AuralinkHelperKitTests/  FixtureTests (helper/Fixtures), the recognizer, the framer
   Fixtures/                  golden transcripts, shared with Go
@@ -46,7 +46,7 @@ scripts/build-helper.sh --out DIR        # elsewhere: a helper outside the app (
 cd helper && swift test                  # the Kit: fixtures, recognizer, framer
 ```
 
-`go tool mygo build` ships `resources/darwin-arm64/helper/auralink-helper` as `Auralink.app/Contents/Resources/helper/auralink-helper`, signed with `Support/helper.entitlements` (mygo.json `macos.helperEntitlements`: the microphone and Apple Events under the hardened runtime). The version in `Support/Info.plist` follows mygo.json's (the build script checks).
+`go tool mygo build` ships `resources/darwin-arm64/helper/auralink-helper` as `Auralink.app/Contents/Resources/helper/auralink-helper`, signed with `Support/helper.entitlements` (mygo.json `macos.helperEntitlements`: the microphone under the hardened runtime). The version in `Support/Info.plist` follows mygo.json's (the build script checks).
 
 Without Xcode, the fake helper stands in (it records a tone): `go build -o /tmp/fakehelper ./internal/helper/helpertest/cmd/fakehelper`, then `AURALINK_HELPER=/tmp/fakehelper`.
 
@@ -56,7 +56,7 @@ The helper answers on a terminal too (its permissions are then the terminal's, n
 
 ```sh
 printf '%s\n' '{"id":"1","method":"helper.hello","params":{"protocol":1,"app":"cli"}}' \
-  '{"id":"2","method":"capture.devices"}' '{"id":"3","method":"automation.probe"}' \
+  '{"id":"2","method":"capture.devices"}' '{"id":"3","method":"browser.url","params":{"bundleId":"com.google.Chrome"}}' \
   | helper/.build/debug/auralink-helper
 ```
 

@@ -4,3 +4,7 @@
 {"to":"app","msg":{"method":"app.activated","params":{"pid":77}}}
 {"to":"helper","msg":{"id":"c4","method":"app.frontmost"}}
 {"to":"app","msg":{"id":"c4","result":{"pid":77}}}
+{"to":"helper","msg":{"id":"c5","method":"app.list"}}
+{"to":"app","msg":{"id":"c5","result":{"apps":[{"bundleId":"com.google.Chrome","name":"Google Chrome","running":true,"pid":901,"path":"/Applications/Google Chrome.app"},{"bundleId":"com.tinyspeck.slackmacgap","name":"Slack","running":true,"pid":812,"path":"/Applications/Slack.app"}]}}}
+{"to":"helper","msg":{"id":"c6","method":"app.list","params":{"installed":true}}}
+{"to":"app","msg":{"id":"c6","result":{"apps":[{"bundleId":"com.apple.Notes","name":"Notes","running":false,"path":"/System/Applications/Notes.app"},{"bundleId":"com.google.Chrome","name":"Google Chrome","running":true,"pid":901,"path":"/Applications/Google Chrome.app"},{"bundleId":"com.tinyspeck.slackmacgap","name":"Slack","running":true,"pid":812,"path":"/Applications/Slack.app"}]}}}

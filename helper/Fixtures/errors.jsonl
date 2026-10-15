@@ -23,5 +23,3 @@
 {"to":"app","msg":{"id":"c11","error":{"code":"timeout","message":"The app in front did not answer Accessibility within 1 s"}}}
 {"to":"helper","msg":{"id":"c12","method":"capture.devices"}}
 {"to":"app","msg":{"id":"c12","error":{"code":"internal","message":"AudioObjectGetPropertyData failed: -10875"}}}
-{"to":"helper","msg":{"id":"c13","method":"automation.request","params":{"bundleId":"org.mozilla.firefox"}}}
-{"to":"app","msg":{"id":"c13","error":{"code":"unsupported","message":"org.mozilla.firefox is not a browser Auralink can script","data":{"capability":"automation.request"}}}}

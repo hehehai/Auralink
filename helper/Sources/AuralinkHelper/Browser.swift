@@ -1,218 +1,156 @@
 import AppKit
 import ApplicationServices
 import AuralinkHelperKit
-import Carbon
 import Foundation
 
-// The URL of a browser's front tab, for app enhancement's URL rules.
-// NSAppleScript when Auralink may script the browser (the user's
-// Automation consent, asked once per browser by macOS), then
-// Accessibility: the focused window's AXDocument, or the AXURL of its web
-// area (no consent needed; Safari in the background has neither).
+// The URL of a browser's front tab, for app enhancement's URL rules,
+// through Accessibility only: no AppleScript, so no Automation consent to
+// ask per browser (the user's choice, 2026-10-15). In order:
 //
-// AppleScript never runs without consent: on a browser not determined yet
-// it would make macOS prompt out of the blue. The state is probed without
-// prompting (AEDeterminePermissionToAutomateTarget, 9–235 ms), kept, and
-// probed again as the browser comes to the front. Compiled scripts are
-// kept too (compiling costs 50–500 ms); they run on the main thread.
+//  1. the AXURL of the outermost AXWebArea around the focused element:
+//     the tab the user types in (also in a split view; an iframe's web
+//     area inside it is skipped);
+//  2. the focused (else main) window's AXDocument: Chromium browsers and
+//     Safari name the front tab's address there;
+//  3. the AXURL of the window's first AXWebArea, breadth first (Arc).
+//
+// Every browser goes the same way: Safari, the Chromium family (Chrome,
+// Edge, Brave, Arc, Vivaldi, Opera), Firefox, and the browsers the user
+// adds. The calls run on a queue of their own (Accessibility is
+// thread-safe), each element answering within the messaging timeout.
 
-@MainActor private var compiled: [String: NSAppleScript] = [:]
+enum Browser {
+    private static let queue = DispatchQueue(label: "auralink.browser", qos: .userInitiated, attributes: .concurrent)
 
-final class Browser: @unchecked Sendable {
-    private let lock = NSLock()
-    private var states: [String: Int] = [:] // bundle id → AEDeterminePermission status
-    private let probeQueue = DispatchQueue(label: "auralink.automation", qos: .userInitiated, attributes: .concurrent)
+    /// Nodes the breadth-first search visits at most.
+    static let maxNodes = 400
 
-    /// An app came to the front: refresh a known browser's state.
-    func activated(_ app: App) {
-        guard let id = app.bundleId, knownBrowser(id) != nil else { return }
-        let code = Int(automationStatus(id, ask: false))
-        lock.withLock { states[id] = code }
-    }
-
-    /// The Automation status of a browser, probed when not known.
-    private func state(_ id: String) async -> Int {
-        if let s = lock.withLock({ states[id] }), s != -600 { return s }
-        let code = await probeCode(id, ask: false)
-        lock.withLock { states[id] = code }
-        return code
-    }
-
-    private func probeCode(_ id: String, ask: Bool) async -> Int {
-        await withCheckedContinuation { k in
-            probeQueue.async { k.resume(returning: Int(automationStatus(id, ask: ask))) }
-        }
-    }
-
-    func url(_ bundleID: String) async -> BrowserURLResult {
+    static func url(_ p: BrowserURLParams, front: FrontApps) async -> BrowserURLResult {
         let t0 = monotonicMs()
-        var r = BrowserURLResult(bundleId: bundleID)
-        guard !bundleID.isEmpty,
-              let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first(where: { !$0.isTerminated }) else {
-            r.error = "\(bundleID.isEmpty ? "no app" : bundleID) is not running"
-            r.ms = monotonicMs() - t0
-            return r
+        var app: NSRunningApplication?
+        if let pid = p.pid, pid > 0 {
+            app = NSRunningApplication(processIdentifier: pid_t(pid))
+        } else if let id = p.bundleId, !id.isEmpty {
+            app = NSRunningApplication.runningApplications(withBundleIdentifier: id).first { !$0.isTerminated }
+        } else {
+            let f = await front.current()
+            if f.pid > 0 { app = NSRunningApplication(processIdentifier: pid_t(f.pid)) }
         }
-        if let b = knownBrowser(bundleID) {
-            let code = await state(bundleID)
-            if code == 0 {
-                let a0 = monotonicMs()
-                let (url, err, msg) = await runScripts(b.scripts)
-                r.appleScriptMs = round1(monotonicMs() - a0)
-                if let url {
-                    r.url = url
-                    r.via = URLVia.appleScript
-                } else {
-                    r.error = "AppleScript \(err ?? 0): \(msg ?? "no URL")"
-                    if let err, isFinalAppleScriptError(err) {
-                        lock.withLock { states[bundleID] = err }
-                        r.automation = AutomationStateName.of(err)
-                    }
-                }
-            } else {
-                r.automation = AutomationStateName.of(code)
-            }
+        let bundleID = app?.bundleIdentifier ?? p.bundleId ?? ""
+        guard let app, !app.isTerminated else {
+            return BrowserURLResult(bundleId: bundleID, ms: round1(monotonicMs() - t0),
+                                    error: "\(bundleID.isEmpty ? "the app" : bundleID) is not running")
         }
-        if r.url == nil {
-            let a0 = monotonicMs()
-            let (url, via, err) = axURL(pid: app.processIdentifier)
-            r.axMs = round1(monotonicMs() - a0)
-            if let url {
-                r.url = url
-                r.via = via
-                r.error = nil
-            } else if let err {
-                r.error = err
-            }
+        guard AXIsProcessTrusted() else {
+            return BrowserURLResult(bundleId: bundleID, ms: round1(monotonicMs() - t0), error: "Accessibility is not allowed")
         }
-        r.ms = round1(monotonicMs() - t0)
-        return r
+        let pid = app.processIdentifier
+        let (url, via, err) = await withCheckedContinuation { k in
+            queue.async { k.resume(returning: read(pid: pid)) }
+        }
+        return BrowserURLResult(bundleId: bundleID, url: url, via: via, ms: round1(monotonicMs() - t0), error: url == nil ? err : nil)
     }
 
-    /// Runs the scripts in order on the main thread, compiled once.
-    private func runScripts(_ sources: [String]) async -> (String?, Int?, String?) {
-        await onMain {
-            var lastErr: Int?
-            var lastMsg: String?
-            for source in sources {
-                let script: NSAppleScript
-                if let s = compiled[source] {
-                    script = s
-                } else {
-                    guard let s = NSAppleScript(source: "with timeout of 1 seconds\n\(source)\nend timeout") else { continue }
-                    var cerr: NSDictionary?
-                    s.compileAndReturnError(&cerr)
-                    compiled[source] = s
-                    script = s
-                }
-                var err: NSDictionary?
-                let out = script.executeAndReturnError(&err)
-                if let s = out.stringValue, !s.isEmpty { return (s, nil, nil) }
-                lastErr = err?[NSAppleScript.errorNumber] as? Int
-                lastMsg = err?[NSAppleScript.errorMessage] as? String
-                if isFinalAppleScriptError(lastErr) { break }
-            }
-            return (nil, lastErr, lastMsg)
-        }
+    private static func attribute(_ e: AXUIElement, _ name: String) -> CFTypeRef? {
+        var v: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(e, name as CFString, &v) == .success else { return nil }
+        return v
     }
 
-    /// The focused window's AXDocument, else the AXURL of the first web area.
-    private func axURL(pid: pid_t) -> (String?, String, String?) {
-        guard AXIsProcessTrusted() else { return (nil, URLVia.none, "Accessibility is not allowed") }
+    private static func element(_ v: CFTypeRef?) -> AXUIElement? {
+        guard let v, CFGetTypeID(v) == AXUIElementGetTypeID() else { return nil }
+        return (v as! AXUIElement)
+    }
+
+    private static func role(_ e: AXUIElement) -> String { attribute(e, kAXRoleAttribute) as? String ?? "" }
+
+    /// A web area's address.
+    private static func webURL(_ e: AXUIElement) -> String? {
+        let v = attribute(e, kAXURLAttribute)
+        if let u = v as? URL { return u.absoluteString }
+        if let s = v as? String, !s.isEmpty { return s }
+        return nil
+    }
+
+    private static func read(pid: pid_t) -> (String?, String, String) {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, 0.3)
-        var winRef: CFTypeRef?
-        var st = AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &winRef)
-        if st != .success {
-            st = AXUIElementCopyAttributeValue(app, kAXMainWindowAttribute as CFString, &winRef)
+        // 1. Around the focus.
+        if let focused = element(attribute(app, kAXFocusedUIElementAttribute)) {
+            var chain: [AXUIElement] = []
+            var roles: [String] = []
+            var e: AXUIElement? = focused
+            while let cur = e, chain.count < 60 {
+                let r = role(cur)
+                chain.append(cur)
+                roles.append(r)
+                if r == kAXWindowRole as String || r == kAXApplicationRole as String { break }
+                e = element(attribute(cur, kAXParentAttribute))
+            }
+            if let i = outermost(roles, role: "AXWebArea"), let url = webURL(chain[i]) {
+                return (url, URLVia.axFocus, "")
+            }
         }
-        guard st == .success, let winRef, CFGetTypeID(winRef) == AXUIElementGetTypeID() else {
-            return (nil, URLVia.none, "no focused window (\(st.rawValue))")
+        // 2. The window's document.
+        guard let win = element(attribute(app, kAXFocusedWindowAttribute)) ?? element(attribute(app, kAXMainWindowAttribute)) else {
+            return (nil, URLVia.none, "no focused window")
         }
-        let win = winRef as! AXUIElement
-        var doc: CFTypeRef?
-        if AXUIElementCopyAttributeValue(win, kAXDocumentAttribute as CFString, &doc) == .success, let s = doc as? String, !s.isEmpty {
-            return (s, URLVia.axDocument, nil)
+        if let s = attribute(win, kAXDocumentAttribute) as? String, !s.isEmpty {
+            return (s, URLVia.axDocument, "")
         }
-        // Breadth-first for an AXWebArea with an AXURL.
+        // 3. The first web area, breadth first.
         var queue: [AXUIElement] = [win]
         var seen = 0
-        while !queue.isEmpty, seen < 400 {
+        while !queue.isEmpty, seen < maxNodes {
             let e = queue.removeFirst()
             seen += 1
-            var role: CFTypeRef?
-            AXUIElementCopyAttributeValue(e, kAXRoleAttribute as CFString, &role)
-            if (role as? String) == "AXWebArea" {
-                var u: CFTypeRef?
-                if AXUIElementCopyAttributeValue(e, kAXURLAttribute as CFString, &u) == .success {
-                    if let url = u as? URL { return (url.absoluteString, URLVia.axWebURL, nil) }
-                    if let s = u as? String { return (s, URLVia.axWebURL, nil) }
-                }
+            if role(e) == "AXWebArea" {
+                if let url = webURL(e) { return (url, URLVia.axWebURL, "") }
+                continue
             }
-            var kids: CFTypeRef?
-            if AXUIElementCopyAttributeValue(e, kAXChildrenAttribute as CFString, &kids) == .success, let arr = kids as? [AXUIElement] {
-                queue.append(contentsOf: arr)
+            if let kids = attribute(e, kAXChildrenAttribute) as? [AXUIElement] {
+                queue.append(contentsOf: kids)
             }
         }
         return (nil, URLVia.none, "no AXDocument or web area URL (visited \(seen))")
     }
-
-    /// Each browser's state, without prompting (in parallel).
-    func probe(_ ids: [String]?) async -> AutomationProbeResult {
-        let list = (ids?.isEmpty ?? true) ? knownBrowsers.map(\.bundleID) : ids!
-        let states = await withTaskGroup(of: (Int, AutomationState).self) { group in
-            for (i, id) in list.enumerated() {
-                group.addTask { (i, await self.describe(id, ask: false)) }
-            }
-            var out: [(Int, AutomationState)] = []
-            for await s in group { out.append(s) }
-            return out.sorted { $0.0 < $1.0 }.map(\.1)
-        }
-        return AutomationProbeResult(browsers: states)
-    }
-
-    /// Asks macOS (it prompts once per browser) and waits for the answer.
-    /// macOS answers only for a running browser: launch opens it first,
-    /// in the background.
-    func request(_ id: String, launch: Bool) async throws -> AutomationState {
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else {
-            throw RPCError(Code.unsupported, "\(id) is not installed", data: .object(["capability": .string(Method.automationRequest)]))
-        }
-        if launch, !isRunning(id) {
-            let config = NSWorkspace.OpenConfiguration()
-            config.activates = false
-            config.hides = true
-            _ = try? await NSWorkspace.shared.openApplication(at: url, configuration: config)
-            // Apple Events reach it a moment after it is running.
-            for _ in 0 ..< 50 where !isRunning(id) {
-                try? await Task.sleep(nanoseconds: 100_000_000)
-            }
-            try? await Task.sleep(nanoseconds: 500_000_000)
-        }
-        return await describe(id, ask: true)
-    }
-
-    private func isRunning(_ id: String) -> Bool {
-        NSRunningApplication.runningApplications(withBundleIdentifier: id).contains { !$0.isTerminated }
-    }
-
-    private func describe(_ id: String, ask: Bool) async -> AutomationState {
-        let name = knownBrowser(id)?.name ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)
-            .map { FileManager.default.displayName(atPath: $0.path).replacingOccurrences(of: ".app", with: "") } ?? id
-        let installed = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) != nil
-        guard installed else {
-            return AutomationState(bundleId: id, name: name, installed: false, running: false, state: AutomationStateName.notInstalled, code: 0)
-        }
-        let code = await probeCode(id, ask: ask)
-        lock.withLock { states[id] = code }
-        return AutomationState(bundleId: id, name: name, installed: true, running: isRunning(id), state: AutomationStateName.of(code), code: code)
-    }
 }
 
-func automationStatus(_ bundleID: String, ask: Bool) -> OSStatus {
-    let target = NSAppleEventDescriptor(bundleIdentifier: bundleID)
-    guard let desc = target.aeDesc else { return OSStatus(errAEEventNotPermitted) }
-    return AEDeterminePermissionToAutomateTarget(desc, AEEventClass(typeWildCard), AEEventID(typeWildCard), ask)
+/// The apps to pick from (app.list): the regular running apps, and with
+/// installed the bundles in the Applications folders (one level of
+/// folders down: /Applications/Utilities, a vendor's folder).
+enum AppList {
+    static func list(installed: Bool) async -> AppListResult {
+        let running = await onMain {
+            NSWorkspace.shared.runningApplications.compactMap { a -> AppInfo? in
+                guard a.activationPolicy == .regular, let id = a.bundleIdentifier, !a.isTerminated else { return nil }
+                return AppInfo(bundleId: id, name: a.localizedName ?? id, running: true, pid: Int(a.processIdentifier), path: a.bundleURL?.path)
+            }
+        }
+        var found: [AppInfo] = []
+        if installed {
+            let fm = FileManager.default
+            let roots = ["/Applications", "/System/Applications", "/System/Volumes/Preboot/Cryptexes/App/System/Applications",
+                         NSHomeDirectory() + "/Applications"]
+            func add(_ url: URL) {
+                guard let b = Bundle(url: url), let id = b.bundleIdentifier else { return }
+                let name = fm.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
+                found.append(AppInfo(bundleId: id, name: name, running: false, path: url.path))
+            }
+            for root in roots {
+                guard let items = try? fm.contentsOfDirectory(at: URL(fileURLWithPath: root), includingPropertiesForKeys: [.isDirectoryKey]) else { continue }
+                for item in items {
+                    if item.pathExtension == "app" {
+                        add(item)
+                    } else if (try? item.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true,
+                              let inner = try? fm.contentsOfDirectory(at: item, includingPropertiesForKeys: nil) {
+                        for app in inner where app.pathExtension == "app" { add(app) }
+                    }
+                }
+            }
+        }
+        return AppListResult(apps: mergeApps(running: running, installed: found))
+    }
 }
 
 func round1(_ v: Double) -> Double { (v * 10).rounded() / 10 }

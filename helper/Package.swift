@@ -7,12 +7,12 @@ import PackageDescription
 // (AVAudioEngine), the global hotkey event tap (CGEventTap, which must decide
 // synchronously whether to swallow a key), text in and out of the app in
 // front (Accessibility, the clipboard, posted keys) and browser URLs
-// (NSAppleScript, Accessibility). JSON lines over stdin/stdout: helper
+// (Accessibility). JSON lines over stdin/stdout: helper
 // protocol 1 (docs/helper-protocol.md).
 //
 // No third-party dependencies; `swift build -c release` takes seconds
 // (scripts/build-helper.sh). AuralinkHelperKit holds the pure logic (the
-// wire types, the hotkey recognizer, PCM framing, the browser table), so
+// wire types, the hotkey recognizer, PCM framing, the app list), so
 // `swift test` covers it without permissions, against helper/Fixtures.
 
 /// The helper's own Info.plist, linked into the binary: it names the

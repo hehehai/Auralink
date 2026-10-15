@@ -100,27 +100,23 @@ func TestHandshakeAndControl(t *testing.T) {
 		t.Fatalf("devices %+v %v", devs, err)
 	}
 	u, err := request[proto.BrowserURLResult](t, h, proto.MethodBrowserURL, proto.BrowserURLParams{BundleID: "com.google.Chrome"})
-	if err != nil || !strings.HasPrefix(u.URL, "https://mail.google.com/") || u.Via != proto.URLViaAppleScript {
+	if err != nil || !strings.HasPrefix(u.URL, "https://mail.google.com/") || u.Via != proto.URLViaAXDocument {
 		t.Errorf("url %+v %v", u, err)
 	}
-	// Not a browser, or not allowed to script it.
-	if u, err := request[proto.BrowserURLResult](t, h, proto.MethodBrowserURL, proto.BrowserURLParams{BundleID: "org.mozilla.firefox"}); err != nil || u.URL != "" || u.Via != proto.URLViaNone {
+	// By pid (the shortcut's front), and an app with no address.
+	if u, err := request[proto.BrowserURLResult](t, h, proto.MethodBrowserURL, proto.BrowserURLParams{PID: 903}); err != nil || u.BundleID != "company.thebrowser.Browser" || !strings.HasPrefix(u.URL, "https://linear.app/") {
+		t.Errorf("arc by pid: %+v %v", u, err)
+	}
+	if u, err := request[proto.BrowserURLResult](t, h, proto.MethodBrowserURL, proto.BrowserURLParams{BundleID: "org.mozilla.firefox"}); err != nil || u.URL != "" || u.Via != proto.URLViaNone || u.Error == "" {
 		t.Errorf("firefox: %+v %v", u, err)
 	}
-	if u, err := request[proto.BrowserURLResult](t, h, proto.MethodBrowserURL, proto.BrowserURLParams{BundleID: "com.apple.Safari"}); err != nil || u.Via != proto.URLViaAXWebURL || u.Automation != proto.AutomationNotDetermined {
-		t.Errorf("safari: %+v %v", u, err)
+	apps, err := request[proto.AppListResult](t, h, proto.MethodAppList, nil)
+	if err != nil || len(apps.Apps) != 5 || apps.Apps[0].Name != "Arc" || !apps.Apps[0].Running {
+		t.Errorf("app.list %+v %v", apps, err)
 	}
-	probe, err := request[proto.AutomationProbeResult](t, h, proto.MethodAutomationProbe, proto.AutomationProbeParams{BundleIDs: []string{"com.apple.Safari", "com.brave.Browser", "org.mozilla.firefox"}})
-	if err != nil || len(probe.Browsers) != 3 || probe.Browsers[0].State != proto.AutomationNotDetermined || probe.Browsers[1].State != proto.AutomationDenied ||
-		probe.Browsers[2].State != proto.AutomationNotInstalled || probe.Browsers[1].Code != -1743 {
-		t.Errorf("probe %+v %v", probe, err)
-	}
-	asked, err := request[proto.AutomationState](t, h, proto.MethodAutomationRequest, proto.AutomationRequestParams{BundleID: "com.apple.Safari", Launch: true})
-	if err != nil || asked.State != proto.AutomationGranted || asked.Name != "Safari" {
-		t.Errorf("request %+v %v", asked, err)
-	}
-	if _, err := request[proto.AutomationState](t, h, proto.MethodAutomationRequest, proto.AutomationRequestParams{BundleID: "org.mozilla.firefox"}); !errors.Is(err, &proto.Error{Code: proto.CodeUnsupported}) {
-		t.Errorf("firefox request: %v", err)
+	all, err := request[proto.AppListResult](t, h, proto.MethodAppList, proto.AppListParams{Installed: true})
+	if err != nil || len(all.Apps) != 8 {
+		t.Errorf("app.list installed %+v %v", all, err)
 	}
 	front, err := request[proto.App](t, h, proto.MethodAppFrontmost, nil)
 	if err != nil || front.BundleID != "com.tinyspeck.slackmacgap" || front.PID != 812 {
@@ -569,7 +565,7 @@ func TestReplayFixtures(t *testing.T) {
 			h.ready(t)
 			u, err := request[proto.BrowserURLResult](t, h, proto.MethodBrowserURL, proto.BrowserURLParams{BundleID: "com.google.Chrome"})
 			if strings.HasSuffix(path, "browser.jsonl") {
-				if err != nil || u.URL != "https://mail.google.com/mail/u/0/#inbox" || u.Via != proto.URLViaAppleScript {
+				if err != nil || u.URL != "https://mail.google.com/mail/u/0/#inbox" || u.Via != proto.URLViaAXDocument {
 					t.Errorf("replayed url %+v %v", u, err)
 				}
 				return

@@ -5,9 +5,8 @@
 // and HIServices through purego (no cgo); elsewhere Native knows nothing,
 // so the app's tests run on Linux with Fake.
 //
-// The Automation permission (Apple Events to each browser, for app
-// enhancement's URL rules) is the helper's: see helper/proto's
-// automation.probe.
+// There is no Automation permission: browser addresses (app
+// enhancement's URL rules) are read through Accessibility.
 //
 // (The darwin code is AudioSmith's internal/dictation, permissions only.)
 //

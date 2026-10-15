@@ -6,7 +6,7 @@ import Foundation
 // when stdin closes or on helper.shutdown.
 //
 // The main thread runs the main run loop: NSWorkspace's notifications,
-// NSAppleScript and NSPasteboard live there. Requests are read on a
+// and NSPasteboard live there. Requests are read on a
 // thread of their own (Server.serve).
 
 let out = Writer()

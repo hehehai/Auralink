@@ -1,12 +1,10 @@
 {"to":"helper","msg":{"id":"c10","method":"browser.url","params":{"bundleId":"com.google.Chrome"}}}
-{"to":"app","msg":{"id":"c10","result":{"bundleId":"com.google.Chrome","url":"https://mail.google.com/mail/u/0/#inbox","via":"applescript","ms":6.1,"appleScriptMs":5.8}}}
-{"to":"helper","msg":{"id":"c11","method":"browser.url"}}
-{"to":"app","msg":{"id":"c11","result":{"bundleId":"company.thebrowser.Browser","url":"https://linear.app/team/issue/AUR-12","via":"ax-weburl","ms":31.2,"axMs":30.9,"automation":"notDetermined"}}}
-{"to":"helper","msg":{"id":"c12","method":"browser.url","params":{"bundleId":"com.apple.Safari"}}}
-{"to":"app","msg":{"id":"c12","result":{"bundleId":"com.apple.Safari","via":"none","ms":42.7,"axMs":42.5,"automation":"denied","error":"no AXDocument or web area URL (visited 27)"}}}
-{"to":"helper","msg":{"id":"c13","method":"automation.probe","params":{"bundleIds":["com.apple.Safari","com.google.Chrome","com.microsoft.edgemac","com.brave.Browser","company.thebrowser.Browser"]}}}
-{"to":"app","msg":{"id":"c13","result":{"browsers":[{"bundleId":"com.apple.Safari","name":"Safari","installed":true,"running":false,"state":"notRunning","code":-600},{"bundleId":"com.google.Chrome","name":"Google Chrome","installed":true,"running":true,"state":"granted","code":0},{"bundleId":"com.microsoft.edgemac","name":"Microsoft Edge","installed":false,"running":false,"state":"notInstalled","code":0},{"bundleId":"com.brave.Browser","name":"Brave Browser","installed":true,"running":true,"state":"denied","code":-1743},{"bundleId":"company.thebrowser.Browser","name":"Arc","installed":true,"running":true,"state":"notDetermined","code":-1744}]}}}
-{"to":"helper","msg":{"id":"c14","method":"automation.probe"}}
-{"to":"app","msg":{"id":"c14","result":{"browsers":[{"bundleId":"com.apple.Safari","name":"Safari","installed":true,"running":false,"state":"notRunning","code":-600}]}}}
-{"to":"helper","msg":{"id":"c15","method":"automation.request","params":{"bundleId":"com.apple.Safari","launch":true}}}
-{"to":"app","msg":{"id":"c15","result":{"bundleId":"com.apple.Safari","name":"Safari","installed":true,"running":true,"state":"granted","code":0}}}
+{"to":"app","msg":{"id":"c10","result":{"bundleId":"com.google.Chrome","url":"https://mail.google.com/mail/u/0/#inbox","via":"ax-document","ms":31.4}}}
+{"to":"helper","msg":{"id":"c11","method":"browser.url","params":{"pid":903}}}
+{"to":"app","msg":{"id":"c11","result":{"bundleId":"company.thebrowser.Browser","url":"https://linear.app/team/issue/AUR-12","via":"ax-focus","ms":12.6}}}
+{"to":"helper","msg":{"id":"c12","method":"browser.url"}}
+{"to":"app","msg":{"id":"c12","result":{"bundleId":"com.apple.Safari","url":"https://developer.apple.com/documentation/","via":"ax-weburl","ms":44.9}}}
+{"to":"helper","msg":{"id":"c13","method":"browser.url","params":{"bundleId":"com.apple.Safari"}}}
+{"to":"app","msg":{"id":"c13","result":{"bundleId":"com.apple.Safari","via":"none","ms":42.7,"error":"no AXDocument or web area URL (visited 27)"}}}
+{"to":"helper","msg":{"id":"c14","method":"browser.url","params":{"bundleId":"org.mozilla.firefox"}}}
+{"to":"app","msg":{"id":"c14","result":{"bundleId":"org.mozilla.firefox","via":"none","ms":0.2,"error":"org.mozilla.firefox is not running"}}}

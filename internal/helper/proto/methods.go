@@ -33,9 +33,9 @@ const (
 	MethodTextSelection = "textio.selection" // request: the selected text (Accessibility, else ⌘C when allowed)
 	MethodTextPaste     = "textio.paste"     // request: insert text through the clipboard and ⌘V, then restore it
 
-	MethodBrowserURL        = "browser.url"        // request: the front tab's URL of a browser
-	MethodAutomationProbe   = "automation.probe"   // request: may Auralink script these browsers? (never prompts)
-	MethodAutomationRequest = "automation.request" // request: ask macOS for one browser (prompts once)
+	MethodAppList = "app.list" // request: running (and installed) apps, to pick from
+
+	MethodBrowserURL = "browser.url" // request: the front tab's URL of a browser (Accessibility only)
 
 	// Notifications, helper → app.
 	MethodCaptureStarted   = "capture.started"   // a capture.start job records: which device, how long it took
@@ -125,7 +125,6 @@ type PermissionsRequestParams struct {
 const (
 	PermissionMicrophone    = "microphone"
 	PermissionAccessibility = "accessibility"
-	PermissionAutomation    = "automation"
 )
 
 // ---- capture.* ----
@@ -447,75 +446,59 @@ type PasteResult struct {
 	Front          *App    `json:"front,omitempty"` // when not posted: the app in front
 }
 
-// ---- browser.url, automation.* ----
+// ---- browser.url ----
 
-// BrowserURLParams asks a browser for its front tab's URL: AppleScript
-// when Auralink may script it (it never makes macOS prompt), then the
-// Accessibility tree (the window's AXDocument, a web area's AXURL).
+// BrowserURLParams asks for the front tab's URL of a browser, read
+// through Accessibility only (no AppleScript, no Automation consent): the
+// web area that holds the focus, the focused window's AXDocument, then the
+// first web area's AXURL. PID picks the process (the hotkey's front);
+// else BundleID's first running one; neither: the app in front.
 type BrowserURLParams struct {
-	BundleID string `json:"bundleId,omitempty"` // default: the app in front
+	BundleID string `json:"bundleId,omitempty"`
+	PID      int    `json:"pid,omitempty"`
 }
 
-// BrowserURLResult is the URL ("" when none was read) and how.
+// BrowserURLResult is the URL ("" when none was read) and how. A URL is
+// used only to match app enhancement rules, never sent to a model.
 type BrowserURLResult struct {
 	BundleID string  `json:"bundleId"`
 	URL      string  `json:"url,omitempty"`
 	Via      string  `json:"via"` // URLVia*
 	MS       float64 `json:"ms"`
-	// AppleScriptMS and AXMS time each way tried. Automation is the
-	// browser's Automation state when AppleScript was not used (or failed);
-	// Error the last failure, for the log.
-	AppleScriptMS float64 `json:"appleScriptMs,omitempty"`
-	AXMS          float64 `json:"axMs,omitempty"`
-	Automation    string  `json:"automation,omitempty"`
-	Error         string  `json:"error,omitempty"`
+	// Error says why none was read, for the log and the App enhancement
+	// page ("no focused window", "no web area").
+	Error string `json:"error,omitempty"`
 }
 
 // How a URL was read.
 const (
-	URLViaAppleScript = "applescript"
-	URLViaAXDocument  = "ax-document"
-	URLViaAXWebURL    = "ax-weburl"
-	URLViaNone        = "none"
+	URLViaAXFocus    = "ax-focus"    // the AXURL of the web area around the focused element
+	URLViaAXDocument = "ax-document" // the focused window's AXDocument
+	URLViaAXWebURL   = "ax-weburl"   // the AXURL of the window's first web area
+	URLViaNone       = "none"
 )
 
-// AutomationProbeParams asks whether Auralink may send Apple Events to
-// each browser, without prompting. Empty: the browsers the helper knows.
-type AutomationProbeParams struct {
-	BundleIDs []string `json:"bundleIds,omitempty"`
+// ---- app.list ----
+
+// AppListParams lists apps: the running ones (regular apps, with a Dock
+// icon), and with Installed also those in /Applications,
+// /System/Applications and ~/Applications (one level of folders down).
+type AppListParams struct {
+	Installed bool `json:"installed,omitempty"`
 }
 
-// AutomationProbeResult lists a state per browser, in the order asked.
-type AutomationProbeResult struct {
-	Browsers []AutomationState `json:"browsers"`
+// AppListResult lists apps by name, each bundle id once.
+type AppListResult struct {
+	Apps []AppInfo `json:"apps"`
 }
 
-// AutomationState is one browser's Automation permission.
-type AutomationState struct {
-	BundleID  string `json:"bundleId"`
-	Name      string `json:"name"`
-	Installed bool   `json:"installed"`
-	Running   bool   `json:"running"`
-	State     string `json:"state"` // Automation*
-	Code      int    `json:"code"`  // AEDeterminePermissionToAutomateTarget's status
-}
-
-// Automation states.
-const (
-	AutomationGranted       = "granted"
-	AutomationDenied        = "denied"
-	AutomationNotDetermined = "notDetermined"
-	AutomationNotRunning    = "notRunning" // macOS answers only for a running app
-	AutomationNotInstalled  = "notInstalled"
-	AutomationUnknown       = "unknown"
-)
-
-// AutomationRequestParams makes macOS ask the user once whether Auralink
-// may script the browser, and waits for the answer. macOS asks only for a
-// running browser: Launch opens it first (in the background).
-type AutomationRequestParams struct {
+// AppInfo is an app the user may pick (App enhancement's members).
+type AppInfo struct {
 	BundleID string `json:"bundleId"`
-	Launch   bool   `json:"launch,omitempty"`
+	Name     string `json:"name"`
+	Running  bool   `json:"running"`
+	PID      int    `json:"pid,omitempty"`  // when running
+	Path     string `json:"path,omitempty"` // its bundle
 }
 
 // ParamsFor returns a new value of the params type of method, or nil for
@@ -543,10 +526,8 @@ func ParamsFor(method string) any {
 		return new(PasteParams)
 	case MethodBrowserURL:
 		return new(BrowserURLParams)
-	case MethodAutomationProbe:
-		return new(AutomationProbeParams)
-	case MethodAutomationRequest:
-		return new(AutomationRequestParams)
+	case MethodAppList:
+		return new(AppListParams)
 	case MethodCaptureStarted:
 		return new(CaptureStartedParams)
 	case MethodCaptureLevel:
@@ -596,10 +577,8 @@ func ResultFor(method string) any {
 		return new(PasteResult)
 	case MethodBrowserURL:
 		return new(BrowserURLResult)
-	case MethodAutomationProbe:
-		return new(AutomationProbeResult)
-	case MethodAutomationRequest:
-		return new(AutomationState)
+	case MethodAppList:
+		return new(AppListResult)
 	}
 	return nil
 }
@@ -612,9 +591,9 @@ var (
 		MethodPermissionsStatus, MethodPermissionsRequest,
 		MethodCaptureDevices, MethodCaptureStart, MethodCaptureStop,
 		MethodHotkeyConfigure, MethodHotkeyStatus,
-		MethodAppFrontmost,
+		MethodAppFrontmost, MethodAppList,
 		MethodTextFocus, MethodTextSelection, MethodTextPaste,
-		MethodBrowserURL, MethodAutomationProbe, MethodAutomationRequest,
+		MethodBrowserURL,
 	}
 	Notifications = []string{
 		MethodCaptureStarted, MethodCaptureLevel, MethodCapturePCM, MethodCaptureRestarted,

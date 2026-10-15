@@ -169,10 +169,10 @@ const (
 	CodeProtocolMismatch  = "protocol_mismatch"  // hello with a protocol the helper does not speak; data: {"supported":[1]}
 	CodeBusy              = "busy"               // a recording is running already
 	CodeCancelled         = "cancelled"          // the job was cancelled (job.cancel or shutdown)
-	CodePermissionDenied  = "permission_denied"  // macOS refused a permission; data: {"permission":"microphone"|"accessibility"|"automation"}
+	CodePermissionDenied  = "permission_denied"  // macOS refused a permission; data: {"permission":"microphone"|"accessibility"}
 	CodeDeviceUnavailable = "device_unavailable" // no input device works (the chosen one and the default failed); data: {"device":"…"}
-	CodeUnsupported       = "unsupported"        // the app cannot do it: a browser that is not scriptable; data: {"capability":"…"}
-	CodeTimeout           = "timeout"            // the helper gave up waiting on macOS (an AppleScript that did not answer)
+	CodeUnsupported       = "unsupported"        // the helper cannot do it on this Mac; data: {"capability":"…"}
+	CodeTimeout           = "timeout"            // the helper gave up waiting on macOS (an app that did not answer Accessibility)
 	CodeInternal          = "internal"           // anything else; message carries the detail
 )
 

@@ -10,8 +10,7 @@
     "minimumSystemVersion": "15.0",
     "infoPlist": {
       "LSApplicationCategoryType": "public.app-category.productivity",
-      "NSMicrophoneUsageDescription": "Auralink records your voice while you hold its shortcut and sends the audio to the speech service you set up. 录音只在你按下快捷键时进行，并发送给你配置的语音识别服务。",
-      "NSAppleEventsUsageDescription": "Auralink reads the address of the browser tab in front to pick the scene rules you set for that site. The address is never sent to a model. Auralink 读取当前浏览器标签页的网址，用来匹配你为该网站设置的场景规则；网址不会发送给模型。"
+      "NSMicrophoneUsageDescription": "Auralink records your voice while you hold its shortcut and sends the audio to the speech service you set up. 录音只在你按下快捷键时进行，并发送给你配置的语音识别服务。"
     },
     "helperEntitlements": {
       "helper/auralink-helper": "helper/Support/helper.entitlements"

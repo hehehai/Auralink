@@ -156,13 +156,27 @@ final class FixtureTests: XCTestCase {
         XCTAssertThrowsError(try bad.decodeParams(PasteParams.self)) { XCTAssertEqual(($0 as? RPCError)?.code, Code.badRequest) }
     }
 
-    func testAutomationStateNames() {
-        XCTAssertEqual(AutomationStateName.of(0), "granted")
-        XCTAssertEqual(AutomationStateName.of(-1743), "denied")
-        XCTAssertEqual(AutomationStateName.of(-1744), "notDetermined")
-        XCTAssertEqual(AutomationStateName.of(-600), "notRunning")
-        XCTAssertEqual(AutomationStateName.of(-50), "unknown")
-        XCTAssertNotNil(knownBrowser("com.google.Chrome"))
-        XCTAssertNil(knownBrowser("org.mozilla.firefox"))
+    func testMergeApps() {
+        let running = [
+            AppInfo(bundleId: "com.tinyspeck.slackmacgap", name: "Slack", running: true, pid: 812, path: "/Applications/Slack.app"),
+            AppInfo(bundleId: "com.google.Chrome", name: "Google Chrome", running: true, pid: 901),
+        ]
+        let installed = [
+            AppInfo(bundleId: "com.google.chrome", name: "Google Chrome", running: false, path: "/Applications/Google Chrome.app"),
+            AppInfo(bundleId: "com.apple.Notes", name: "notes", running: false, path: "/System/Applications/Notes.app"),
+            AppInfo(bundleId: "", name: "No id", running: false),
+        ]
+        let apps = mergeApps(running: running, installed: installed)
+        XCTAssertEqual(apps.map(\.bundleId), ["com.google.Chrome", "com.apple.Notes", "com.tinyspeck.slackmacgap"])
+        XCTAssertEqual(apps[0].path, "/Applications/Google Chrome.app") // the running one, with the installed one's path
+        XCTAssertTrue(apps[0].running)
+        XCTAssertEqual(apps[0].pid, 901)
+    }
+
+    func testOutermostWebArea() {
+        // The focused element's ancestors, nearest first: an iframe's web
+        // area inside the page's.
+        XCTAssertEqual(outermost(["AXTextArea", "AXGroup", "AXWebArea", "AXGroup", "AXWebArea", "AXScrollArea", "AXWindow"], role: "AXWebArea"), 4)
+        XCTAssertNil(outermost(["AXTextField", "AXToolbar", "AXWindow"], role: "AXWebArea"))
     }
 }

@@ -19,7 +19,7 @@
 // time as capture.pcm frames and capture.level; hotkey.configure installs
 // a pretend tap and can play a script of notifications (events=, press=);
 // textio.* read a scripted selection and log what they paste (paste-log=);
-// browser.url and automation.* answer from Browsers and AutomationStates.
+// browser.url answers from Browsers, app.list from Apps and Installed.
 // (From AudioSmith's engine/enginetest, with the helper's methods.)
 package helpertest
 
@@ -51,6 +51,7 @@ package helpertest
 //	readonly         textio.focus: the focused element is not editable
 //	paste-log=PATH   append each textio.paste's params to PATH (JSON lines)
 //	delay=METHOD:MS  answer METHOD MS ms late (slow calls)
+//	no-url[=BUNDLE]  browser.url reads no URL (of BUNDLE, or of every browser)
 //	replay=PATH      replay a fixture transcript (helper/Fixtures/*.jsonl)
 //
 // A capture.start whose first device is "crash" exits 3 after its first
@@ -126,20 +127,12 @@ var Browsers = map[string]string{
 	"company.thebrowser.Browser": "https://linear.app/team/issue/AUR-12",
 }
 
-// AutomationStates are what automation.probe answers; automation.request
-// grants what is not determined or not running. Others are not installed.
-var AutomationStates = map[string]string{
-	"com.apple.Safari":           proto.AutomationNotDetermined,
-	"com.google.Chrome":          proto.AutomationGranted,
-	"com.microsoft.edgemac":      proto.AutomationNotRunning,
-	"com.brave.Browser":          proto.AutomationDenied,
-	"company.thebrowser.Browser": proto.AutomationGranted,
-}
-
-// BrowserNames name the browsers of AutomationStates.
-var BrowserNames = map[string]string{
-	"com.apple.Safari": "Safari", "com.google.Chrome": "Google Chrome", "com.microsoft.edgemac": "Microsoft Edge",
-	"com.brave.Browser": "Brave Browser", "company.thebrowser.Browser": "Arc",
+// Installed are apps the fake lists with app.list's installed, besides
+// Apps (which run).
+var Installed = []proto.AppInfo{
+	{BundleID: "com.apple.Notes", Name: "Notes", Path: "/System/Applications/Notes.app"},
+	{BundleID: "com.microsoft.edgemac", Name: "Microsoft Edge", Path: "/Applications/Microsoft Edge.app"},
+	{BundleID: "com.apple.mail", Name: "Mail", Path: "/System/Applications/Mail.app"},
 }
 
 // Script is one line of an events= script.
@@ -163,7 +156,6 @@ type fake struct {
 	installed bool
 	scripted  bool // the events= script and press= ran
 	hkActive  bool
-	auto      map[string]string
 	running   map[string]bool          // capture jobs
 	cancel    map[string]bool          // asked to stop by job.cancel
 	stop      map[string]chan struct{} // closed by capture.stop
@@ -184,11 +176,8 @@ func Run(optString string) {
 		}
 	}
 	f := &fake{opts: opts, out: bufio.NewWriter(os.Stdout), start: time.Now(), mic: proto.PermGranted, trusted: true,
-		auto: map[string]string{}, running: map[string]bool{}, cancel: map[string]bool{},
+		running: map[string]bool{}, cancel: map[string]bool{},
 		stop: map[string]chan struct{}{}, finished: map[string]chan struct{}{}}
-	for k, v := range AutomationStates {
-		f.auto[k] = v
-	}
 	if v, ok := opts["mic"]; ok {
 		f.mic = v
 	}
@@ -364,53 +353,39 @@ func (f *fake) serve(m proto.Message) {
 	case proto.MethodBrowserURL:
 		var p proto.BrowserURLParams
 		m.DecodeParams(&p)
+		if p.PID != 0 {
+			for _, app := range Apps {
+				if app.PID == p.PID {
+					p.BundleID = app.BundleID
+				}
+			}
+		}
 		if p.BundleID == "" {
 			p.BundleID = f.front().BundleID
 		}
 		res := proto.BrowserURLResult{BundleID: p.BundleID, Via: proto.URLViaNone, MS: 1}
-		if u, ok := Browsers[p.BundleID]; ok {
-			f.mu.Lock()
-			st := f.auto[p.BundleID]
-			f.mu.Unlock()
-			if st == proto.AutomationGranted {
-				res.URL, res.Via, res.AppleScriptMS = u, proto.URLViaAppleScript, 1
-			} else {
-				res.URL, res.Via, res.AXMS, res.Automation = u, proto.URLViaAXWebURL, 1, st
-			}
+		u, ok := Browsers[p.BundleID]
+		switch {
+		case !ok:
+			res.Error = "no AXDocument or web area URL (visited 12)"
+		case f.has("no-url") && (f.opts["no-url"] == "" || f.opts["no-url"] == p.BundleID):
+			res.Error = "no AXDocument or web area URL (visited 27)"
+		default:
+			res.URL, res.Via = u, proto.URLViaAXDocument
 		}
 		f.result(m.ID, res)
-	case proto.MethodAutomationProbe:
-		var p proto.AutomationProbeParams
+	case proto.MethodAppList:
+		var p proto.AppListParams
 		m.DecodeParams(&p)
-		ids := p.BundleIDs
-		if len(ids) == 0 {
-			ids = slices.Sorted(func(yield func(string) bool) {
-				for id := range AutomationStates {
-					if !yield(id) {
-						return
-					}
-				}
-			})
+		var apps []proto.AppInfo
+		for _, app := range Apps {
+			apps = append(apps, proto.AppInfo{BundleID: app.BundleID, Name: app.Name, Running: true, PID: app.PID, Path: "/Applications/" + app.Name + ".app"})
 		}
-		res := proto.AutomationProbeResult{Browsers: []proto.AutomationState{}}
-		for _, id := range ids {
-			res.Browsers = append(res.Browsers, f.automation(id))
+		if p.Installed {
+			apps = append(apps, Installed...)
 		}
-		f.result(m.ID, res)
-	case proto.MethodAutomationRequest:
-		var p proto.AutomationRequestParams
-		m.DecodeParams(&p)
-		if _, ok := AutomationStates[p.BundleID]; !ok {
-			f.failData(m.ID, proto.CodeUnsupported, map[string]string{"capability": proto.MethodAutomationRequest},
-				"%s is not a browser Auralink can script", p.BundleID)
-			return
-		}
-		f.mu.Lock()
-		if st := f.auto[p.BundleID]; st == proto.AutomationNotDetermined || (st == proto.AutomationNotRunning && p.Launch) {
-			f.auto[p.BundleID] = proto.AutomationGranted
-		}
-		f.mu.Unlock()
-		f.result(m.ID, f.automation(p.BundleID))
+		slices.SortFunc(apps, func(x, y proto.AppInfo) int { return strings.Compare(strings.ToLower(x.Name), strings.ToLower(y.Name)) })
+		f.result(m.ID, proto.AppListResult{Apps: apps})
 	default:
 		f.fail(m.ID, proto.CodeMethodNotFound, "Unknown method %s", m.Method)
 	}
@@ -420,27 +395,6 @@ func (f *fake) permissions() proto.PermissionsResult {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return proto.PermissionsResult{Microphone: f.mic, Accessibility: f.trusted}
-}
-
-func (f *fake) automation(id string) proto.AutomationState {
-	f.mu.Lock()
-	st, ok := f.auto[id]
-	f.mu.Unlock()
-	s := proto.AutomationState{BundleID: id, Name: BrowserNames[id], Installed: ok, Running: ok && st != proto.AutomationNotRunning, State: st}
-	if s.Name == "" {
-		s.Name = id
-	}
-	switch st {
-	case "":
-		s.State = proto.AutomationNotInstalled
-	case proto.AutomationDenied:
-		s.Code = -1743
-	case proto.AutomationNotDetermined:
-		s.Code = -1744
-	case proto.AutomationNotRunning:
-		s.Code = -600
-	}
-	return s
 }
 
 func (f *fake) handleHello(m proto.Message) {

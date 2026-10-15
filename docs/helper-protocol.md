@@ -11,7 +11,7 @@ It is a subset of AudioSmith's engine protocol 2 (`docs/protocol-v2.md` there): 
 - The app starts the helper with no arguments; its working directory is the executable's. It is `Auralink.app/Contents/Resources/helper/auralink-helper`, or `$AURALINK_HELPER` (development: README, "Signing during development").
 - One JSON message per line (UTF-8, `\n`), at most 4 MiB (`proto.MaxLine`); app → helper on stdin, helper → app on stdout. stderr is free-form text: the supervisor writes it to `~/Library/Logs/Auralink/helper.log` and to the logs panel (source `helper`).
 - The helper exits when stdin closes or on `helper.shutdown`.
-- macOS checks the helper's permissions (Microphone, Accessibility, Automation) against Auralink.app, its responsible process: the prompts and System Settings name Auralink, and a grant reaches the running helper (the event tap installs within 2 s, no restart).
+- macOS checks the helper's permissions (Microphone, Accessibility) against Auralink.app, its responsible process: the prompts and System Settings name Auralink, and a grant reaches the running helper (the event tap installs within 2 s, no restart).
 
 ## 2. Messages
 
@@ -33,20 +33,20 @@ Errors are `{"code": "…", "message": "…", "data"?: {…}}` with a string cod
 | `protocol_mismatch` | hello with another protocol | `{"supported":[1]}` |
 | `busy` | a recording runs already | |
 | `cancelled` | the job was cancelled | |
-| `permission_denied` | macOS refused | `{"permission":"microphone"\|"accessibility"\|"automation"}` |
+| `permission_denied` | macOS refused | `{"permission":"microphone"\|"accessibility"}` |
 | `device_unavailable` | no input started, or none gave audio | `{"device":"…"}` |
-| `unsupported` | e.g. Automation for an app that is not installed | `{"capability":"…"}` |
+| `unsupported` | the helper cannot do it on this Mac | `{"capability":"…"}` |
 | `timeout` | the helper gave up waiting on macOS | |
 | `internal` | anything else | |
 
 ## 3. Sequencing
 
 - `helper.hello` comes first; until it is answered every other request fails with `not_initialized`. The app refuses a helper whose `protocol` is not 1 (it is not restarted: rebuild it).
-- Requests are answered in any order; each control request runs on its own, so a slow AppleScript does not hold up `capture.stop`.
+- Requests are answered in any order; each control request runs on its own, so an app slow to answer Accessibility does not hold up `capture.stop`.
 - **Jobs** (`capture.start`) send notifications naming them in `job` (`capture.started`, `capture.level`, `capture.pcm`, `capture.restarted`, `log`) before their response; `job.cancel` makes them answer `cancelled`. `capture.stop` and `job.cancel` are answered after the job they end, so every frame has arrived when `capture.stop` answers.
 - Notifications without `job` belong to no request: `hotkey.event`, `hotkey.state`, `app.activated` (and `log`). The supervisor hands them to `Config.OnNotify`; a notification naming a job that already answered is dropped.
 - If the helper exits, its calls fail (`core.ErrHelper`) and the supervisor restarts it after 1 s, 2 s, 4 s… (at most 3 times in 10 minutes).
-- **Timing.** The supervisor times each call's phases (`helper.Trace`: waiting for a ready helper, writing, the helper's answer, waking the caller) and logs a control request slower than 500 ms with them; the helper logs its own side of a request slower than 250 ms on stderr (queued, ran, and the time it waited for its main thread, where AppleScript and the clipboard run). The spikes saw 1–2 s round trips while the helper worked for tens of milliseconds; the two lines tell where such a call waited.
+- **Timing.** The supervisor times each call's phases (`helper.Trace`: waiting for a ready helper, writing, the helper's answer, waking the caller) and logs a control request slower than 500 ms with them; the helper logs its own side of a request slower than 250 ms on stderr (queued, ran, and the time it waited for its main thread, where the clipboard and NSWorkspace run). The spikes saw 1–2 s round trips while the helper worked for tens of milliseconds; the two lines tell where such a call waited.
 
 ## 4. Methods
 
@@ -65,12 +65,11 @@ Errors are `{"code": "…", "message": "…", "data"?: {…}}` with a string cod
 | `hotkey.configure` | `{bindings: [{id, modifiers, key?, behavior, swallow?}], doubleTapMs?, longPressMs?, tapMaxMs?, swallowFn?, active?}` → hotkey status |
 | `hotkey.status` | → `{installed, accessibility, bindings, events, disabledByTimeout, missedEvents, maxCallbackMicros, error?}` |
 | `app.frontmost` | → `{pid, bundleId?, name?}` |
+| `app.list` | `{installed?}` → `{apps: [{bundleId, name, running, pid?, path?}]}` |
 | `textio.focus` | → `{pid, role?, subrole?, editable, selection?{location, length}, valueLength, error?}` |
 | `textio.selection` | `{allowCopy?, copyTimeoutMs?}` → `{text?, via: "ax"\|"ax-range"\|"ax-marker"\|"copy"\|"none", ms, steps?}` |
 | `textio.paste` | `{text, keepClipboard?, restoreDelayMs?, targetPid?, press?: [{key, modifiers?}], pressDelayMs?}` → `{posted, restored, clipboardTaken, ms, front?}` |
-| `browser.url` | `{bundleId?}` → `{bundleId, url?, via: "applescript"\|"ax-document"\|"ax-weburl"\|"none", ms, appleScriptMs?, axMs?, automation?, error?}` |
-| `automation.probe` | `{bundleIds?}` → `{browsers: [{bundleId, name, installed, running, state, code}]}` |
-| `automation.request` | `{bundleId, launch?}` → one browser's state |
+| `browser.url` | `{bundleId?, pid?}` → `{bundleId, url?, via: "ax-focus"\|"ax-document"\|"ax-weburl"\|"none", ms, error?}` |
 
 ### Notifications
 
@@ -91,13 +90,11 @@ Errors are `{"code": "…", "message": "…", "data"?: {…}}` with a string cod
 
 **hotkey.configure.** It replaces every binding; an empty list removes the tap. A binding is a modifier-only chord (`key` absent: `{"fn":"any"}`, `{"fn":"any","shift":"any"}`, `{"command":"right"}`) or a key (`key`: a kVK code, 0 is A) with modifiers (`{"control":"any","command":"any"}` and 9 is ⌃⌘V); families are `fn`, `shift`, `control`, `option`, `command`, sides `any`, `left`, `right` (fn: `any`). Families not listed must be up. The recognizer judges a chord from the first modifier pressed to the last released: everything held in between is the chord (fn then ⇧ is fn+⇧), another key spoils it, a hold longer than `tapMaxMs` (1500) is no tap. A chord bound to both a tap and a double tap fires the tap after `doubleTapMs` (the system's double-click interval, at most 800, else 500) unless a second press starts within it. `longPress` sends `down` after `longPressMs` (300) and `up` on release. Key bindings fire on key down and swallow their key down and up (unless `swallow` is false); modifier-only chords are never swallowed, but fn and the 🌐 key's events with `swallowFn`. With `active` (a session records) a tap fires at once and Escape fires `{"binding":"escape"}` and is swallowed. A modifier whose event comes without its state changing means macOS dropped one (seen: fn's release after fn+⌃): the chord in progress is dropped (`missedEvents`). The app flips `active` by sending the same bindings: a chord in progress survives a change of timings or `active`. Without Accessibility `installed` is false and the helper retries every 2 s, sending `hotkey.state` when it gets in; meanwhile the app falls back to MyGo's Carbon shortcuts for plain key combinations. `front` is the app in front as the key went down, the start of the session's context snapshot (plan §4.2); `t` is the helper's monotonic clock in ms.
 
-**app.\*.** The helper keeps the app in front from NSWorkspace's activations and tells each change (`app.activated`), so the app need not poll. On activation it gives Electron apps `AXManualAccessibility` (Chromium builds its accessibility tree only when asked, a moment later), so the selection can be read when a shortcut comes, and refreshes a known browser's Automation state.
+**app.\*.** The helper keeps the app in front from NSWorkspace's activations and tells each change (`app.activated`), so the app need not poll. On activation it gives Electron apps `AXManualAccessibility` (Chromium builds its accessibility tree only when asked, a moment later), so the selection can be read when a shortcut comes. `app.list` lists the regular running apps and, with `installed`, the bundles in /Applications, /System/Applications and ~/Applications (one folder down too), each bundle id once, by name: the apps App enhancement offers as members.
 
 **textio.\*.** `textio.selection` reads the focused element's selected text, the text of its selected range, then WebKit's and Chromium's text markers; a caret without a selection is `none` (no ⌘C: it would copy nothing, or a whole line). Otherwise, with `allowCopy`, it posts ⌘C, waits up to `copyTimeoutMs` (300) for the clipboard to change, reads it and puts the old clipboard back. The app decides `allowCopy` (not in apps that copy a line on an empty selection). `textio.paste` snapshots the clipboard (every item and type), writes the text (marked `org.nspasteboard.TransientType` and `AutoGeneratedType`, which clipboard managers skip), posts ⌘V, then the keys of `press` after `pressDelayMs` (120; app enhancement's auto key: Return is `{"key":36}`), and after `restoreDelayMs` (500) writes the snapshot back unless the clipboard changed meanwhile (`clipboardTaken`). With `targetPid` it pastes only when that app is in front, else answers `posted: false` with the app in `front`; the app reactivates the target itself when it must (`macx.Activate`: only the active app can hand activation over). Posted keys carry the helper's marker, so its own tap lets them through. Without Accessibility, `permission_denied`.
 
-**browser.url.** For a browser the helper knows (Safari, Chrome, Edge, Brave, Arc, Vivaldi, Opera…) it runs a compiled AppleScript, but only once the browser's Automation state is `granted`: on a browser not asked yet AppleScript would make macOS prompt out of the blue. Otherwise, or when it fails, it reads the Accessibility tree (the window's `AXDocument`, a web area's `AXURL`; Safari in the background has neither). `automation` then says the state; `error` the last failure, for the log. A URL is used only to match app enhancement rules, never sent to a model.
-
-**automation.\*.** `automation.probe` never prompts (`AEDeterminePermissionToAutomateTarget` without asking); states are `granted`, `denied`, `notDetermined`, `notRunning` (macOS answers only for a running app), `notInstalled`, `unknown`; `code` is macOS's status (0, -1743, -1744, -600). `automation.request` prompts (once per browser; it waits for the user's choice), with `launch` opening a browser that is not running first, in the background; an app that is not installed is `unsupported`.
+**browser.url.** Accessibility only (no AppleScript, so no Automation consent per browser; the user's decision, 2026-10-15), the same way for every app: the `AXURL` of the outermost `AXWebArea` around the focused element (`ax-focus`: the tab being typed in, also in a split view, not an iframe inside it), else the focused window's `AXDocument` (`ax-document`: Chromium browsers and Safari), else the `AXURL` of the window's first web area, breadth first over at most 400 nodes (`ax-weburl`: Arc). `pid` (the shortcut's `front`) picks the process, else `bundleId`'s first running one, else the app in front. No URL is `via: "none"` with `error` saying why (not running, no focused window, no web area: Safari in the background has none). Each element answers within 0.3 s; the app adds its own timeout. Which apps are browsers is the app's business (`internal/appctx`); a URL is used only to match app enhancement rules, never sent to a model.
 
 ## 5. Testing
 
@@ -123,5 +120,6 @@ Errors are `{"code": "…", "message": "…", "data"?: {…}}` with a string cod
 | `textio.activate`, `textio.paste {targetPid}` activating the target | no activation in the helper; `targetPid` only checks the app in front | macOS 14 activates cooperatively: the active app (Auralink) must yield, so `macx.Activate` runs in the app |
 | `textio.paste {restore, pressReturn, returnDelayMs, source, tap}` | `{keepClipboard, press: [{key, modifiers}], pressDelayMs}`; HID source and tap fixed | Auto keys other than Return (⌘Return); the spike's variants were measurements |
 | `textio.selection {enableChromiumAX, skipAX}` | done at activation (Electron apps); no `skipAX` | The tree needs time to appear: at activation it is ready when the shortcut comes |
-| `browser.url {appleScript, ax, noCache, enableChromiumAX}` | `{bundleId?}`; AppleScript only when `granted`, scripts always cached | Policy in the helper where it is safe; measuring switches dropped |
-| `automation.probe {…, ms}` | no `ms`; `notInstalled` state | The supervisor's trace times calls |
+| `browser.url {appleScript, ax, noCache, enableChromiumAX}` | `{bundleId?, pid?}`, Accessibility only (M5): the web area around the focus first | No Automation consent to ask per browser (the user's decision); the focused web area is the tab being typed in |
+| `automation.probe`, `automation.request` | removed (M5) | Nothing runs AppleScript any more |
+| — | `app.list` (M5) | App enhancement picks member apps from the running and installed ones |

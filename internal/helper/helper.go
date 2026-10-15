@@ -1,9 +1,10 @@
 // Package helper runs auralink-helper, the Swift process that does what
 // MyGo cannot: record the microphone, watch the keyboard with an event
-// tap, and read browser URLs with AppleScript. A Supervisor starts it with
-// the app, handshakes (helper.hello), routes responses and notifications
-// by id, writes its stderr to the log, and restarts it when it crashes. It
-// speaks the protocol in package proto (docs/helper-protocol.md).
+// tap, read and write text in the app in front, and read browser URLs
+// through Accessibility. A Supervisor starts it with the app, handshakes
+// (helper.hello), routes responses and notifications by id, writes its
+// stderr to the log, and restarts it when it crashes. It speaks the
+// protocol in package proto (docs/helper-protocol.md).
 //
 // It is AudioSmith's engine supervisor (internal/engine) reduced to one
 // process: no roles, no job scheduler, no memory budget. Unlike the

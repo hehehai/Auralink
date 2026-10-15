@@ -30,14 +30,14 @@ From Linux, `scripts/mac.sh <command>` mirrors the project to a Mac (`MAC_HOST`,
 
 ### Signing during development
 
-macOS keeps the Microphone, Accessibility and Automation grants for a signature. An ad hoc signed build (the default) has a new one each time the app is rebuilt, so after a rebuild macOS forgets them: the microphone turns **denied without asking again**, and Accessibility still shows on in System Settings but does not work. The helper's grants are the app's (macOS checks the helper against Auralink.app, its responsible process), so the same happens to it. Ways around it:
+macOS keeps the Microphone and Accessibility grants for a signature. An ad hoc signed build (the default) has a new one each time the app is rebuilt, so after a rebuild macOS forgets them: the microphone turns **denied without asking again**, and Accessibility still shows on in System Settings but does not work. The helper's grants are the app's (macOS checks the helper against Auralink.app, its responsible process), so the same happens to it. Ways around it:
 
 - **Change only the helper:** keep one built app and run it with a helper outside the bundle. The helper inherits the app's grants wherever it lives, so rebuilding it costs nothing:
   ```sh
   scripts/build-helper.sh --out ~/auralink-dev
   open --env AURALINK_HELPER=$HOME/auralink-dev/auralink-helper build/darwin-arm64/Auralink.app
   ```
-- **Start over:** `tccutil reset Microphone dev.hehehai.auralink` (likewise `Accessibility`, `AppleEvents`), then open the app and grant again. If a stale Accessibility entry stays on but does nothing, remove it with − in System Settings and grant again.
+- **Start over:** `tccutil reset Microphone dev.hehehai.auralink` (likewise `Accessibility`), then open the app and grant again. If a stale Accessibility entry stays on but does nothing, remove it with − in System Settings and grant again.
 - **Sign with a fixed identity:** an Apple Development certificate keeps the grants across rebuilds: `go tool mygo build -sign "Apple Development: …"` (or `macos.signingIdentity` in a local mygo.json; `AURALINK_SIGN_IDENTITY` for `scripts/build-helper.sh`). Over ssh, `codesign` fails with `errSecInternalComponent` until the key may be used without the GUI: once, in Terminal on the Mac, `security set-key-partition-list -S apple-tool:,apple: -s ~/Library/Keychains/login.keychain-db`.
 
 ## Tests

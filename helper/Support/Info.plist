@@ -16,7 +16,5 @@
 	<string>0.1.0</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Auralink records your voice while you hold its shortcut and sends the audio to the speech service you set up.</string>
-	<key>NSAppleEventsUsageDescription</key>
-	<string>Auralink reads the address of the browser tab in front to pick the scene rules you set for that site.</string>
 </dict>
 </plist>

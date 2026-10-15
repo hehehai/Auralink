@@ -73,9 +73,9 @@ final class RequestClock: @unchecked Sendable {
     @TaskLocal static var current: RequestClock?
 }
 
-/// Runs body on the main thread (AppKit, NSAppleScript, NSPasteboard),
-/// adding the wait for it to the request's clock: a busy main thread (an
-/// AppleScript that blocks) shows in the slow-request line.
+/// Runs body on the main thread (AppKit, NSPasteboard), adding the wait
+/// for it to the request's clock: a busy main thread shows in the
+/// slow-request line.
 func onMain<T: Sendable>(_ body: @MainActor @Sendable () throws -> T) async rethrows -> T {
     let t0 = monotonicMs()
     let clock = RequestClock.current
@@ -86,14 +86,13 @@ func onMain<T: Sendable>(_ body: @MainActor @Sendable () throws -> T) async reth
 }
 
 /// The session: answers requests from stdin. Control requests each run in
-/// a task of their own, so a slow AppleScript does not hold up
-/// capture.stop; capture.start is a job that answers when it ends.
+/// a task of their own, so an app slow to answer Accessibility does not
+/// hold up capture.stop; capture.start is a job that answers when it ends.
 final class Server: @unchecked Sendable {
     let out: Writer
     let front: FrontApps
     let capture: CaptureManager
     let hotkeys: HotkeyTap
-    let browser: Browser
     let textio: TextIO
     private let lock = NSLock()
     private var ready = false
@@ -104,12 +103,10 @@ final class Server: @unchecked Sendable {
 
     init(out: Writer) {
         self.out = out
-        browser = Browser()
         front = FrontApps(out: out)
         capture = CaptureManager(out: out)
         hotkeys = HotkeyTap(out: out, front: front)
         textio = TextIO(front: front)
-        front.onActivate = { [browser] app in browser.activated(app) }
     }
 
     /// Reads requests on a thread of its own until stdin closes, then
@@ -214,16 +211,10 @@ final class Server: @unchecked Sendable {
             return try await textio.selection(try msg.decodeParams(SelectionParams.self))
         case Method.textPaste:
             return try await textio.paste(try msg.decodeParams(PasteParams.self))
+        case Method.appList:
+            return await AppList.list(installed: try msg.decodeParams(AppListParams.self).installed ?? false)
         case Method.browserURL:
-            let p = try msg.decodeParams(BrowserURLParams.self)
-            var bundleID = p.bundleId ?? ""
-            if bundleID.isEmpty { bundleID = await front.current().bundleId ?? "" }
-            return await browser.url(bundleID)
-        case Method.automationProbe:
-            return await browser.probe(try msg.decodeParams(AutomationProbeParams.self).bundleIds)
-        case Method.automationRequest:
-            let p = try msg.decodeParams(AutomationRequestParams.self)
-            return try await browser.request(p.bundleId, launch: p.launch ?? false)
+            return await Browser.url(try msg.decodeParams(BrowserURLParams.self), front: front)
         default:
             throw RPCError(Code.methodNotFound, "Unknown method \(method)")
         }

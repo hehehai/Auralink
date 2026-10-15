@@ -10,11 +10,9 @@ import Foundation
 /// As an app comes to the front, an Electron app gets AXManualAccessibility
 /// (Chromium builds its accessibility tree only when asked, and only a
 /// moment later: set at activation, the tree is there when a shortcut
-/// reads the selection), and the browser table refreshes its Automation
-/// state (onActivate).
+/// reads the selection).
 final class FrontApps: @unchecked Sendable {
     let out: Writer
-    var onActivate: (@Sendable (App) -> Void)?
     private let lock = NSLock()
     private var app: App?
     private var started = false
@@ -57,7 +55,6 @@ final class FrontApps: @unchecked Sendable {
                                                      "AXManualAccessibility" as CFString, kCFBooleanTrue)
                 if r != .success { log("AXManualAccessibility on \(desc.bundleId ?? "?"): \(r.rawValue)") }
             }
-            onActivate?(desc)
         }
     }
 
