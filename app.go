@@ -23,6 +23,8 @@ import (
 //	historyState      history_page.go the History page
 //	appEnhanceState   appenhance.go   App enhancement: the groups, address reads, the page
 //	dictionaryState   dictionary_page.go  the Dictionary page
+//	homeState         home_page.go    Home: readiness, today, recent results
+//	onboardingState   onboarding.go   the setup guide
 //
 // Add fields to your area's struct, not here.
 type app struct {
@@ -45,6 +47,8 @@ type app struct {
 	historyState
 	appEnhanceState
 	dictionaryState
+	homeState
+	onboardingState
 }
 
 func newApp(lib *library, h *helperHost) *app {

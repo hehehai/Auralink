@@ -446,6 +446,9 @@ func (a *app) generalSettings(c *ui.Context) {
 			a.updateSettings(func(s *settings.Settings) { s.General.LaunchAtLogin = on })
 		}
 	})
+
+	sectionTitle(c, i18n.T("Getting started"))
+	a.onboardingRow(c) // onboarding.go
 }
 
 func (a *app) appearanceSettings(c *ui.Context) {

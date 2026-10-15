@@ -48,6 +48,7 @@ func (a *app) commands() []command {
 	add("notifications", view, i18n.T("Notifications"), "Notifications", "", true, func() { a.noticesOpen = true })
 	add("shortcuts", view, i18n.T("Keyboard shortcuts"), "Keyboard shortcuts", "?", true, func() { a.sheetOpen = true })
 	add("helper-restart", view, i18n.T("Restart the helper"), "Restart the helper", "", true, a.restartHelper)
+	add("setup-guide", view, i18n.T("Open the setup guide"), "Open the setup guide onboarding", "", true, a.openOnboarding)
 
 	look := i18n.T("Appearance")
 	for _, th := range []struct{ id, title, en string }{

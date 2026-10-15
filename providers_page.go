@@ -235,7 +235,6 @@ func (a *app) providersPage(c *ui.Context) {
 			a.providerCards(c, kind)
 		})
 	})
-	a.providerDialogView(c)
 }
 
 // providerUse is the "used by" section: which service each feature uses.

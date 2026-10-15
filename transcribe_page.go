@@ -1082,17 +1082,65 @@ func (a *app) trySessionOf(feature string) bool {
 	return s.ID != "" && s.Try && s.Kind == featureKind(feature)
 }
 
+// tryIntro is what a feature's Try area says before a try: its shortcut
+// (pressed while Auralink is in front, it starts a try here) or Start.
+func (a *app) tryIntro(feature string) string {
+	keys := a.featureKeys(feature)
+	switch feature {
+	case hotkey.Translate:
+		if keys != "" {
+			return i18n.T("Press %s or Start and say a sentence or two: the translation shows here and is not typed anywhere.", keys)
+		}
+		return i18n.T("Say a sentence or two: the translation shows here and is not typed anywhere.")
+	case hotkey.Rewrite:
+		if keys != "" {
+			return i18n.T("Press %s or Start and say what to write (\"a short note saying I will be late\"): the answer shows here and is not typed anywhere.", keys)
+		}
+		return i18n.T("Say what to write (\"a short note saying I will be late\"): the answer shows here and is not typed anywhere.")
+	}
+	if keys != "" {
+		return i18n.T("Press %s or Start and say a sentence or two: the result shows here and is not typed anywhere.", keys)
+	}
+	return i18n.T("Say a sentence or two: the result shows here and is not typed anywhere.")
+}
+
 func (a *app) featureTry(c *ui.Context, feature string) {
-	t := c.Theme()
-	p := featurePrefix(feature)
 	u := a.fui(feature)
 	sectionTitle(c, i18n.T("Try it"))
+	a.tryCard(c, tryOpts{
+		prefix: featurePrefix(feature), feature: feature, mine: a.trySessionOf(feature),
+		intro: a.tryIntro(feature), block: &u.block,
+		start: func() *sessionNotice { _, n := a.startTry(featureKind(feature)); return n },
+	})
+}
+
+// tryOpts describe a Try card: a feature page's, Home's, a step of the
+// setup guide's.
+type tryOpts struct {
+	prefix  string // keys its controls
+	feature string // what Start tries
+	// mine: the current session is this card's try (its id, for the
+	// setup guide: a late or another place's session never shows).
+	mine  bool
+	intro string // before a try
+	// block is why Start (or the shortcut) did not start, nil for
+	// nothing; start starts a try and says why not.
+	block **sessionNotice
+	start func() *sessionNotice
+}
+
+// tryCard is a Try area: Start, the try while it records and works, its
+// result, why it did not start.
+func (a *app) tryCard(c *ui.Context, o tryOpts) {
+	t := c.Theme()
+	p := o.prefix
 	s := a.sess
-	try := a.trySessionOf(feature)
+	try := o.mine
+	clear := func() { *o.block = nil }
 	card(c.Key(p + "-try")).Children(func() {
 		switch {
 		case try && s.State == session.Recording:
-			a.tryRecording(c, s)
+			a.tryRecording(c, p, s)
 			return
 		case try && s.State.Live():
 			ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
@@ -1110,19 +1158,12 @@ func (a *app) featureTry(c *ui.Context, feature string) {
 			return
 		}
 		if try && s.State.Ended() {
-			a.tryEnded(c, s)
-		} else {
-			switch feature {
-			case hotkey.Translate:
-				caption(c, i18n.T("Say a sentence or two: the translation shows here and is not typed anywhere."))
-			case hotkey.Rewrite:
-				caption(c, i18n.T("Say what to write (\"a short note saying I will be late\"): the answer shows here and is not typed anywhere."))
-			default:
-				caption(c, i18n.T("Say a sentence or two: the result shows here and is not typed anywhere."))
-			}
+			a.tryEnded(c, p, s, clear)
+		} else if o.intro != "" {
+			caption(c, o.intro)
 		}
-		if n := u.block; n != nil {
-			notice(c, p+"-try-block", noticeError, n.text, n.more, a.noticeButton(c, p+"-try-block-action", n.action, feature), func() { u.block = nil })
+		if n := *o.block; n != nil {
+			notice(c, p+"-try-block", noticeError, n.text, n.more, a.noticeButton(c, p+"-try-block-action", n.action, clear), clear)
 		}
 		ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Wrap().Children(func() {
 			label := i18n.T("Start")
@@ -1131,10 +1172,10 @@ func (a *app) featureTry(c *ui.Context, feature string) {
 			}
 			busy := s.State.Live()
 			if recordButton(c.Key(p+"-try-start"), label).Label(i18n.T("Start a try")).Disabled(busy).Clicked() {
-				u.block = a.startSession(session.StartRequest{Kind: featureKind(feature), Try: true})
+				*o.block = o.start()
 			}
 			if busy {
-				if feature == hotkey.Transcribe {
+				if s.Kind == store.KindTranscribe {
 					caption(c, i18n.T("A transcription is running."))
 				} else {
 					caption(c, i18n.T("Another session is running."))
@@ -1144,15 +1185,16 @@ func (a *app) featureTry(c *ui.Context, feature string) {
 	})
 }
 
-// noticeButton is a notice's action button, nil for none.
-func (a *app) noticeButton(c *ui.Context, key, action, feature string) func() {
+// noticeButton is a notice's action button, nil for none; clear hides
+// the notice.
+func (a *app) noticeButton(c *ui.Context, key, action string, clear func()) func() {
 	label := noticeActionLabel(action)
 	if label == "" {
 		return nil
 	}
 	return func() {
 		if ui.Button(c.Key(key), label).Clicked() {
-			a.fui(feature).block = nil
+			clear()
 			a.noticeAction(action)
 		}
 	}
@@ -1160,10 +1202,9 @@ func (a *app) noticeButton(c *ui.Context, key, action, feature string) func() {
 
 // tryRecording is the Try area while it records: the levels, the time,
 // the live text, Stop and Cancel.
-func (a *app) tryRecording(c *ui.Context, s session.Snapshot) {
+func (a *app) tryRecording(c *ui.Context, p string, s session.Snapshot) {
 	t := c.Theme()
 	k := tok(t)
-	p := featurePrefix(string(s.Kind))
 	ui.Row(c).Gap(px(t, sp3)).AlignItems(ui.Center).Children(func() {
 		ui.Icon(c, kindIcon(s.Kind).Bold).Size(px(t, 18), px(t, 18)).TextColor(k.Record).Shrink(0)
 		levelBars(c, s.Levels, !s.HeardAt.IsZero())
@@ -1208,11 +1249,9 @@ func levelBars(c *ui.Context, levels []float64, heard bool) {
 
 // tryEnded is a finished try: its result (or why there is none), what
 // was recognised, the stage times and Copy.
-func (a *app) tryEnded(c *ui.Context, s session.Snapshot) {
+func (a *app) tryEnded(c *ui.Context, p string, s session.Snapshot, clear func()) {
 	t := c.Theme()
 	k := tok(t)
-	feature := string(s.Kind)
-	p := featurePrefix(feature)
 	switch s.State {
 	case session.Cancelled:
 		caption(c, i18n.T("Cancelled."))
@@ -1221,7 +1260,7 @@ func (a *app) tryEnded(c *ui.Context, s session.Snapshot) {
 		if s.Problem != nil {
 			text, more, action := sessionProblemText(s.Problem)
 			if text != "" {
-				notice(c, p+"-try-failed", noticeError, text, more, a.noticeButton(c, p+"-try-failed-action", action, feature), nil)
+				notice(c, p+"-try-failed", noticeError, text, more, a.noticeButton(c, p+"-try-failed-action", action, clear), nil)
 				return
 			}
 		}
@@ -1230,7 +1269,7 @@ func (a *app) tryEnded(c *ui.Context, s session.Snapshot) {
 	}
 	if pr := s.Problem; pr != nil {
 		if text, more, action := sessionProblemText(pr); text != "" {
-			notice(c, p+"-try-warn", noticeWarn, text, more, a.noticeButton(c, p+"-try-warn-action", action, feature), nil)
+			notice(c, p+"-try-warn", noticeWarn, text, more, a.noticeButton(c, p+"-try-warn-action", action, clear), nil)
 		}
 	}
 	ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {

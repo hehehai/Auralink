@@ -122,6 +122,7 @@ func (a *app) loadHistory() {
 // historyChanged runs when a session kept (or changed) an entry: the page
 // reads the history again now when it shows, else when it shows next.
 func (a *app) historyChanged() {
+	a.homeChanged() // home_page.go: today's numbers, the recent results
 	if a.currentPage() == "history" {
 		a.loadHistory()
 		return

@@ -25,15 +25,11 @@ func TestSidebarAndShortcuts(t *testing.T) {
 	if got := a.router.Path(); got != "/home" {
 		t.Fatalf("starts at %s", got)
 	}
-	// Every page of the sidebar shows, with its title and its empty state
-	// (or its own view).
+	// Every page of the sidebar shows.
 	for _, p := range pages {
 		click(t, tt, pageTitle(p.path))
 		if a.router.Path() != p.path {
 			t.Fatalf("clicking %s went to %s", p.title, a.router.Path())
-		}
-		if title, _ := placeholderText(p.path); title != "" && !has(tt, title) {
-			t.Errorf("%s: no empty state %q", p.path, title)
 		}
 	}
 	// ⌘1…⌘6.
@@ -263,7 +259,7 @@ func TestPermissionsMoved(t *testing.T) {
 		func() { a.navigate("/permissions") },
 		func() { a.openURL("auralink://permissions") },
 		func() { a.openURL("auralink://settings/permissions") },
-		func() { a.navigate("/home"); frames(tt); click(t, tt, "Check permissions") },
+		func() { a.navigate("/home"); frames(tt); click(t, tt, "Open Permissions") },
 	} {
 		a.settingsOpen = false
 		a.navigate("/home")

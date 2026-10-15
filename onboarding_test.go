@@ -1,0 +1,221 @@
+package main
+
+import (
+	"github.com/hehehai/Auralink/internal/settings"
+	"testing"
+	"time"
+
+	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/helper/proto"
+	"github.com/hehehai/Auralink/internal/session"
+	"github.com/hehehai/Auralink/internal/store"
+)
+
+// obTester is the test app with the setup guide open.
+func obTester(t *testing.T) (*app, *ui.Tester) {
+	t.Helper()
+	a, _, tt := newTestApp(t)
+	a.maybeOnboard()
+	frames(tt)
+	if !a.ob.open {
+		t.Fatal("a fresh install did not open the guide")
+	}
+	return a, tt
+}
+
+// obSnap is a try's snapshot of kind in state st.
+func obSnap(a *app, id string, kind store.Kind, st session.State) session.Snapshot {
+	s := trySnapshot(a, st)
+	s.ID, s.Kind = id, kind
+	return s
+}
+
+func TestOnboardingSteps(t *testing.T) {
+	a, tt := obTester(t)
+	for _, s := range []string{"Welcome to Auralink", "Your audio and text go only to the services you set up", "Keys stay in this Mac's Keychain", "Get started"} {
+		if !has(tt, s) {
+			t.Errorf("welcome: no %q in %q", s, tt.Texts())
+		}
+	}
+	click(t, tt, "Get started")
+	if a.ob.step != obPermissions || !has(tt, "Microphone") || !has(tt, "Accessibility") {
+		t.Fatalf("permissions: step %d %q", a.ob.step, tt.Texts())
+	}
+	click(t, tt, "Continue")
+	if a.ob.step != obServices || !has(tt, "Doubao (Volcengine)") || !has(tt, "DeepSeek") {
+		t.Fatalf("services: step %d %q", a.ob.step, tt.Texts())
+	}
+	// A card opens the Model services dialog, over the guide.
+	click(t, tt, "Doubao (Volcengine)")
+	if !a.provDlg.open || a.provDlg.id != "doubao" {
+		t.Fatalf("dialog %+v", a.provDlg)
+	}
+	a.provDlg.open = false
+	click(t, tt, "Continue")
+	if a.ob.step != obTranscribe || !has(tt, "Try Transcribe") || !has(tt, "Skip this step") {
+		t.Fatalf("transcribe: step %d %q", a.ob.step, tt.Texts())
+	}
+	// Continue waits for a try that passes.
+	click(t, tt, "Continue")
+	if a.ob.step != obTranscribe {
+		t.Fatal("Continue moved on without a try")
+	}
+	// Start without a service: why, on the step.
+	a.ob.block = a.obTry("") // the guide's Start (Home's, under it, has the same label)
+	if !has(tt, "No speech service is set up.") {
+		t.Errorf("blocked: %q", tt.Texts())
+	}
+	click(t, tt, "Skip this step")
+	if a.ob.step != obTranslate || !has(tt, "Translate this text") {
+		t.Fatalf("translate: step %d %q", a.ob.step, tt.Texts())
+	}
+	click(t, tt, "Back")
+	if a.ob.step != obTranscribe {
+		t.Fatal("Back")
+	}
+	a.obGo(obMore)
+	frames(tt)
+	for _, s := range []string{"More to explore", "App enhancement", "Dictionary", "Your shortcuts", "fn ⇧", "⌃⌘V", "Start using Auralink"} {
+		if !has(tt, s) {
+			t.Errorf("more: no %q in %q", s, tt.Texts())
+		}
+	}
+	click(t, tt, "Open Dictionary")
+	if a.ob.open || a.router.Path() != "/dictionary" {
+		t.Errorf("open dictionary: %v %s", a.ob.open, a.router.Path())
+	}
+	if !a.prefs.Setup.Done || !a.lib.settings.Get().Setup.Done {
+		t.Error("the guide is not marked done")
+	}
+	// Done: it does not open again by itself; Settings → General opens it.
+	a.ob.open = false
+	a.maybeOnboard()
+	if a.ob.open {
+		t.Error("it opened again")
+	}
+	a.navigate("/settings/general")
+	click(t, tt, "Open the setup guide")
+	if !a.ob.open || a.settingsOpen || a.ob.step != obWelcome {
+		t.Errorf("reopen: %v %v %d", a.ob.open, a.settingsOpen, a.ob.step)
+	}
+	tt.Key(0, ui.KeyEscape)
+	frames(tt)
+	if a.ob.open {
+		t.Error("Escape left it open")
+	}
+}
+
+// TestOnboardingTryPasses: only the step's own session passes it, done
+// with a result; another session, an older one or a failure does not.
+func TestOnboardingTryPasses(t *testing.T) {
+	a, tt := obTester(t)
+	readyServices(a)
+	a.obGo(obTranscribe)
+	frames(tt)
+	// The shortcut, Auralink in front: a try of this step.
+	a.hotkeyFired(proto.HotkeyEventParams{Binding: "transcribe/0", Phase: proto.PhaseTrigger, Behavior: proto.BehaviorTap, Front: selfFront()})
+	frames(tt)
+	id := a.ob.tries[obTranscribe]
+	if id == "" || a.sess.ID != id || !a.sess.Try {
+		t.Fatalf("no try: %q %+v", id, a.sess)
+	}
+	// While it runs, nothing moves.
+	rec := obSnap(a, id, store.KindTranscribe, session.Recording)
+	rec.Rev = a.sess.Rev + 1
+	a.sessionChanged(rec)
+	if !a.obBusy() {
+		t.Fatal("not busy")
+	}
+	a.obGo(obTranslate)
+	if a.ob.step != obTranscribe {
+		t.Fatal("moved while the try runs")
+	}
+	end := obSnap(a, id, store.KindTranscribe, session.Cancelled)
+	end.Rev = a.sess.Rev + 1
+	a.sessionChanged(end)
+	frames(tt)
+
+	// Another feature's shortcut does not start anything here.
+	a.hotkeyFired(proto.HotkeyEventParams{Binding: "translate/0", Phase: proto.PhaseTrigger, Behavior: proto.BehaviorTap, Front: selfFront()})
+	frames(tt)
+	if a.sess.Kind == store.KindTranslate || !hasPrefix(tt, "That was the Translate shortcut: this step tries Transcribe (fn)") {
+		t.Errorf("translate's shortcut: %+v %q", a.sess, tt.Texts())
+	}
+
+	// Some other session that ends done does not pass the step.
+	a.sessionChanged(obSnap(a, "someone-else", store.KindTranscribe, session.Done))
+	if a.ob.passed[obTranscribe] {
+		t.Fatal("another session passed the step")
+	}
+	// Its own, failed: not passed; done with a result: passed.
+	a.ob.tries[obTranscribe] = "mine"
+	a.sessionChanged(obSnap(a, "mine", store.KindTranscribe, session.Failed))
+	if a.ob.passed[obTranscribe] {
+		t.Fatal("a failure passed the step")
+	}
+	a.ob.tries[obTranscribe] = "mine-2"
+	a.sessionChanged(obSnap(a, "mine-2", store.KindTranscribe, session.Done))
+	if !a.ob.passed[obTranscribe] || !has(tt, "It works. Continue, or try again.") || !has(tt, "The meeting moves to Thursday at four.") {
+		t.Fatalf("not passed: %v %q", a.ob.passed, tt.Texts())
+	}
+	click(t, tt, "Continue")
+	if a.ob.step != obTranslate {
+		t.Fatalf("step %d", a.ob.step)
+	}
+	// The last step's session, late, does not show or pass this one.
+	a.sessionChanged(obSnap(a, "mine-2", store.KindTranscribe, session.Done))
+	if a.ob.passed[obTranslate] || has(tt, "It works. Continue, or try again.") {
+		t.Error("a late session passed Translate")
+	}
+	// Translate the sample: a try with the text, no recording.
+	click(t, tt, "Translate this text")
+	// (The test's own snapshots ran ahead of the manager's revisions: ask
+	// the manager.)
+	if cur := a.mgr.Current(); cur.ID == "" || cur.ID != a.ob.tries[obTranslate] || cur.Kind != store.KindTranslate || !cur.Try {
+		t.Fatalf("sample: %+v %v", cur, a.ob.tries)
+	}
+	// Closing the guide cancels its try.
+	live := obSnap(a, a.ob.tries[obTranslate], store.KindTranslate, session.Composing)
+	live.Rev = a.sess.Rev + 1
+	a.sessionChanged(live)
+	a.closeOnboarding()
+	frames(tt)
+	if a.ob.open {
+		t.Error("still open")
+	}
+	time.Sleep(10 * time.Millisecond)
+}
+
+// onboardingShots saves each step of the setup guide (TestSnapshots):
+// the welcome, permissions and services with nothing set up, the try
+// steps with a try that passed (Transcribe) or that runs (Rewrite).
+func onboardingShots(a *app, tt *ui.Tester, save func(string)) {
+	names := []string{"welcome", "permissions", "services", "transcribe", "translate", "rewrite", "more"}
+	a.openOnboarding()
+	for step, name := range names {
+		a.ob.step = step
+		switch step {
+		case obServices:
+			a.updateSettings(func(s *settings.Settings) {
+				s.Providers.ASR = []settings.Provider{{ID: "doubao", Enabled: true}}
+			})
+			a.keyMasks["asr.doubao"] = "tok…abcd"
+		case obTranscribe:
+			readyServices(a)
+			a.ob.tries[step] = "ob-try"
+			s := obSnap(a, "ob-try", store.KindTranscribe, session.Done)
+			a.sessionChanged(s)
+		case obTranslate:
+			a.sessionChanged(session.Snapshot{Rev: a.sess.Rev + 1})
+		case obRewrite:
+			a.ob.tries[step] = "ob-rw"
+			s := obSnap(a, "ob-rw", store.KindRewrite, session.Recording)
+			s.Partial = "write a short note to the team saying"
+			a.sessionChanged(s)
+		case obMore:
+			a.sessionChanged(session.Snapshot{Rev: a.sess.Rev + 1})
+		}
+		save("onboarding-" + itoa(step+1) + "-" + name)
+	}
+	a.ob.open = false
+}

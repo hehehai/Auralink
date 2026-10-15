@@ -2,7 +2,7 @@ package main
 
 // The pages of the sidebar (plan §3.1). A page not built yet is its
 // header and an empty state that says what it will hold; the milestones
-// replace them one by one (Home M6). Logs (shell_logs.go), Model
+// replaced them one by one. Home (home_page.go), Logs (shell_logs.go), Model
 // services (providers_page.go), Transcribe, Translate and Rewrite
 // (transcribe_page.go), History (history_page.go), App enhancement
 // (appenhance_page.go) and Dictionary (dictionary_page.go) work;
@@ -33,6 +33,8 @@ func (a *app) pages(c *ui.Context) {
 // when they show start it here.
 func (a *app) pageShown(path string) {
 	switch path {
+	case "/home":
+		a.loadHome() // home_page.go
 	case "/history":
 		a.historyShown() // history_page.go
 	case "/app-enhancement":
@@ -45,6 +47,9 @@ func (a *app) pageShown(path string) {
 // page builds one page of the sidebar.
 func (a *app) page(c *ui.Context, p navPage) {
 	switch p.path {
+	case "/home":
+		a.homePage(c) // home_page.go
+		return
 	case "/logs":
 		a.logsPage(c)
 		return
@@ -71,31 +76,7 @@ func (a *app) page(c *ui.Context, p navPage) {
 		return
 	}
 	pageHeader(c, pageTitle(p.path), nil)
-	title, body := placeholderText(p.path)
-	emptyState(c, p.icon, title, body, func() { a.placeholderActions(c, p.path) })
-}
-
-// placeholderText says what a page will hold.
-func placeholderText(path string) (title, body string) {
-	switch path {
-	case "/home":
-		return i18n.T("Speak anywhere, get text where your cursor is"),
-			i18n.T("Home will list what is still missing (a service, a permission), let you try each feature without leaving the page, and show today's results.")
-	}
-	return "", ""
-}
-
-// placeholderActions are the empty states' ways forward.
-func (a *app) placeholderActions(c *ui.Context, path string) {
-	switch path {
-	case "/home":
-		if ui.Button(c.Key("home-providers"), i18n.T("Set up a service")).Clicked() {
-			a.navigate("/providers")
-		}
-		if ghostButton(c.Key("home-permissions"), i18n.T("Check permissions")).Clicked() {
-			a.navigate("/settings/permissions")
-		}
-	}
+	emptyState(c, p.icon, pageTitle(p.path), "", nil)
 }
 
 func (a *app) notFoundPage(c *ui.Context, path string) {

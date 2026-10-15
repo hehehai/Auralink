@@ -131,6 +131,11 @@ func TestSnapshots(t *testing.T) {
 
 		// The recording overlay, state by state (overlay_test.go).
 		overlayShots(t, a, out, suffix)
+
+		// Last, as they set services up: the setup guide, step by step
+		// (onboarding_test.go), then Home ready (home_page_test.go).
+		onboardingShots(a, tt, save)
+		homeShots(a, tt, save)
 	}
 }
 

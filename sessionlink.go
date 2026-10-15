@@ -201,6 +201,7 @@ func (a *app) sessionChanged(s session.Snapshot) {
 	}
 	was := a.sess
 	a.sess = s
+	a.obSessionChanged(s) // onboarding.go: a try of the setup guide passes
 	if s.ID != was.ID {
 		a.notice = nil
 	}
@@ -403,23 +404,36 @@ func (a *app) startTranscribe(target proto.App, hold string, try bool) *sessionN
 // shows in the overlay (a try shows it on the page); nil when it started
 // (or a session runs already).
 func (a *app) startSession(req session.StartRequest) *sessionNotice {
+	_, n := a.startSessionID(req)
+	return n
+}
+
+// startSessionID is startSession that also returns the session's id ("" when
+// none started), so a Try area can tell its own session from any other.
+func (a *app) startSessionID(req session.StartRequest) (string, *sessionNotice) {
 	if a.mgr == nil || a.sess.State.Live() {
-		return nil
+		return "", nil
 	}
 	if n := a.sessionBlocker(req.Kind); n != nil {
 		if !req.Try {
 			a.showNotice(*n)
 		}
-		return n
+		return "", n
 	}
 	if len(req.Previous) == 0 {
 		a.answer = answerCard{}
 	}
 	a.notice = nil
-	if _, err := a.mgr.Start(req); err != nil {
-		return nil // a session runs already
+	id, err := a.mgr.Start(req)
+	if err != nil {
+		return "", nil // a session runs already
 	}
-	return nil
+	return id, nil
+}
+
+// startTry starts a try of kind (a Try area's Start).
+func (a *app) startTry(kind store.Kind) (string, *sessionNotice) {
+	return a.startSessionID(session.StartRequest{Kind: kind, Try: true})
 }
 
 // retryAnswer starts the card's session again with the text it worked on
@@ -670,7 +684,20 @@ func (a *app) hotkeyFired(e proto.HotkeyEventParams) {
 		case hotkey.Rewrite:
 			kind = store.KindRewrite
 		}
-		a.startSession(session.StartRequest{Kind: kind, Target: target, HoldBinding: hold})
+		req := session.StartRequest{Kind: kind, Target: target, HoldBinding: hold}
+		// Auralink in front, on a page with a Try area for it: a try there.
+		switch place := a.tryPlace(kind, target); place {
+		case placeNone:
+		case placeIgnore:
+			a.tryIgnored(kind) // onboarding.go
+			return
+		default:
+			req.Try = true
+			id, n := a.startSessionID(req)
+			a.tryStarted(place, kind, id, n)
+			return
+		}
+		a.startSession(req)
 	case hotkey.Stop:
 		a.stopSession()
 	case hotkey.Cancel:

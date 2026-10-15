@@ -326,6 +326,7 @@ func (a *app) openWindow() {
 		TitleBarHeight: titleBarHeight,
 		Content:        ui.View(a.view),
 	})
+	a.maybeOnboard() // onboarding.go: the setup guide, on the first start
 }
 
 // The pages' and the shell's icons (Solar; internal/icons/names.txt).
@@ -363,8 +364,12 @@ func (a *app) view(c *ui.Context) {
 		a.sidebarFrame(c, func() { // shell_nav.go: the sidebar or the icon rail
 			a.pages(c)
 			if a.logsPanel && section(a.router.Path()) != "/logs" {
+				// At most half the window: the page keeps its header and
+				// its first controls (at 720×480 too).
+				_, wh := c.Size()
+				ph := min(px(t, a.logsHeight), max(px(t, 120), (wh-px(t, statusBarHeight))/2-px(t, sp6)))
 				ui.Divider(c)
-				ui.Column(c.Key("logs-panel")).Height(px(t, a.logsHeight)).Shrink(0).Children(func() {
+				ui.Column(c.Key("logs-panel")).Height(ph).Shrink(0).Children(func() {
 					a.logsView(c, true)
 				})
 			}
@@ -372,7 +377,9 @@ func (a *app) view(c *ui.Context) {
 		ui.Divider(c)
 		a.statusBar(c)
 	})
-	a.settingsDialog(c) // shell_settings.go
+	a.settingsDialog(c)     // shell_settings.go
+	a.onboarding(c)         // onboarding.go
+	a.providerDialogView(c) // providers_page.go: over the page and the setup guide
 	a.palette(c)
 	a.shortcutSheet(c)
 	a.toastsView(c) // last: over dialogs too
