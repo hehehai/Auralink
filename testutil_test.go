@@ -140,7 +140,7 @@ func newTestAppIn(t *testing.T, dir string) (*app, *fakeSupervisor, *ui.Tester) 
 	a := newApp(lib, &helperHost{sup: fs})
 	a.permSys = &permission.Fake{Mic: permission.Granted, Grant: true}
 	a.playSound = func(macx.Sound) {} // tests that listen replace it
-	a.measureHook = guessWidth        // the overlay's texts, without its view
+	a.measureHook = guessText         // the overlay's texts, without its view
 	a.connectHelper()
 	a.startHelper()
 	t.Cleanup(a.quit)
@@ -256,6 +256,12 @@ func (f *fakeTimers) advance(d time.Duration) {
 	f.now = end
 }
 
-// guessWidth measures the overlay's texts in tests that build no overlay
-// view: as textWidth guesses them.
-func guessWidth(k ovSized) float32 { return float32(textWidth(k.text, float64(k.size))) }
+// guessWidth is how wide the overlay's texts are in tests that build no
+// overlay view (measureHook is guessText).
+func guessWidth(k ovSized) float32 { w, _ := guessText(k); return w }
+
+// cardTester is a tester of the overlay's window as large as the
+// highest answer card.
+func cardTester(a *app) *ui.Tester {
+	return ui.NewTester(a.overlayView, ovAnswerW+2*ovPad, ovCardMaxH+2*ovPad)
+}

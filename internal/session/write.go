@@ -71,6 +71,9 @@ func (r *run) write(raw, selection string) {
 		}
 	}
 	in.Answer = answer
+	if r.req.Card {
+		o.card = deliver.ReasonCard
+	}
 	r.m.update(r, func(s *Snapshot) { s.State, s.Selection, s.Card = Composing, selection, o.card != "" && !r.req.Try })
 
 	// Will it insert? If not, the answer streams into the card at once.

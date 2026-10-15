@@ -145,14 +145,14 @@ func TestOverlayWriting(t *testing.T) {
 	if a.ov.mode != ovAnswer || a.answer.open {
 		t.Errorf("streaming card %s %+v", a.ov.mode, a.answer)
 	}
-	if v := a.cardNow(); !v.streaming || v.text != "你好" || v.cardTitle() != "Translation" || v.lang != "zh-Hans" {
+	if v := a.cardNow(); !v.streaming || v.text != "你好" || v.title != "Translation" || v.lang != "zh-Hans" {
 		t.Errorf("card view %+v", v)
 	}
 	snap(a, session.Snapshot{ID: "t1", Kind: store.KindTranslate, State: session.Done, Selection: "Hi", Result: "你好", Card: true, Delivery: deliver.ReasonNotEditable, TargetLanguage: "zh-Hans"})
 	if !a.answer.open || a.answer.input.Selection != "Hi" || a.answer.lang != "zh-Hans" {
 		t.Fatalf("card %+v", a.answer)
 	}
-	if got := notInsertedText(a.sess, a.answer); got != "The selection in Slack cannot be edited: copy the result, or click where it should go and insert." {
+	if got := a.answer.why; got != "The selection in Slack cannot be edited: copy the result, or click where it should go and insert." {
 		t.Errorf("why %q", got)
 	}
 	// Another language: nothing is set up, so the card says why.
@@ -169,7 +169,7 @@ func TestOverlayWriting(t *testing.T) {
 	if a.ov.mode != ovAnswer || a.answer.problem == nil || a.notice != nil || a.answer.input.Raw != "shorter" {
 		t.Fatalf("failure %s %+v %+v", a.ov.mode, a.answer, a.notice)
 	}
-	tt := ui.NewTester(a.overlayView, ovAnswerW+2*ovPad, ovAnswerH+2*ovPad)
+	tt := cardTester(a)
 	frames(tt)
 	for _, s := range []string{"Rewritten text", "Try again", "shorter", "a long text"} {
 		if !has(tt, s) {
@@ -189,16 +189,17 @@ func TestOverlayWriting(t *testing.T) {
 		t.Fatalf("turns %+v", a.answer.turns)
 	}
 	frames(tt)
-	for _, s := range []string{"A note", "Long note.", "A long answer waits here: insert it, or copy it.", "fn ⌃ to follow up", "Insert", "Copy"} {
+	for _, s := range []string{"A note", "Long note.", "Continue", "Insert", "Copy", "Close"} {
 		if !has(tt, s) {
 			t.Errorf("answer card: no %q in %q", s, firstTexts(tt))
 		}
 	}
 	// The follow-up of a card whose app is set up runs as a Rewrite with the turns.
+	// It records in the card, a conversation (Voxt's).
 	a.followUp = "r2"
 	snap(a, session.Snapshot{ID: "r3", Kind: store.KindRewrite, State: session.Recording})
-	if a.ov.mode != ovRecording || !a.answer.open {
-		t.Errorf("follow-up recording %s %+v", a.ov.mode, a.answer.open)
+	if v := a.cardNow(); a.ov.mode != ovAnswer || !a.answer.open || !v.conversation || !v.recording || !v.canStop {
+		t.Errorf("follow-up recording %s %+v", a.ov.mode, v)
 	}
 	snap(a, session.Snapshot{ID: "r3", Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonCard, Raw: "shorter", Title: "Note", Result: "Note."})
 	if a.answer.id != "r3" || len(a.answer.turns) != 2 || a.answer.turns[1].Instruction != "shorter" || a.followUp != "" {

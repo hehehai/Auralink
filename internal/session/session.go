@@ -341,6 +341,10 @@ type StartRequest struct {
 	Text *TextInput
 	// TargetLanguage overrides Translate's target ("": the settings').
 	TargetLanguage string
+	// Card keeps the answer in the answer card, never inserted: the
+	// card's text into another language (Voxt's language menu replaces
+	// the card's answer).
+	Card bool
 	// Previous are a Rewrite conversation's earlier turns: the session is
 	// a follow-up to the answer card.
 	Previous []compose.Turn

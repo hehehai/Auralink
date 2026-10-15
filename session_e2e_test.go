@@ -204,7 +204,7 @@ func newSessionApp(t *testing.T, opts string, set func(*settings.Settings), keys
 	t.Cleanup(func() { newKeyring = old })
 	pasteLog := filepath.Join(t.TempDir(), "paste.jsonl")
 	a := newApp(lib, &helperHost{bin: self, env: helpertest.Env("frame-ms=20," + helpertest.Opt("paste-log", pasteLog) + "," + opts)})
-	a.measureHook = guessWidth
+	a.measureHook = guessText
 	s := &sessionApp{app: a, t: t, queue: make(chan func(), 4096), pasteLog: pasteLog}
 	a.postQueue = func(fn func()) { s.queue <- fn }
 	a.connectHelper()
@@ -677,17 +677,52 @@ func TestTranslateSpeechCard(t *testing.T) {
 	if msgs := chatMessages(chat.requests()[0]); !strings.Contains(msgs[0][1], "基础清理") || msgs[1][1] != "<input>\n周四见\n</input>" {
 		t.Errorf("first request %q", msgs)
 	}
+	// Another language: into the card whatever the setting (Voxt's menu
+	// replaces the card's answer); the card keeps its text meanwhile,
+	// with a spinner and the new language in its menu.
+	a.updateSettings(func(s *settings.Settings) { s.Features.Translate.ShowCard = false })
 	first := a.sess.ID
+	chat.mu.Lock()
+	chat.delay = 150 * time.Millisecond
+	chat.mu.Unlock()
 	a.retryAnswer("ja")
+	a.pump("the second session", func() bool { return a.sess.ID != first && a.sess.State == session.Composing })
+	if v := a.cardNow(); a.ov.mode != ovAnswer || !v.busy || v.text != "See you on Thursday." || v.lang != "ja" || v.canInsert || v.canLang || !v.canCopy {
+		t.Errorf("on its way: %s %+v", a.ov.mode, v)
+	}
 	a.pump("the second end", func() bool { return a.sess.ID != first && a.sess.State.Ended() })
 	if a.sess.Result != "木曜日に会いましょう。" || a.sess.TargetLanguage != "ja" || !a.answer.open || a.answer.lang != "ja" || tr.calls != 1 {
 		t.Errorf("again %+v, card %+v", a.sess, a.answer)
+	}
+	if a.answer.text != "木曜日に会いましょう。" || a.answer.id != a.sess.ID || a.answer.redo != "" || a.sess.Inserted || len(a.pasted()) != 0 || a.ov.mode != ovAnswer {
+		t.Errorf("replaced: %+v %+v", a.answer, a.pasted())
 	}
 	if msgs := chatMessages(chat.requests()[1]); !strings.Contains(msgs[0][1], "翻译成日语") || msgs[1][1] != "<input>\n周四见\n</input>" {
 		t.Errorf("second request %q", msgs)
 	}
 	if es := a.history(); len(es) != 2 || es[0].TargetLang != "ja" || es[0].Delivery != "card" {
 		t.Errorf("history %+v", es)
+	}
+	// A language that fails: the card stays as it was, and says so.
+	chat.set("", 500)
+	second := a.sess.ID
+	a.retryAnswer("ko")
+	a.pump("the third end", func() bool { return a.sess.ID != second && a.sess.State.Ended() })
+	if a.answer.text != "木曜日に会いましょう。" || a.answer.lang != "ja" || a.answer.redo != "" || !strings.HasPrefix(a.answer.msg, "Not translated into Korean: ") || a.notice != nil {
+		t.Errorf("failed: %+v notice %+v", a.answer, a.notice)
+	}
+	// Escape while another language is on its way closes the card.
+	chat.set("x", 0)
+	chat.mu.Lock()
+	chat.delay = time.Second
+	chat.mu.Unlock()
+	third := a.sess.ID
+	a.retryAnswer("fr")
+	a.pump("the fourth session", func() bool { return a.sess.ID != third && a.sess.State == session.Composing })
+	a.hotkeyFired(proto.HotkeyEventParams{Binding: proto.HotkeyEscape, Phase: proto.PhaseTrigger})
+	a.pump("the cancel", func() bool { return a.sess.State.Ended() })
+	if a.answer.open || a.sess.State != session.Cancelled || a.ov.shown {
+		t.Errorf("escape: %+v %s", a.answer, a.sess.State)
 	}
 }
 
@@ -759,14 +794,18 @@ func TestRewriteAnswerFollowUp(t *testing.T) {
 	front := helpertest.Apps["com.tinyspeck.slackmacgap"]
 	a.hotkeyFired(proto.HotkeyEventParams{Binding: "rewrite/0", Phase: proto.PhaseTrigger, Behavior: proto.BehaviorTap, Front: &front})
 	a.pump("the follow-up's recording", func() bool { return a.sess.State == session.Recording && a.sess.HeardAt.After(a.sess.StartedAt) })
-	if !a.answer.open || a.ov.mode != ovRecording {
-		t.Errorf("card %v overlay %s while recording", a.answer.open, a.ov.mode)
+	// It records in the card, now a conversation (Voxt's).
+	if v := a.cardNow(); !a.answer.open || a.ov.mode != ovAnswer || !v.conversation || !v.recording {
+		t.Errorf("card %v overlay %s while recording: %+v", a.answer.open, a.ov.mode, v)
 	}
 	time.Sleep(400 * time.Millisecond)
 	a.hotkeyFired(proto.HotkeyEventParams{Binding: "rewrite/0", Phase: proto.PhaseTrigger, Behavior: proto.BehaviorTap, Front: &front})
 	a.pump("the follow-up's end", func() bool { return a.sess.State.Ended() && a.answer.title == "Later" })
-	if a.answer.text != "Running late." || len(a.answer.turns) != 2 || !a.answer.open || len(a.pasted()) != 0 {
+	if a.answer.text != "Running late." || len(a.answer.turns) != 2 || !a.answer.open || !a.answer.conversation || len(a.pasted()) != 0 {
 		t.Errorf("card %+v", a.answer)
+	}
+	if v := a.cardNow(); len(v.bubbles) != 4 || !v.bubbles[2].user || v.bubbles[2].text != "shorter" || v.bubbles[3].title != "Later" || !v.canFollowUp {
+		t.Errorf("the conversation %+v", v.bubbles)
 	}
 	msgs := chatMessages(chat.requests()[1])
 	if len(msgs) != 4 || msgs[2][0] != "assistant" || !strings.Contains(msgs[2][1], "Sorry, I am running late.") || msgs[3][1] != "<instruction>\nshorter\n</instruction>" {

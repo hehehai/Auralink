@@ -20,11 +20,9 @@ package main
 //	           inserting
 //	notice     an error (or a warning) in the waveform's place: an icon and
 //	           one line, for 5 s; a click opens where to fix it
-//	answer     560×340: the result that was not inserted, Insert (ink),
-//	           Copy, Close; it streams while the model writes, shows a
-//	           Rewrite answer's title, Translate's target language (to
-//	           translate again into another), and a failure with Try
-//	           again
+//	answer     the answer card (overlay_card.go, Voxt's): 560 wide, as
+//	           high as its text up to Voxt's 220 for it; the result that
+//	           was not inserted, its actions in the header
 //
 // Nothing shows after an insert: the pill fades out (100 ms). Every
 // action is a shortcut: the feature's shortcut stops, Escape cancels,
@@ -46,9 +44,6 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/appctx"
-	"github.com/hehehai/Auralink/internal/compose"
-	"github.com/hehehai/Auralink/internal/deliver"
-	"github.com/hehehai/Auralink/internal/hotkey"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/session"
@@ -132,8 +127,6 @@ const (
 	ovArrowW     = 8 + 14
 	ovNoticeW    = 200
 	ovNoticeW2   = 420
-	ovAnswerW    = 560
-	ovAnswerH    = 340
 	// ovFrame paces the waveform and the loader (Voxt's 20 per second);
 	// ovFadeStep the fade after an insert (two steps, then hidden).
 	ovFrame    = 50 * time.Millisecond
@@ -163,11 +156,12 @@ type overlayState struct {
 			id string
 			w  int
 		}
-		// textW holds the widths of the texts the face's size depends on
-		// (the live text, the group's name, a notice's line), as the
-		// overlay's view measured them (overlayMeasure); a text not there
-		// yet is guessed (textWidth) until it is.
-		textW map[ovSized]float32
+		// textW holds the sizes of the texts the face's size depends on
+		// (the live text, the group's name, a notice's line, the answer
+		// card's texts, wrapped), as the overlay's view measured them
+		// (overlayMeasure); a text not there yet is guessed (guessText)
+		// until it is.
+		textW map[ovSized]ovMeasured
 		// area is the work area of the display it shows on, chosen when
 		// it appears (the display under the pointer); a resize stays there.
 		area mygo.Rectangle
@@ -189,13 +183,20 @@ type overlayState struct {
 		// native: the overlay makes its window without the main one (the
 		// overlay check, overlay_check.go).
 		native bool
+		// The answer card's (overlay_card.go): how far its text scrolls,
+		// and whose text that is; the bubble whose Copy shows its mark,
+		// bubbleSeq numbering the copies for their timers.
+		cardScroll    ui.ScrollState
+		cardScrollKey string
+		bubbleCopied  string
+		bubbleSeq     int
 	}
 	// laterHook replaces the timers of later in tests (nil: none run
 	// without a window).
 	laterHook func(time.Duration, func())
-	// measureHook measures the face's texts in tests, which build no view
-	// (nil: the view measures them, overlayMeasure).
-	measureHook func(ovSized) float32
+	// measureHook measures the face's texts (width, height) in tests,
+	// which build no view (nil: the view measures them, overlayMeasure).
+	measureHook func(ovSized) (float32, float32)
 }
 
 // overlayNative says whether the overlay has a real window: in the app,
@@ -216,14 +217,18 @@ func (a *app) later(d time.Duration, fn func()) {
 }
 
 // overlayModeNow decides what the overlay shows: the answer card (an
-// ended session's, or one the model writes into), a live session (not a
+// ended session's, with its own session on its way, a follow-up or
+// another language; or one the model writes into), a live session (not a
 // try: the page shows those), a notice, or nothing. A session that ended
 // shows nothing of its own: not the insert, which the text in place says.
 func (a *app) overlayModeNow() overlayMode {
 	s := a.sess
 	live := s.State.Live() && !s.Try
+	card := a.answer.open && (!live || a.cardSessionLive())
 	switch {
-	case a.answer.open && !live:
+	case card && a.answer.inserting:
+		return ovHidden // Insert pastes: the card comes back if it could not (Voxt's)
+	case card:
 		return ovAnswer
 	case live && s.Card && s.State == session.Composing:
 		return ovAnswer
@@ -242,7 +247,8 @@ func (a *app) overlayModeNow() overlayMode {
 func (a *app) overlaySize(mode overlayMode) (w, h int, exact bool) {
 	switch mode {
 	case ovAnswer:
-		return ovAnswerW, ovAnswerH, true
+		h, exact := a.cardHeight() // overlay_card.go
+		return ovAnswerW, h, exact
 	case ovNotice:
 		if a.notice == nil {
 			return ovNoticeW, ovPillH, true
@@ -304,31 +310,66 @@ func noticeWidth(text float32, action bool) int {
 	return min(max(w, ovNoticeW), ovNoticeW2)
 }
 
-// ovSized is a text the face's size depends on, as it draws.
+// ovSized is a text the face's size depends on, as it draws: wrapped at
+// wrap DIPs (0: one line).
 type ovSized struct {
 	text   string
 	size   float32
 	weight int
+	wrap   float32
 }
 
 func (k ovSized) span() ui.Span {
 	return ui.Span{Text: k.text, Size: k.size, Weight: k.weight}
 }
 
-func liveTextKey(text string) ovSized { return ovSized{text, ovLiveSize, ovLiveWeight} }
-func sceneText(name string) ovSized   { return ovSized{name, ovSceneSize, 0} }
-func noticeText(text string) ovSized  { return ovSized{text, ovNoticeSize, 0} }
+// ovMeasured is a text's size, measured.
+type ovMeasured struct{ w, h float32 }
+
+func liveTextKey(text string) ovSized { return ovSized{text, ovLiveSize, ovLiveWeight, 0} }
+func sceneText(name string) ovSized   { return ovSized{name, ovSceneSize, 0, 0} }
+func noticeText(text string) ovSized  { return ovSized{text, ovNoticeSize, 0, 0} }
 
 // ovTextWidth is how wide k draws: as measured, or guessed (false)
 // until the overlay's view measured it.
 func (a *app) ovTextWidth(k ovSized) (float32, bool) {
+	m, ok := a.ovText(k)
+	return m.w, ok
+}
+
+// ovTextHeight is how high k draws, wrapped at k.wrap: as measured, or
+// guessed (false) until the overlay's view measured it.
+func (a *app) ovTextHeight(k ovSized) (float32, bool) {
+	m, ok := a.ovText(k)
+	return m.h, ok
+}
+
+func (a *app) ovText(k ovSized) (ovMeasured, bool) {
 	if a.measureHook != nil {
-		return a.measureHook(k), true
+		w, h := a.measureHook(k)
+		return ovMeasured{w, h}, true
 	}
-	if w, ok := a.ov.textW[k]; ok {
-		return w, true
+	if m, ok := a.ov.textW[k]; ok {
+		return m, true
 	}
-	return float32(textWidth(k.text, float64(k.size))), false
+	w, h := guessText(k)
+	return ovMeasured{w, h}, false
+}
+
+// guessText guesses k's size: its width (textWidth), and its lines
+// (each paragraph's width over k.wrap) of 1.3 times its size.
+func guessText(k ovSized) (float32, float32) {
+	w := float32(textWidth(k.text, float64(k.size)))
+	line := float32(math.Ceil(float64(k.size) * 1.3))
+	if k.wrap <= 0 {
+		return w, line
+	}
+	lines := 0
+	for _, p := range strings.Split(k.text, "\n") {
+		pw := float32(textWidth(p, float64(k.size)))
+		lines += max(1, int(math.Ceil(float64(pw/k.wrap))))
+	}
+	return min(w, k.wrap), float32(lines) * line
 }
 
 // overlayTexts are the texts the face's size depends on in its mode.
@@ -346,6 +387,8 @@ func (a *app) overlayTexts() []ovSized {
 		if text := liveLineText(a.sess); text != "" {
 			out = append(out, liveTextKey(text))
 		}
+	case ovAnswer:
+		out = cardTexts(a.cardNow()) // overlay_card.go
 	}
 	return out
 }
@@ -357,23 +400,23 @@ func (a *app) overlayTexts() []ovSized {
 // is posted before the reveal.
 func (a *app) overlayMeasure(c *ui.Context) {
 	var keys []ovSized
-	var widths []float32
+	var sizes []ovMeasured
 	for _, k := range a.overlayTexts() {
-		if _, ok := a.ov.textW[k]; ok {
+		if _, ok := a.ov.textW[k]; ok || slices.Contains(keys, k) {
 			continue
 		}
-		w, _ := c.MeasureText(0, k.span())
-		keys, widths = append(keys, k), append(widths, w)
+		w, h := c.MeasureText(k.wrap, k.span())
+		keys, sizes = append(keys, k), append(sizes, ovMeasured{w, h})
 	}
 	if len(keys) == 0 {
 		return
 	}
 	a.post(func() {
 		if a.ov.textW == nil || len(a.ov.textW) > 256 {
-			a.ov.textW = map[ovSized]float32{}
+			a.ov.textW = map[ovSized]ovMeasured{}
 		}
 		for i, k := range keys {
-			a.ov.textW[k] = widths[i]
+			a.ov.textW[k] = sizes[i]
 		}
 		a.overlayRestyle()
 	})
@@ -653,7 +696,7 @@ func (a *app) overlayView(c *ui.Context) {
 		c.DisableAnimations()
 	}
 	switch {
-	case motion && (a.ov.mode == ovRecording || a.ov.mode == ovWorking):
+	case motion && (a.ov.mode == ovRecording || a.ov.mode == ovWorking || a.ov.mode == ovAnswer && a.cardRecording()):
 		c.After(ovFrame)
 	case a.ov.mode == ovRecording && a.prefs.Overlay.ShowTime:
 		c.After(250 * time.Millisecond) // the time
@@ -663,7 +706,9 @@ func (a *app) overlayView(c *ui.Context) {
 		o := a.prefs.Overlay
 		switch a.ov.mode {
 		case ovAnswer:
-			faceStyle(ui.Column(c.Key("ov-face")), o, ovAnswer, a.ov.h).DragWindow().Children(func() { a.overlayAnswer(c) })
+			// Voxt's card does not move (isMovableByWindowBackground off):
+			// its text is selectable.
+			faceStyle(ui.Column(c.Key("ov-face")), o, ovAnswer, a.ov.h).Children(func() { a.overlayCard(c) })
 		case ovNotice:
 			a.overlayNotice(c)
 		default:
@@ -1080,202 +1125,6 @@ func noticeActionLabel(action string) string {
 		return i18n.T("Open Permissions")
 	case actionHelper:
 		return i18n.T("Restart the helper")
-	}
-	return ""
-}
-
-// cardView is what the answer card shows: an ended session's card, or
-// the answer the model is writing into it.
-type cardView struct {
-	kind      store.Kind
-	title     string
-	text      string
-	streaming bool
-	failed    *session.Problem
-	msg       string // a warning line: why it is in the card, why Insert failed
-	lang      string // Translate's target
-	selection bool   // it works on a selection
-	followUp  bool   // Rewrite: the shortcut follows up
-	inserting bool
-}
-
-func (a *app) cardNow() cardView {
-	s := a.sess
-	if s.State.Live() && s.Card && !s.Try {
-		v := cardView{kind: s.Kind, title: s.Title, text: s.Draft, streaming: true, lang: s.TargetLanguage, selection: s.Selection != ""}
-		if s.Retried {
-			v.msg = i18n.T("The first answer was not translated: asking again.")
-		}
-		return v
-	}
-	card := a.answer
-	v := cardView{kind: card.kind, title: card.title, text: card.text, failed: card.problem, msg: card.msg, lang: card.lang,
-		selection: card.input.Selection != "", inserting: card.inserting}
-	if v.msg == "" && card.problem == nil {
-		v.msg = notInsertedText(a.sess, card)
-	}
-	v.followUp = card.kind == store.KindRewrite && card.problem == nil && len(card.turns) > 0
-	return v
-}
-
-// cardTitle is the card's heading: a Rewrite answer's own title, else
-// what the card holds.
-func (v cardView) cardTitle() string {
-	if t := strings.TrimSpace(v.title); t != "" {
-		return t
-	}
-	switch v.kind {
-	case store.KindTranslate:
-		return i18n.T("Translation")
-	case store.KindRewrite:
-		if v.selection {
-			return i18n.T("Rewritten text")
-		}
-		return i18n.T("Answer")
-	}
-	return i18n.T("Transcription")
-}
-
-// overlayAnswer is the answer card.
-func (a *app) overlayAnswer(c *ui.Context) {
-	t := c.Theme()
-	v := a.cardNow()
-	ui.Column(c).Fill().Padding(16, 18).Gap(10).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, kindIcon(v.kind).Linear).Size(16, 16).TextColor(ovText2)
-			ui.Text(c, v.cardTitle()).FontSize(14).Bold().TextColor(ovText).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
-			if v.streaming {
-				ui.Spinner(c).Size(14, 14)
-			}
-			if v.kind == store.KindTranslate {
-				a.cardLanguage(c, v)
-			}
-			if ui.ButtonBase(c.Key("ov-answer-close")).Size(28, 28).Center().Radius(14).Label(i18n.T("Close")).Children(func() {
-				ui.Icon(c, icons.Close.Linear).Size(16, 16).TextColor(ovText2)
-			}).Clicked() {
-				if v.streaming {
-					a.cancelSession()
-				}
-				a.closeAnswer()
-			}
-		})
-		if p := v.failed; p != nil {
-			text, more, _ := sessionProblemText(p)
-			ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-				ui.Icon(c, icons.DangerCircle.Bold).Size(16, 16).TextColor(tok(t).Danger).Shrink(0)
-				ui.Column(c).Gap(2).Grow(1).MinWidth(0).Children(func() {
-					ui.Text(c, text).FontSize(13).TextColor(ovText).MaxLines(2).Ellipsis("…")
-					if more != "" {
-						ui.Text(c, more).FontSize(12).TextColor(ovText2).MaxLines(3).Ellipsis("…").Selectable()
-					}
-				})
-			})
-		} else if v.msg != "" {
-			ui.Text(c, v.msg).FontSize(12).TextColor(tok(t).Warning).MaxLines(2).Ellipsis("…")
-		}
-		ui.Scroll(c.Key("ov-answer-scroll")).Grow(1).MinHeight(0).Children(func() {
-			text := v.text
-			if v.failed != nil {
-				// What it worked on: the instruction, then the selection.
-				in := a.answer.input
-				if v.kind == store.KindRewrite && in.Raw != "" && in.Selection != "" {
-					ui.Text(c, in.Raw).FontSize(13).TextColor(ovText).Selectable().Margin(0, 0, 6, 0)
-				}
-				text = in.Selection
-				if text == "" {
-					text = in.Raw
-				}
-			}
-			tx := ui.Text(c, text).FontSize(14).TextColor(ovText).Selectable()
-			if v.failed != nil {
-				tx.TextColor(ovText2)
-			}
-			if v.streaming && strings.TrimSpace(text) == "" {
-				ui.Text(c, workingText(a.sess)).FontSize(13).TextColor(ovText2)
-			}
-		})
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			if v.followUp {
-				if keys := a.featureKeys(hotkey.Rewrite); keys != "" {
-					ui.Text(c, i18n.T("%s to follow up", keys)).FontSize(12).TextColor(ovText2).SingleLine().Ellipsis("…").MinWidth(0)
-				}
-			}
-			ui.Spacer(c)
-			if v.failed != nil {
-				if primaryButton(c.Key("ov-answer-retry"), i18n.T("Try again")).Disabled(a.sess.State.Live()).Clicked() {
-					a.retryAnswer("")
-				}
-				return
-			}
-			if ghostButton(c.Key("ov-answer-copy"), i18n.T("Copy")).Disabled(v.streaming).Clicked() {
-				a.copyAnswer(c.Services().WriteClipboard)
-			}
-			label := i18n.T("Insert")
-			if v.inserting {
-				label = i18n.T("Inserting…")
-			}
-			if primaryButton(c.Key("ov-answer-insert"), label).Disabled(v.inserting || v.streaming).Clicked() {
-				a.insertAnswer()
-			}
-		})
-	})
-}
-
-// cardLanguage is Translate's target in the card: choosing another
-// translates the same text again.
-func (a *app) cardLanguage(c *ui.Context, v cardView) {
-	opts := make([]string, len(compose.TargetLanguages))
-	for i, code := range compose.TargetLanguages {
-		opts[i] = targetLanguageLabel(code)
-	}
-	cur := targetLanguageLabel(v.lang)
-	if !slices.Contains(opts, cur) {
-		opts = append(opts, cur)
-	}
-	if a.answer.langSel == "" || !slices.Contains(opts, a.answer.langSel) || v.streaming {
-		a.answer.langSel = cur
-	}
-	sel := ui.Select(c.Key("ov-answer-lang"), &a.answer.langSel, opts).Label(i18n.T("Translate into")).Width(190).Shrink(1).MinWidth(120).Disabled(v.streaming || a.sess.State.Live())
-	if sel.Changed() {
-		if j := slices.Index(opts, a.answer.langSel); j >= 0 && j < len(compose.TargetLanguages) && compose.TargetLanguages[j] != v.lang {
-			a.retryAnswer(compose.TargetLanguages[j])
-		}
-	}
-}
-
-// targetLanguageLabel names a target language in the UI's language.
-func targetLanguageLabel(code string) string {
-	return compose.LanguageName(code, i18n.Locale())
-}
-
-// featureKeys are the glyphs of a feature's first shortcut ("" for none).
-func (a *app) featureKeys(feature string) string {
-	hs := hotkey.HotkeysOf(a.prefs.Features, feature)
-	if len(hs) == 0 {
-		return ""
-	}
-	return hotkeyText(hs[0].Keys)
-}
-
-// notInsertedText says why the card shows.
-func notInsertedText(s session.Snapshot, card answerCard) string {
-	if s.ID != card.id {
-		return ""
-	}
-	name := card.target.Name
-	if name == "" {
-		name = i18n.T("the app")
-	}
-	switch s.Delivery {
-	case deliver.ReasonNotFront, deliver.ReasonNoTarget:
-		return i18n.T("%s is not in front any more: insert it there, or copy it.", name)
-	case deliver.ReasonNotEditable:
-		if s.Selection != "" {
-			return i18n.T("The selection in %s cannot be edited: copy the result, or click where it should go and insert.", name)
-		}
-		return i18n.T("Nothing in %s takes text: click where it should go, then insert.", name)
-	case deliver.ReasonLong:
-		return i18n.T("A long answer waits here: insert it, or copy it.")
 	}
 	return ""
 }

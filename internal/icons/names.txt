@@ -38,6 +38,8 @@ check-circle            # success
 danger-triangle         # warning
 danger-circle           # error
 copy
+copy-check              # copied (the answer card)
+pen                     # insert (the answer card)
 folder-open             # show in Finder
 trash-bin-minimalistic  # delete (a history entry, a shortcut)
 refresh                 # check again

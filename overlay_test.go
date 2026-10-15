@@ -19,6 +19,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/appctx"
 	"github.com/hehehai/Auralink/internal/asr"
+	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/session"
@@ -111,10 +112,12 @@ func TestOverlayModes(t *testing.T) {
 	}
 }
 
-// TestAnswerCardButtons: Copy copies and closes; Insert pastes through
-// the helper into the session's app, or says why it could not.
+// TestAnswerCardButtons: Copy copies and the card stays, its mark showing
+// for 2 s (Voxt's); Insert hides the card, pastes through the helper into
+// the session's app, and brings the card back with why it could not.
 func TestAnswerCardButtons(t *testing.T) {
 	a, fs, _ := newTestApp(t)
+	ft := new(fakeTimers).install(a)
 	var pasted []proto.PasteParams
 	front := 812
 	fs.handlers[proto.MethodTextFocus] = func(json.RawMessage) (any, error) {
@@ -124,6 +127,9 @@ func TestAnswerCardButtons(t *testing.T) {
 		var p proto.PasteParams
 		json.Unmarshal(raw, &p)
 		pasted = append(pasted, p)
+		if a.ov.shown {
+			t.Error("the card shows while it pastes")
+		}
 		return proto.PasteResult{Posted: true}, nil
 	}
 	card := func(id string) {
@@ -131,17 +137,24 @@ func TestAnswerCardButtons(t *testing.T) {
 		snap(a, session.Snapshot{ID: id, State: session.Done, Result: "Answer " + id, Card: true, Delivery: deliver.ReasonNotEditable})
 	}
 	card("c1")
-	tt := ui.NewTester(a.overlayView, ovAnswerW+2*ovPad, ovAnswerH+2*ovPad)
+	tt := cardTester(a)
 	frames(tt)
-	if !tt.HasText("Answer c1") || !tt.HasText("Nothing in Slack takes text: click where it should go, then insert.") {
+	if !tt.HasText("Answer c1") || tt.HasText("Nothing in Slack takes text: click where it should go, then insert.") {
 		t.Errorf("card texts %q", firstTexts(tt))
+	}
+	if a.answer.why != "Nothing in Slack takes text: click where it should go, then insert." {
+		t.Errorf("why %q", a.answer.why)
 	}
 	if err := tt.Click("Copy"); err != nil {
 		t.Fatal(err)
 	}
 	frames(tt)
-	if a.answer.open || len(a.toasts) == 0 || a.toasts[len(a.toasts)-1] != "Copied" {
-		t.Errorf("copy: %+v %v", a.answer, a.toasts)
+	if !a.answer.open || !a.answer.copied || tt.Clipboard() != "Answer c1" || !has(tt, "Copied") || len(a.toasts) != 0 {
+		t.Errorf("copy: %+v %q %v", a.answer, tt.Clipboard(), a.toasts)
+	}
+	ft.advance(copyMark)
+	if a.answer.copied || !a.answer.open || !has(tt, "Copy") {
+		t.Errorf("the mark stays: %+v", a.answer)
 	}
 	card("c2")
 	frames(tt)
@@ -155,8 +168,12 @@ func TestAnswerCardButtons(t *testing.T) {
 	front = 530 // another app came to the front
 	card("c3")
 	a.insertAnswer()
-	if !a.answer.open || a.answer.msg != "Slack is not in front any more." || len(pasted) != 1 {
-		t.Errorf("elsewhere: %+v", a.answer)
+	if !a.answer.open || a.answer.inserting || a.ov.mode != ovAnswer || a.answer.msg != "Slack is not in front any more." || len(pasted) != 1 {
+		t.Errorf("elsewhere: %s %+v", a.ov.mode, a.answer)
+	}
+	h := a.ov.h
+	if h != ovCardChrome+a.mustBody(t)+ovCardMsgGap+ovCardMsgH {
+		t.Errorf("the line under the text: %d high", h)
 	}
 	fs.handlers[proto.MethodTextFocus] = func(json.RawMessage) (any, error) {
 		return nil, &proto.Error{Code: proto.CodePermissionDenied}
@@ -166,6 +183,9 @@ func TestAnswerCardButtons(t *testing.T) {
 		t.Errorf("no access: %+v", a.answer)
 	}
 	frames(tt)
+	if !has(tt, "Allow Accessibility to insert results where you type.") {
+		t.Errorf("the line: %q", firstTexts(tt))
+	}
 	if err := tt.Click("Close"); err != nil {
 		t.Fatal(err)
 	}
@@ -173,6 +193,13 @@ func TestAnswerCardButtons(t *testing.T) {
 	if a.answer.open || a.ov.mode != ovHidden {
 		t.Errorf("close: %+v", a.answer)
 	}
+}
+
+// mustBody is the card's text's height now.
+func (a *app) mustBody(t *testing.T) int {
+	t.Helper()
+	h, _ := a.cardBodyHeight(a.cardNow())
+	return h
 }
 
 func TestSessionProblemTexts(t *testing.T) {
@@ -291,53 +318,84 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 	now := time.Now()
 	a.prefs.Overlay.ShowTime = false
 	a.measureHook = nil // the overlay's view measures its texts, as on the Mac
-	defer func() { a.measureHook = guessWidth }()
+	defer func() { a.measureHook = guessText }()
+	longTr := "Go 的并发模型建立在 goroutine 和 channel 之上。goroutine 是由 Go 运行时管理的轻量级线程，启动成本很低，一个程序里同时运行成千上万个也很常见。channel 则是 goroutine 之间传递数据的管道：发送和接收默认都会阻塞，直到另一端准备好，这让同步变得自然。\n\n实践中，我们通常用 context 控制取消和超时，用 errgroup 等待一组任务结束并收集第一个错误，用带缓冲的 channel 限制并发数。需要共享状态时，sync.Mutex 依然是最直接的选择；但如果能把状态的所有权交给一个 goroutine，并通过 channel 和它通信，代码往往更容易推理。\n\n最后，别忘了用 -race 运行测试：数据竞争很少在本地复现，却常常在生产环境里出现。"
+	turns := func() {
+		a.answer.turns = []compose.Turn{{Instruction: "写一句话告诉同事我会晚到十分钟", Answer: compose.Answer{Title: "晚到通知", Content: "大家好，我这边路上有点堵，大概会晚到十分钟，会议请先开始，不用等我。"}}}
+	}
 	states := []struct {
 		name  string
 		s     session.Snapshot
 		setup func()
+		after func(id string) // once the state is in (the answer card's own states)
 	}{
-		{"overlay-starting", session.Snapshot{State: session.Recording, StartedAt: now}, nil},
-		{"overlay-recording", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-12 * time.Second), Levels: wave()}, nil},
+		{"overlay-starting", session.Snapshot{State: session.Recording, StartedAt: now}, nil, nil},
+		{"overlay-recording", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-12 * time.Second), Levels: wave()}, nil, nil},
 		{"overlay-recording-time", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-12 * time.Second), Levels: wave()},
-			func() { a.prefs.Overlay.ShowTime = true }},
+			func() { a.prefs.Overlay.ShowTime = true }, nil},
 		{"overlay-live-short", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-3 * time.Second), Levels: wave(),
-			Partial: "Meet at three tomorrow"}, nil},
+			Partial: "Meet at three tomorrow"}, nil, nil},
 		{"overlay-live-short-zh", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-3 * time.Second), Levels: wave(),
-			Partial: "明天三点开会"}, nil},
+			Partial: "明天三点开会"}, nil, nil},
 		{"overlay-live-text", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-47 * time.Second), Levels: wave(),
-			Partial: "So the plan for the release is to finish the onboarding first, then the history page, and after that we look at the translation card"}, nil},
+			Partial: "So the plan for the release is to finish the onboarding first, then the history page, and after that we look at the translation card"}, nil, nil},
 		{"overlay-live-text-zh", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-20 * time.Second), Levels: wave(),
-			Partial: "那个我们明天，不对，后天下午三点开会，讨论一下 Auralink 的发布计划，然后把引导页和历史页先做完"}, nil},
+			Partial: "那个我们明天，不对，后天下午三点开会，讨论一下 Auralink 的发布计划，然后把引导页和历史页先做完"}, nil, nil},
 		{"overlay-recording-scene", session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now.Add(-5 * time.Second), Levels: wave(),
-			Target: proto.App{Name: "Slack"}, Scene: sceneMatch("Team chat", appctx.SourceApp, "")}, nil},
+			Target: proto.App{Name: "Slack"}, Scene: sceneMatch("Team chat", appctx.SourceApp, "")}, nil, nil},
 		{"overlay-working-scene", session.Snapshot{State: session.Composing, Target: proto.App{Name: "Google Chrome"},
-			Scene: sceneMatch("Code review", appctx.SourceURL, "github.com")}, nil},
-		{"overlay-recognizing", session.Snapshot{State: session.Recognizing}, nil},
-		{"overlay-composing", session.Snapshot{State: session.Composing, Partial: "那个我们明天，不对，后天下午三点开会，讨论一下 Auralink 的发布计划"}, nil},
-		{"overlay-error", session.Snapshot{State: session.Failed, Problem: &session.Problem{Code: session.ProblemASR, Err: &asr.Error{Kind: asr.KindAuth}}}, nil},
-		{"overlay-no-speech", session.Snapshot{State: session.Done, Problem: &session.Problem{Code: session.ProblemNoSpeech}}, nil},
+			Scene: sceneMatch("Code review", appctx.SourceURL, "github.com")}, nil, nil},
+		{"overlay-recognizing", session.Snapshot{State: session.Recognizing}, nil, nil},
+		{"overlay-composing", session.Snapshot{State: session.Composing, Partial: "那个我们明天，不对，后天下午三点开会，讨论一下 Auralink 的发布计划"}, nil, nil},
+		{"overlay-error", session.Snapshot{State: session.Failed, Problem: &session.Problem{Code: session.ProblemASR, Err: &asr.Error{Kind: asr.KindAuth}}}, nil, nil},
+		{"overlay-no-speech", session.Snapshot{State: session.Done, Problem: &session.Problem{Code: session.ProblemNoSpeech}}, nil, nil},
 		{"overlay-warning", session.Snapshot{State: session.Done, Result: "x", Inserted: true, Problem: &session.Problem{Code: session.ProblemLLM, Degraded: true,
-			Err: errors.New("timeout")}}, nil},
+			Err: errors.New("timeout")}}, nil, nil},
 		{"overlay-answer", session.Snapshot{State: session.Done, Card: true, Delivery: deliver.ReasonNotEditable,
-			Result: "Hello team, the release moves to Thursday.\n\n1. Finish the onboarding\n2. Polish the history page\n3. Ship the translation card\n\nThanks!"}, nil},
+			Result: "Hello team, the release moves to Thursday.\n\n1. Finish the onboarding\n2. Polish the history page\n3. Ship the translation card\n\nThanks!"}, nil, nil},
 		// Translate and Rewrite.
-		{"overlay-translate-recording", session.Snapshot{Kind: store.KindTranslate, State: session.Recording, StartedAt: now, HeardAt: now.Add(-5 * time.Second), Levels: wave(), TargetLanguage: "en"}, nil},
+		{"overlay-translate-recording", session.Snapshot{Kind: store.KindTranslate, State: session.Recording, StartedAt: now, HeardAt: now.Add(-5 * time.Second), Levels: wave(), TargetLanguage: "en"}, nil, nil},
 		{"overlay-translate-selection", session.Snapshot{Kind: store.KindTranslate, State: session.Composing, Selection: "A goroutine is a lightweight thread.", TargetLanguage: "zh-Hans",
-			Draft: "goroutine 是一种轻量级"}, nil},
+			Draft: "goroutine 是一种轻量级"}, nil, nil},
 		{"overlay-rewrite-writing", session.Snapshot{Kind: store.KindRewrite, State: session.Composing, Raw: "write a short note saying I will be late",
-			Draft: "Sorry, I'm running about ten minutes late"}, nil},
+			Draft: "Sorry, I'm running about ten minutes late"}, nil, nil},
 		{"overlay-translate-card-streaming", session.Snapshot{Kind: store.KindTranslate, State: session.Composing, Card: true, Delivery: deliver.ReasonNotEditable,
-			Selection: "A goroutine is a lightweight thread managed by the Go runtime.", TargetLanguage: "zh-Hans", Draft: "goroutine 是由 Go 运行时管理的"}, nil},
-		{"overlay-translate-card", session.Snapshot{Kind: store.KindTranslate, State: session.Done, Card: true, Delivery: deliver.ReasonCard,
-			Selection: "A goroutine is a lightweight thread managed by the Go runtime.", TargetLanguage: "zh-Hans",
-			Result: "goroutine 是由 Go 运行时管理的轻量级线程。"}, nil},
+			Selection: "A goroutine is a lightweight thread managed by the Go runtime.", TargetLanguage: "zh-Hans", Draft: "goroutine 是由 Go 运行时管理的"}, nil, nil},
+		{"overlay-translate-card", session.Snapshot{Kind: store.KindTranslate, State: session.Done, Card: true, Delivery: deliver.ReasonNotEditable,
+			Target: proto.App{PID: 77, Name: "Arc"}, Selection: "A goroutine is a lightweight thread managed by the Go runtime.", TargetLanguage: "zh-Hans",
+			Result: "goroutine 是由 Go 运行时管理的轻量级线程。"}, nil, nil},
+		{"overlay-translate-card-en", session.Snapshot{Kind: store.KindTranslate, State: session.Done, Card: true, Delivery: deliver.ReasonNotEditable,
+			Target: proto.App{PID: 77, Name: "Arc"}, Selection: "我们把发布推迟到周四，先把引导页和历史页做完。", TargetLanguage: "en",
+			Result: "We are moving the release to Thursday, to finish the onboarding and the history page first."}, nil, nil},
+		{"overlay-translate-card-long", session.Snapshot{Kind: store.KindTranslate, State: session.Done, Card: true, Delivery: deliver.ReasonNotEditable,
+			Target: proto.App{PID: 77, Name: "Arc"}, Selection: "Go's concurrency…", TargetLanguage: "zh-Hans", Result: longTr}, nil, nil},
+		{"overlay-translate-card-redo", session.Snapshot{Kind: store.KindTranslate, State: session.Done, Card: true, Delivery: deliver.ReasonNotEditable,
+			Target: proto.App{PID: 77, Name: "Arc"}, Selection: "A goroutine is a lightweight thread managed by the Go runtime.", TargetLanguage: "zh-Hans",
+			Result: "goroutine 是由 Go 运行时管理的轻量级线程。"}, nil, func(id string) {
+			a.answer.redo, a.answer.redoLang = id+"-ja", "ja"
+			snap(a, session.Snapshot{ID: id + "-ja", Kind: store.KindTranslate, State: session.Composing, Card: true, TargetLanguage: "ja"})
+		}},
+		{"overlay-translate-card-copied", session.Snapshot{Kind: store.KindTranslate, State: session.Done, Card: true, Delivery: deliver.ReasonNotEditable,
+			Target: proto.App{PID: 77, Name: "Arc"}, Selection: "A goroutine is a lightweight thread managed by the Go runtime.", TargetLanguage: "zh-Hans",
+			Result: "goroutine 是由 Go 运行时管理的轻量级线程。"}, nil, func(string) { a.answer.copied = true }},
+		{"overlay-translate-card-insert-failed", session.Snapshot{Kind: store.KindTranslate, State: session.Done, Card: true, Delivery: deliver.ReasonNotEditable,
+			Target: proto.App{PID: 77, Name: "Arc"}, Selection: "A goroutine is a lightweight thread managed by the Go runtime.", TargetLanguage: "zh-Hans",
+			Result: "goroutine 是由 Go 运行时管理的轻量级线程。"}, nil, func(string) {
+			a.answer.msg = deliveryText(deliver.Result{Reason: deliver.ReasonNotFront}, proto.App{Name: "Arc"})
+		}},
 		{"overlay-rewrite-card", session.Snapshot{Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonLong,
 			Raw: "写一段两百字的自我介绍，用于技术分享会的开场", Title: "技术分享开场自我介绍",
-			Result: "大家好，我是关伟，一名专注于桌面应用和语音交互的工程师。过去几年，我主要在做跨平台的原生界面框架，也参与了几个语音输入工具的设计和开发。\n\n今天想和大家聊聊：怎样让语音输入真正融入日常的写作流程——从按下快捷键的那一刻，到文字出现在光标处，中间发生了什么，又有哪些地方值得打磨。"}, nil},
+			Result: "大家好，我是关伟，一名专注于桌面应用和语音交互的工程师。过去几年，我主要在做跨平台的原生界面框架，也参与了几个语音输入工具的设计和开发。\n\n今天想和大家聊聊：怎样让语音输入真正融入日常的写作流程——从按下快捷键的那一刻，到文字出现在光标处，中间发生了什么，又有哪些地方值得打磨。"}, nil, nil},
+		{"overlay-rewrite-conversation-recording", session.Snapshot{Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonLong,
+			Raw: "写一句话告诉同事我会晚到十分钟", Title: "晚到通知", Result: "大家好，我这边路上有点堵，大概会晚到十分钟，会议请先开始，不用等我。"}, nil, func(id string) {
+			a.followUp, a.answer.conversation = id, true
+			snap(a, session.Snapshot{ID: id + "-f", Kind: store.KindRewrite, State: session.Recording, StartedAt: now, HeardAt: now, Levels: wave(), Partial: "再正式一点"})
+		}},
+		{"overlay-rewrite-conversation", session.Snapshot{Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonCard,
+			Raw: "再正式一点", Title: "晚到说明", Result: "各位好：因交通拥堵，我预计将晚到约十分钟。会议请按时开始，无需等候，抱歉给大家带来不便。"}, nil, nil},
 		{"overlay-rewrite-failed", session.Snapshot{Kind: store.KindRewrite, State: session.Failed, Card: true,
 			Raw: "make it more formal", Selection: "hey, the release slips to thursday, sorry!",
-			Problem: &session.Problem{Code: session.ProblemLLM, Err: errors.New("deepseek: server error (503): overloaded")}}, nil},
+			Problem: &session.Problem{Code: session.ProblemLLM, Err: errors.New("deepseek: server error (503): overloaded")}}, nil, nil},
 	}
 	desk, line := ui.RGB(246, 246, 248), ui.RGB(150, 156, 166)
 	if dark {
@@ -345,7 +403,13 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 	}
 	for i, st := range states {
 		id := "shot" + itoa(i)
-		a.answer, a.notice = answerCard{}, nil
+		a.answer, a.notice, a.followUp = answerCard{}, nil, ""
+		if st.name == "overlay-rewrite-conversation" {
+			// The follow-up of a card that held the first answer.
+			a.answer = answerCard{open: true, id: "first", kind: store.KindRewrite, conversation: true}
+			turns()
+			a.followUp = "first"
+		}
 		a.prefs.Overlay.ShowTime = false
 		if st.setup != nil {
 			st.setup()
@@ -357,6 +421,10 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 		live.Problem, live.Result, live.Inserted, live.Card = nil, "", false, false
 		snap(a, live)
 		snap(a, final)
+		if st.after != nil {
+			st.after(id)
+			a.overlaySync()
+		}
 		a.toasts = nil
 		if a.ov.mode == ovHidden {
 			t.Fatalf("%s: nothing shows", st.name)
@@ -608,11 +676,40 @@ func TestOverlayInk(t *testing.T) {
 			}
 			if c.name == "live-short" {
 				// The text's measured width and the padding: no guess.
-				tw := a.ov.textW[liveTextKey(short)]
+				tw := a.ov.textW[liveTextKey(short)].w
 				if tw <= ovRowW || a.ov.w != int(math.Ceil(float64(tw)))+2*ovLivePadX {
 					t.Errorf("the face is %d wide for a text %v wide", a.ov.w, tw)
 				}
 			}
 		})
+	}
+}
+
+// TestOverlayShots renders the overlay's states alone (overlayShots),
+// English over a light desktop and Chinese over a dark one:
+//
+//	AURALINK_OVERLAY_SHOTS=/tmp/ov go test -run TestOverlayShots .
+func TestOverlayShots(t *testing.T) {
+	out := os.Getenv("AURALINK_OVERLAY_SHOTS")
+	if out == "" {
+		t.Skip("set AURALINK_OVERLAY_SHOTS to a directory")
+	}
+	os.MkdirAll(out, 0o755)
+	for _, run := range []struct {
+		lang string
+		dark bool
+	}{{"en", false}, {"zh-Hans", true}} {
+		a, _, _ := newTestApp(t)
+		if run.lang != "en" {
+			a.updateSettings(func(s *settings.Settings) { s.General.Language = run.lang })
+		}
+		suffix := "light"
+		if run.dark {
+			suffix = "dark"
+		}
+		if run.lang != "en" {
+			suffix += "-" + run.lang
+		}
+		overlayShots(t, a, out, suffix, run.dark)
 	}
 }

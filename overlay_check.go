@@ -241,6 +241,9 @@ func abs(v int) int { return max(v, -v) }
 // size is checked.
 func (a *app) overlayInkWant() ovInkWant {
 	w := ovInkWant{w: a.ov.w, h: a.ov.h}
+	if a.ov.mode == ovAnswer {
+		return cardInkWant(w, a.cardNow())
+	}
 	if a.ov.mode != ovRecording && a.ov.mode != ovWorking {
 		return w
 	}
@@ -249,6 +252,23 @@ func (a *app) overlayInkWant() ovInkWant {
 	if text := liveLineText(a.sess); text != "" {
 		tw, _ := a.ovTextWidth(liveTextKey(text))
 		w.text, w.scrolled = true, tw > ovLiveTextW
+	}
+	return w
+}
+
+// cardInkWant is what the answer card v should show: its ink from its
+// left padding down to its text's last line (a text's line, 14 at most
+// 22 high, and the small line under it when there is one, whose ink may
+// be too dim to count), or to its bottom padding when it scrolls.
+func cardInkWant(w ovInkWant, v cardView) ovInkWant {
+	w.card, w.gap = true, 8
+	if !v.conversation {
+		w.gap = 22
+	} else {
+		w.gap = ovBubblePadY + 8 // a bubble's fill is not ink
+	}
+	if v.msg != "" {
+		w.gap += ovCardMsgGap + ovCardMsgH
 	}
 	return w
 }

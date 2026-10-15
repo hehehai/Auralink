@@ -26,6 +26,11 @@ type ovInkWant struct {
 	// text: a line of text under the row; scrolled: it was wider than
 	// the line, so it ends at the right padding and is cut at the left.
 	text, scrolled bool
+	// card: the answer card: its ink starts at its left padding and
+	// ends above its bottom one, at most gap DIPs above it (no empty
+	// space under a short text; a long one scrolls to the padding).
+	card bool
+	gap  float64
 }
 
 // ovInk is what the picture shows, in DIPs from the face's top left.
@@ -37,11 +42,13 @@ type ovInk struct {
 	restR, restMid float64
 	// The text line's ink, left and right edges (0, 0: none).
 	textL, textR float64
+	// All the face's ink: its left edge and its bottom.
+	inkL, inkB float64
 }
 
 func (k ovInk) String() string {
-	s := fmt.Sprintf("face %.1f×%.1f; row: left %.1f, right %.1f, icon middle %.1f, waveform middle %.1f",
-		k.faceW, k.faceH, k.iconL, k.faceW-k.restR, k.iconMid, k.restMid)
+	s := fmt.Sprintf("face %.1f×%.1f; ink: left %.1f, %.1f above the bottom; row: left %.1f, right %.1f, icon middle %.1f, waveform middle %.1f",
+		k.faceW, k.faceH, k.inkL, k.faceH-k.inkB, k.iconL, k.faceW-k.restR, k.iconMid, k.restMid)
 	if k.textR > 0 {
 		s += fmt.Sprintf("; text: left %.1f, right %.1f, %.1f wide", k.textL, k.faceW-k.textR, k.textR-k.textL)
 	}
@@ -83,10 +90,21 @@ func measureOverlayInk(img image.Image, scale float64, padY float64, row, text b
 	}
 	var k ovInk
 	k.faceW, k.faceH = float64(x1+1-x0)/scale, float64(y1+1-y0)/scale
+	inset := int(math.Ceil(2 * scale)) // past the hairline
+	il, ib := math.MaxInt, -1
+	for y := y0 + inset; y <= y1-inset; y++ {
+		for x := x0 + inset; x <= x1-inset; x++ {
+			if bright(x, y) {
+				il, ib = min(il, x), max(ib, y)
+			}
+		}
+	}
+	if ib >= 0 {
+		k.inkL, k.inkB = float64(il-x0)/scale, float64(ib+1-y0)/scale
+	}
 	if !row {
 		return k, nil
 	}
-	inset := int(math.Ceil(2 * scale)) // past the hairline
 	// The row: its band, the columns that have ink in it, split at the
 	// first gap wider than 6 DIPs (the icon's slot, the gap, the bars'
 	// air: 12 or more; a glyph's own gaps are narrower).
@@ -164,6 +182,16 @@ func checkOverlayInk(img image.Image, scale float64, want ovInkWant) (ovInk, []s
 	failf := func(format string, args ...any) { bad = append(bad, fmt.Sprintf(format, args...)) }
 	if math.Abs(k.faceW-float64(want.w)) > ovInkSizeTol || math.Abs(k.faceH-float64(want.h)) > ovInkSizeTol {
 		failf("the face is %.1f×%.1f, not %d×%d", k.faceW, k.faceH, want.w, want.h)
+	}
+	if want.card {
+		// The icon's glyph sits a little inside its slot.
+		if k.inkL < ovCardPadX-ovInkTol || k.inkL > ovCardPadX+4 {
+			failf("the card's ink starts %.1f from its left edge, not %d", k.inkL, ovCardPadX)
+		}
+		under := k.faceH - k.inkB
+		if under < ovCardPadY-ovInkTextTol || under > ovCardPadY+want.gap {
+			failf("the card's ink ends %.1f above its bottom edge, not %d to %.0f", under, ovCardPadY, ovCardPadY+want.gap)
+		}
 	}
 	if !want.row {
 		return k, bad
