@@ -8,6 +8,8 @@
 #                                        # outside the app, for AURALINK_HELPER
 #   scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'
 #
+# SWIFT_BUILD_JOBS limits swift build's jobs (scripts/mac-e2e.sh: 2).
+#
 # It is signed with helper/Support/helper.entitlements and the hardened
 # runtime, ad hoc unless AURALINK_SIGN_IDENTITY names an identity (see
 # "Signing during development" in README.md: an ad hoc rebuild of the app
@@ -37,7 +39,7 @@ fi
 cd "$ROOT/helper"
 log="$(mktemp)"
 trap 'rm -f "$log"' EXIT
-if ! swift build -c release --arch arm64 >"$log" 2>&1; then
+if ! swift build -c release --arch arm64 ${SWIFT_BUILD_JOBS:+-j "$SWIFT_BUILD_JOBS"} >"$log" 2>&1; then
   grep -E "error:" "$log" | sort -u | head -40 >&2 || cat "$log" >&2
   echo "swift build failed" >&2
   exit 1

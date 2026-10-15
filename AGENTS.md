@@ -24,5 +24,6 @@ go test -run TestKeyParity ./internal/i18n                   # strings and zh-Ha
 scripts/mac.sh '<command>'                                   # run on the Mac (MAC_HOST, MAC_DIR=code/Auralink)
 scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'   # the Swift helper, then the app
 scripts/mac.sh 'cd helper && swift test'                     # the helper's tests (same fixtures as Go)
+MAC_DIR=code/Auralink-mt scripts/mac.sh scripts/mac-e2e.sh   # headless Mac tests: real helper, no window or key (--offline: no services)
 scripts/vendor-mygo.sh --check                               # third_party/mygo is MyGo + our patches
 ```
