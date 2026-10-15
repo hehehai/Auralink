@@ -355,7 +355,10 @@ type TextInput struct {
 type Manager struct {
 	cfg Config
 
-	mu   sync.Mutex
+	mu sync.Mutex
+	// pub orders publication: taken before mu is released, so snapshots
+	// reach OnChange in the order of their revisions.
+	pub  sync.Mutex
 	cur  *run
 	snap Snapshot // the current (or last) session's
 	rev  uint64
@@ -464,8 +467,10 @@ func (m *Manager) Start(req StartRequest) (string, error) {
 		m.snap.Raw, m.snap.Selection = strings.TrimSpace(t.Raw), t.Selection
 	}
 	s := m.snap.clone()
+	m.pub.Lock()
 	m.mu.Unlock()
 	m.publish(s)
+	m.pub.Unlock()
 	r.startScene()
 	go r.main()
 	return r.id, nil
@@ -507,8 +512,10 @@ func (m *Manager) update(r *run, fn func(*Snapshot)) bool {
 	m.rev++
 	m.snap.Rev = m.rev
 	s := m.snap.clone()
+	m.pub.Lock()
 	m.mu.Unlock()
 	m.publish(s)
+	m.pub.Unlock()
 	return true
 }
 
@@ -532,11 +539,13 @@ func (m *Manager) end(r *run, st State, fn func(*Snapshot), kept func(Snapshot))
 	m.rev++
 	m.snap.Rev = m.rev
 	s := m.snap.clone()
+	m.pub.Lock()
 	m.mu.Unlock()
 	if kept != nil {
 		kept(s)
 	}
 	m.publish(s)
+	m.pub.Unlock()
 	return true
 }
 
