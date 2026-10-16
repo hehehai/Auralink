@@ -8,6 +8,9 @@
 #   scripts/release-verify.sh build/darwin-arm64 developer-id
 #   scripts/release-verify.sh build/darwin-arm64 ad-hoc
 #   scripts/release-verify.sh DIR ad-hoc --no-dmg   # a build with -skip-dmg
+#
+# EXPECT_TEAM, when set, is the Team ID a Developer ID build must be signed
+# by (the release workflow's APPLE_TEAM_ID).
 set -euo pipefail
 
 dir="${1:?the build directory, e.g. build/darwin-arm64}"
@@ -67,6 +70,7 @@ if [[ "$mode" == developer-id ]]; then
   team_app="$(details "$app" | sed -n 's/^TeamIdentifier=//p')"
   team_helper="$(details "$helper" | sed -n 's/^TeamIdentifier=//p')"
   check "one team ($team_app) signs both" test -n "$team_app" -a "$team_app" = "$team_helper"
+  [[ -n "${EXPECT_TEAM:-}" ]] && check "the team is APPLE_TEAM_ID's" test "$team_app" = "$EXPECT_TEAM"
   verdict="$(spctl -a -vv -t exec "$app" 2>&1 || true)"
   check "Gatekeeper accepts the app (notarized)" grep -q 'source=Notarized Developer ID' <<<"$verdict"
   check "the app's ticket is stapled" xcrun stapler validate "$app"
@@ -78,6 +82,10 @@ if [[ "$mode" == developer-id ]]; then
 else
   check "signed ad hoc" has "$app" '^Signature=adhoc$'
 fi
+# CFBundleVersion is the version's numbers (MyGo patch 0007), as Apple wants.
+build_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist")"
+numbers() { [[ "$1" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; }
+check "CFBundleVersion $build_version is numbers" numbers "$build_version"
 
 if ((fails > 0)); then
   echo "$fails checks failed" >&2

@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"slices"
 	"time"
@@ -38,6 +39,9 @@ type updateCheckReport struct {
 	Found    string `json:"found"`    // the version Check found, "" when up to date
 	Notes    string `json:"notes"`    // its release notes
 	CheckErr string `json:"checkErr"` // Check's error
+	// NotPublished: Check's error is mygo.ErrNotPublished (no release on
+	// the channel yet), which the update window shows as up to date.
+	NotPublished bool `json:"notPublished"`
 	// Totals are the sizes the progress reported, one per download: the
 	// delta's alone, or the archive's (after the delta's when it failed).
 	Totals     []int64 `json:"totals"`
@@ -64,7 +68,7 @@ func runUpdateCheck(out string) {
 	defer cancel()
 	up, err := mygo.Updater.Check(ctx)
 	if err != nil {
-		rep.CheckErr = err.Error()
+		rep.CheckErr, rep.NotPublished = err.Error(), errors.Is(err, mygo.ErrNotPublished)
 	}
 	if up != nil {
 		rep.Found, rep.Notes = up.Version, up.Notes
