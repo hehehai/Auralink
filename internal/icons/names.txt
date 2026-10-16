@@ -59,7 +59,7 @@ key-minimalistic-square  # a saved key
 soundwave                # speech services
 chat-round-line          # language models
 
-# Transcribe (transcribe_page.go).
+# The feature pages (feature_keys.go).
 accessibility            # a shortcut that needs Accessibility
 
 # App enhancement (appenhance_page.go).

@@ -392,7 +392,7 @@ func (a *app) openURL(raw string) {
 
 // hotkeyGlyphs shows a settings.Hotkey's keys as macOS writes them:
 // "Fn+Shift" → "fn ⇧", "Control+Command+V" → "⌃⌘V", "RightCommand" →
-// "Right ⌘" (hotkeyText, transcribe_page.go); "—" for none.
+// "Right ⌘" (hotkeyText, feature_keys_text.go); "—" for none.
 func hotkeyGlyphs(keys string) string {
 	if strings.TrimSpace(keys) == "" {
 		return "—"

@@ -544,7 +544,7 @@ func (m *macText) Paste(_ context.Context, p proto.PasteParams) (proto.PasteResu
 	return proto.PasteResult{Posted: true}, nil
 }
 
-// macSession is a session.Manager as the app wires it (sessionlink.go):
+// macSession is a session.Manager as the app wires it (session_link.go):
 // the helper's audio, the app's resolver over keys in memory, the history
 // and dictionary of a library in a temporary directory; macText instead
 // of the helper's text I/O.

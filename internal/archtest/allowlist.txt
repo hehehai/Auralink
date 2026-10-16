@@ -8,12 +8,6 @@
 # said why in the commit.
 #
 # path                                  lines  # why it is long; the batch that splits it
-transcribe_page.go                       1323  # three feature pages, their shortcuts, services, prompts and the Try card; R1
-overlay.go                               1157  # the overlay's state, sizes, face and waveform in one file; R1
-providers_page.go                         920  # the page, its dialog and the providers' error texts; R1
-ui_kit.go                                 917  # the whole UI kit (AudioSmith's file); R1, cut as AudioSmith plans
-appenhance_page.go                        909  # the page, its preview and three dialogs; R1
-sessionlink.go                            909  # sessions, the answer card's actions and the shortcuts; R1
 demo.go                                   724  # the demo build's machinery and its sample data; R2
 overlay_card.go                           714  # the answer card's model and its view; R2
 shell_settings.go                         674  # the settings dialog, General, the locale and the rows every section uses; R2

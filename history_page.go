@@ -554,7 +554,7 @@ func ruleText(e store.Entry) string {
 	if e.RuleName == "" {
 		return ""
 	}
-	if how := ruleSourceLabel(e.RuleSource); how != "" { // appenhance_page.go
+	if how := ruleSourceLabel(e.RuleSource); how != "" { // appenhance_preview.go
 		return i18n.T("%s (%s)", e.RuleName, how)
 	}
 	return e.RuleName

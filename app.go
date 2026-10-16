@@ -17,9 +17,9 @@ import (
 //	trayState         tray.go         the menu bar icon
 //	permissionsState  permissions.go  Settings → Permissions
 //	providersState    providers_page.go  the Model services page
-//	sessionState      sessionlink.go  sessions, shortcuts, the answer card
+//	sessionState      session_link.go  sessions, shortcuts, the answer card
 //	overlayState      overlay.go      the recording overlay
-//	transcribeState   transcribe_page.go  the feature pages (Transcribe, Translate, Rewrite)
+//	transcribeState   feature_page.go  the feature pages (Transcribe, Translate, Rewrite)
 //	historyState      history_page.go the History page
 //	appEnhanceState   appenhance.go   App enhancement: the groups, address reads, the page
 //	dictionaryState   dictionary_page.go  the Dictionary page
@@ -98,7 +98,7 @@ func (a *app) toast(msg string) {
 // quit releases what the app holds; it runs in App.OnQuit, before the
 // library closes.
 func (a *app) quit() {
-	a.closeSessions() // sessionlink.go
+	a.closeSessions() // session_link.go
 	a.closeOverlay()  // overlay.go
 	a.closeTray()
 	a.stopHelper()
