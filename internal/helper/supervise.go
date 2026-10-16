@@ -158,6 +158,20 @@ func (s *supervisor) spawn(auto bool) {
 	}
 	s.mu.Unlock()
 
+	// After an update, the helper on disk is the new version's.
+	if s.stale() {
+		s.mu.Lock()
+		if s.stopped {
+			s.mu.Unlock()
+			return
+		}
+		s.failLocked(FailUpdated, errUpdated, "")
+		st := s.statusLocked()
+		s.mu.Unlock()
+		s.publish(st)
+		return
+	}
+
 	p, err := s.startProcess()
 	s.mu.Lock()
 	if err != nil {
@@ -283,13 +297,13 @@ func (s *supervisor) handshake(p *proc) {
 		p.killFor(FailHandshake, fmt.Sprintf("the helper did not answer helper.hello within %s", s.cfg.HelloTimeout), false)
 		return
 	case errors.As(err, &perr) && perr.Code == proto.CodeProtocolMismatch:
-		p.killFor(FailProtocol, "helper version mismatch: rebuild "+BinName+" ("+perr.Message+")", true)
+		s.protocolMismatch(p, perr.Message)
 		return
 	case err != nil:
 		p.killFor(FailHandshake, "helper.hello failed: "+err.Error(), false)
 		return
 	case hello.Protocol != proto.Version:
-		p.killFor(FailProtocol, fmt.Sprintf("helper version mismatch: rebuild %s (it speaks protocol %d; want %d)", BinName, hello.Protocol, proto.Version), true)
+		s.protocolMismatch(p, fmt.Sprintf("it speaks protocol %d; want %d", hello.Protocol, proto.Version))
 		return
 	}
 	p.helloDone.Store(true)
@@ -308,6 +322,23 @@ func (s *supervisor) handshake(p *proc) {
 	st := s.statusLocked()
 	s.mu.Unlock()
 	s.publish(st)
+}
+
+// errUpdated is Status.Err of FailUpdated.
+const errUpdated = "Auralink was updated: restart it to finish the update (the helper on disk is the new version's)"
+
+// stale asks Config.Stale.
+func (s *supervisor) stale() bool { return s.cfg.Stale != nil && s.cfg.Stale() }
+
+// protocolMismatch stops a helper that speaks another protocol, which is
+// not restarted: after an update the app is to restart (FailUpdated),
+// otherwise the helper is to be rebuilt (FailProtocol).
+func (s *supervisor) protocolMismatch(p *proc, detail string) {
+	if s.stale() {
+		p.killFor(FailUpdated, errUpdated, true)
+		return
+	}
+	p.killFor(FailProtocol, "helper version mismatch: rebuild "+BinName+" ("+detail+")", true)
 }
 
 // read routes the helper's stdout: responses to their calls, a job's

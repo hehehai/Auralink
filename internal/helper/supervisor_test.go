@@ -606,3 +606,66 @@ func TestFind(t *testing.T) {
 		t.Error("the environment does not win")
 	}
 }
+
+// TestUpdatedApp: once an update replaced the app on disk (Config.Stale),
+// the supervisor starts no helper, the new version's, neither after a
+// crash nor on Restart, and a helper speaking another protocol is put
+// down to the update (FailUpdated) rather than a build to redo.
+func TestUpdatedApp(t *testing.T) {
+	var stale atomicBool
+	t.Run("crash", func(t *testing.T) {
+		stale.set(false)
+		h := start(t, "", func(c *Config) { c.Stale = stale.get })
+		first := h.ready(t).PID
+		stale.set(true) // the update is installed while it runs
+		if p, err := os.FindProcess(first); err == nil {
+			p.Kill()
+		}
+		wait(t, "the update to be reported", func() bool { return h.sup.Status().Reason == FailUpdated })
+		st := h.sup.Status()
+		if st.State != Failed || st.PID != 0 || !st.RestartAt.IsZero() || !strings.Contains(st.Err, "restart it") {
+			t.Fatalf("after the crash: %+v", st)
+		}
+		// Restart starts nothing either.
+		h.sup.Restart()
+		if st := h.sup.Status(); st.State != Failed || st.Reason != FailUpdated || st.PID != 0 {
+			t.Fatalf("after Restart: %+v", st)
+		}
+		if _, err := h.sup.Call(context.Background(), "", proto.MethodCaptureDevices, nil, nil); !errors.Is(err, core.ErrHelper) {
+			t.Errorf("call: %v", err)
+		}
+		// Each restart asked Stale and gave up: no helper ran since.
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		for _, s := range h.statuses[1:] {
+			if s.State == Ready && s.PID != first {
+				t.Errorf("a helper started after the update: %+v", s)
+			}
+		}
+	})
+	for _, opts := range []string{"mismatch", "refuse"} {
+		t.Run(opts, func(t *testing.T) {
+			calls := 0
+			var mu sync.Mutex
+			h := start(t, opts, func(c *Config) {
+				// Not stale when it starts, stale by its hello: an
+				// update came in between.
+				c.Stale = func() bool { mu.Lock(); defer mu.Unlock(); calls++; return calls > 1 }
+				c.HelloTimeout = 300 * time.Millisecond
+			})
+			wait(t, "the failure", func() bool { return h.sup.Status().State == Failed })
+			if st := h.sup.Status(); st.Reason != FailUpdated || !st.RestartAt.IsZero() {
+				t.Fatalf("status %+v", st)
+			}
+		})
+	}
+}
+
+// atomicBool is a bool for Config.Stale, set from the test.
+type atomicBool struct {
+	mu sync.Mutex
+	v  bool
+}
+
+func (b *atomicBool) set(v bool) { b.mu.Lock(); b.v = v; b.mu.Unlock() }
+func (b *atomicBool) get() bool  { b.mu.Lock(); defer b.mu.Unlock(); return b.v }
