@@ -25,6 +25,7 @@ import (
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 var slackApp = proto.App{PID: 812, BundleID: "com.tinyspeck.slackmacgap", Name: "Slack"}
@@ -384,7 +385,7 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 		{"overlay-translate-card-insert-failed", session.Snapshot{Kind: store.KindTranslate, State: session.Done, Card: true, Delivery: deliver.ReasonNotEditable,
 			Target: proto.App{PID: 77, Name: "Arc"}, Selection: "A goroutine is a lightweight thread managed by the Go runtime.", TargetLanguage: "zh-Hans",
 			Result: "goroutine 是由 Go 运行时管理的轻量级线程。"}, nil, func(string) {
-			a.answer.msg = deliveryText(deliver.Result{Reason: deliver.ReasonNotFront}, proto.App{Name: "Arc"})
+			a.answer.msg = uitext.DeliveryText(deliver.Result{Reason: deliver.ReasonNotFront}, proto.App{Name: "Arc"})
 		}},
 		{"overlay-rewrite-card", session.Snapshot{Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonCard,
 			Raw: "写一段两百字的自我介绍，用于技术分享会的开场", Title: "技术分享开场自我介绍",
@@ -491,8 +492,8 @@ func TestOverlaySceneLabel(t *testing.T) {
 		{session.Snapshot{Target: proto.App{Name: "Google Chrome"}, Scene: sceneMatch("Work", appctx.SourceBrowserApp, "news.ycombinator.com")}, "Google Chrome · Work"},
 		{session.Snapshot{Scene: sceneMatch("Work", appctx.SourceApp, "")}, "Work"},
 	} {
-		if got := sceneLabel(tc.s); got != tc.want {
-			t.Errorf("sceneLabel = %q, want %q", got, tc.want)
+		if got := uitext.SceneLabel(tc.s); got != tc.want {
+			t.Errorf("uitext.SceneLabel = %q, want %q", got, tc.want)
 		}
 	}
 	a, _, _ := newTestApp(t)
@@ -500,8 +501,8 @@ func TestOverlaySceneLabel(t *testing.T) {
 	if want := ovPillW + ovGap + int(math.Ceil(float64(guessWidth(sceneText("Team chat"))))); a.ov.w != want || a.ov.h != ovPillH {
 		t.Errorf("size %dx%d", a.ov.w, a.ov.h)
 	}
-	if sceneShort(a.sess) != "Team chat" {
-		t.Errorf("short %q", sceneShort(a.sess))
+	if uitext.SceneShort(a.sess) != "Team chat" {
+		t.Errorf("short %q", uitext.SceneShort(a.sess))
 	}
 }
 

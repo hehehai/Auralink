@@ -12,35 +12,8 @@ import (
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
-
-// ---- The preview ----
-
-// sourceText says how a group matched.
-func sourceText(s appctx.Source, pattern string) string {
-	switch s {
-	case appctx.SourceURL:
-		return i18n.T("by the website rule %s", pattern)
-	case appctx.SourceBrowserApp:
-		return i18n.T("as its browser")
-	case appctx.SourceApp:
-		return i18n.T("as its app")
-	}
-	return ""
-}
-
-// ruleSourceLabel says how a history entry's group matched.
-func ruleSourceLabel(s string) string {
-	switch appctx.Source(s) {
-	case appctx.SourceURL:
-		return i18n.T("website")
-	case appctx.SourceBrowserApp:
-		return i18n.T("browser")
-	case appctx.SourceApp:
-		return i18n.T("app")
-	}
-	return ""
-}
 
 func (a *app) aePreviewCard(c *ui.Context) {
 	t := c.Theme()
@@ -97,7 +70,7 @@ func (a *app) aePreviewCard(c *ui.Context) {
 		ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
 			if m.Matched() {
 				ui.Icon(c, icons.Target.Linear).Size(px(t, 14), px(t, 14)).TextColor(k.Accent).Shrink(0)
-				ui.Text(c, i18n.T("Matches %s, %s", m.GroupName(), sourceText(m.Source, m.Pattern))).FontSize(px(t, fsCaption)).Grow(1).MinWidth(0)
+				ui.Text(c, i18n.T("Matches %s, %s", m.GroupName(), uitext.SourceText(m.Source, m.Pattern))).FontSize(px(t, fsCaption)).Grow(1).MinWidth(0)
 			} else {
 				ui.Text(c, i18n.T("No group matches: only the features' own rules apply.")).FontSize(px(t, fsCaption)).TextColor(k.Text2).Grow(1).MinWidth(0)
 			}

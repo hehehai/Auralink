@@ -13,6 +13,7 @@ import (
 	"github.com/hehehai/Auralink/internal/asr"
 	"github.com/hehehai/Auralink/internal/providers"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // memKeyring is a keyring in memory: the view tests never reach the
@@ -172,8 +173,8 @@ func TestProvidersPageLLMAndFeatures(t *testing.T) {
 	if !has(tt, "No key saved") {
 		t.Errorf("card: %q", tt.Texts())
 	}
-	if p, _ := providers.Choose(a.prefs, providers.LLM, a.prefs.Features.Transcribe.Feature.LLM, a.hasKey); providerName(providers.LLM, p) != "Qwen (Alibaba Cloud Model Studio)" {
-		t.Errorf("Transcribe's LLM %q", providerName(providers.LLM, p))
+	if p, _ := providers.Choose(a.prefs, providers.LLM, a.prefs.Features.Transcribe.Feature.LLM, a.hasKey); uitext.ProviderName(providers.LLM, p) != "Qwen (Alibaba Cloud Model Studio)" {
+		t.Errorf("Transcribe's LLM %q", uitext.ProviderName(providers.LLM, p))
 	}
 }
 

@@ -29,6 +29,7 @@ import (
 	"github.com/hehehai/Auralink/internal/netx"
 	"github.com/hehehai/Auralink/internal/secrets"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // issuesURL is where bugs are reported.
@@ -55,7 +56,7 @@ type selfCheck struct {
 // said or wrote: for bug reports.
 func (a *app) diagnosticsText() string {
 	var b strings.Builder
-	line := func(k, v string) { fmt.Fprintf(&b, "%s: %s\n", k, orDash(v)) }
+	line := func(k, v string) { fmt.Fprintf(&b, "%s: %s\n", k, uitext.OrDash(v)) }
 	ver := a.version
 	if ver == "" {
 		ver = "dev"
@@ -78,7 +79,7 @@ func (a *app) diagnosticsText() string {
 	}
 	line("Go", runtime.Version())
 	line("MyGo", moduleVersion("github.com/egoist/mygo"))
-	line("Data folder", fmt.Sprintf("%s (free %s)", a.dataDir(), humanBytes(diskFree(a.dataDir()))))
+	line("Data folder", fmt.Sprintf("%s (free %s)", a.dataDir(), uitext.HumanBytes(diskFree(a.dataDir()))))
 	line("Language", i18n.Locale())
 	for _, c := range a.checks {
 		line("Check "+c.id, c.status+" "+c.detail)
@@ -126,7 +127,7 @@ func (a *app) runSelfCheck() {
 		case helper.Starting:
 			add("helper", i18n.T("Helper"), "warn", i18n.T("Starting…"))
 		default:
-			add("helper", i18n.T("Helper"), "fail", orDash(hs.Err))
+			add("helper", i18n.T("Helper"), "fail", uitext.OrDash(hs.Err))
 		}
 		// The data folder.
 		os.MkdirAll(data, 0o755)
@@ -136,9 +137,9 @@ func (a *app) runSelfCheck() {
 			tmp.Close()
 			os.Remove(tmp.Name())
 			if free := diskFree(data); free > 0 && free < 1<<30 {
-				add("data", i18n.T("Data folder"), "warn", i18n.T("Only %s free.", humanBytes(free)))
+				add("data", i18n.T("Data folder"), "warn", i18n.T("Only %s free.", uitext.HumanBytes(free)))
 			} else {
-				add("data", i18n.T("Data folder"), "pass", i18n.T("Writable · %s free", humanBytes(free)))
+				add("data", i18n.T("Data folder"), "pass", i18n.T("Writable · %s free", uitext.HumanBytes(free)))
 			}
 		}
 		// The network, through the proxy.
@@ -156,7 +157,7 @@ func (a *app) runSelfCheck() {
 			add("keychain", i18n.T("Keychain"), "pass", i18n.T("Readable"))
 		}
 		// Permissions.
-		if t, ok := permissionText(perms.mic); ok {
+		if t, ok := uitext.PermissionText(perms.mic); ok {
 			add("microphone", i18n.T("Microphone"), "pass", t)
 		} else {
 			add("microphone", i18n.T("Microphone"), "warn", t)
@@ -293,8 +294,8 @@ func (a *app) aboutSettings(c *ui.Context) {
 	}
 	if s := a.sys; s != nil {
 		rows = append(rows,
-			[2]string{i18n.T("System"), orDash(s.OS)},
-			[2]string{i18n.T("Chip"), orDash(s.Chip)},
+			[2]string{i18n.T("System"), uitext.OrDash(s.OS)},
+			[2]string{i18n.T("Chip"), uitext.OrDash(s.Chip)},
 			[2]string{i18n.T("Memory"), i18n.T("%d GB", s.MemoryGB())},
 		)
 	}

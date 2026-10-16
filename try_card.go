@@ -14,6 +14,7 @@ import (
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // ---- Try it ----
@@ -50,7 +51,7 @@ func (a *app) featureTry(c *ui.Context, feature string) {
 	u := a.fui(feature)
 	sectionTitle(c, i18n.T("Try it"))
 	a.tryCard(c, tryOpts{
-		prefix: featurePrefix(feature), feature: feature, mine: a.trySessionOf(feature),
+		prefix: uitext.FeaturePrefix(feature), feature: feature, mine: a.trySessionOf(feature),
 		intro: a.tryIntro(feature), block: &u.block,
 		start: func() *sessionNotice { _, n := a.startTry(featureKind(feature)); return n },
 	})
@@ -87,7 +88,7 @@ func (a *app) tryCard(c *ui.Context, o tryOpts) {
 		case try && s.State.Live():
 			ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
 				ui.Spinner(c).Size(px(t, 16), px(t, 16))
-				ui.Text(c, workingText(s)).Grow(1).MinWidth(0)
+				ui.Text(c, uitext.WorkingText(s)).Grow(1).MinWidth(0)
 				if ghostButton(c.Key(p+"-try-cancel"), i18n.T("Cancel")).Clicked() {
 					a.cancelSession()
 				}
@@ -234,44 +235,7 @@ func (a *app) tryEnded(c *ui.Context, p string, s session.Snapshot, clear func()
 			ui.Text(c, raw).FontSize(px(t, fsCaption)).TextColor(k.Text2).Selectable()
 		})
 	}
-	if line := timingsText(s); line != "" {
+	if line := uitext.TimingsText(s); line != "" {
 		caption(c, line)
 	}
-}
-
-// timingsText is a try's stage times and services: "Recording 3.2 s ·
-// Recognition 0.8 s · Clean-up 1.1 s · Doubao, DeepSeek".
-func timingsText(s session.Snapshot) string {
-	secs := func(d time.Duration) string { return i18n.T("%.1f s", d.Seconds()) }
-	var parts []string
-	tm := s.Timings
-	if tm.Audio > 0 {
-		parts = append(parts, i18n.T("Recording %s", secs(tm.Audio)))
-	}
-	if tm.ASR > 0 {
-		parts = append(parts, i18n.T("Recognition %s", secs(tm.ASR)))
-	}
-	if tm.LLM > 0 {
-		switch s.Kind {
-		case store.KindTranslate:
-			parts = append(parts, i18n.T("Translation %s", secs(tm.LLM)))
-		case store.KindRewrite:
-			parts = append(parts, i18n.T("Writing %s", secs(tm.LLM)))
-		default:
-			parts = append(parts, i18n.T("Clean-up %s", secs(tm.LLM)))
-		}
-	}
-	if tm.Total > 0 {
-		parts = append(parts, i18n.T("Total %s", secs(tm.Total)))
-	}
-	var svc []string
-	for _, m := range []session.Model{s.ASR, s.LLM} {
-		if m.Name != "" {
-			svc = append(svc, m.Name)
-		}
-	}
-	if len(svc) > 0 {
-		parts = append(parts, strings.Join(svc, ", "))
-	}
-	return strings.Join(parts, " · ")
 }

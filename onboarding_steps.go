@@ -10,8 +10,8 @@ import (
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/providers"
 	"github.com/hehehai/Auralink/internal/session"
-	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // obRow is a line of the guide: an icon, a title and a line under it.
@@ -64,7 +64,7 @@ func (a *app) obServicesStep(c *ui.Context) {
 		ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Margin(px(t, sp2), 0, 0, 0).Children(func() {
 			sectionTitleText(c, title)
 			if len(ready) > 0 {
-				statusMark(c, icons.CheckCircle, tok(t).Success, i18n.T("Ready: %s", providerName(kind, ready[0])))
+				statusMark(c, icons.CheckCircle, tok(t).Success, i18n.T("Ready: %s", uitext.ProviderName(kind, ready[0])))
 			}
 		})
 		if len(ready) == 0 {
@@ -111,13 +111,13 @@ func (a *app) obTryStep(c *ui.Context) {
 	ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Wrap().Children(func() {
 		hs := hotkey.HotkeysOf(a.prefs.Features, feature)
 		if len(hs) == 0 {
-			caption(c, i18n.T("%s has no shortcut: use Start, and add one on its page.", kindTitle(kind)))
+			caption(c, i18n.T("%s has no shortcut: use Start, and add one on its page.", uitext.KindTitle(kind)))
 			return
 		}
 		caption(c, i18n.T("Shortcut"))
 		h := hs[0]
-		ui.Text(c, hotkeyText(h.Keys)).FontSize(px(t, fsCaption)).Font("monospace").Padding(px(t, 2), px(t, 8)).Radius(px(t, 4)).Background(k.Hover)
-		caption(c, triggerHowText(h.Trigger))
+		ui.Text(c, uitext.HotkeyText(h.Keys)).FontSize(px(t, fsCaption)).Font("monospace").Padding(px(t, 2), px(t, 8)).Radius(px(t, 4)).Background(k.Hover)
+		caption(c, uitext.TriggerHowText(h.Trigger))
 		if hotkey.NeedsTap(h) && !a.hotkeys.Installed {
 			warnLine(c, i18n.T("This shortcut works once Auralink may use Accessibility; Start works now."))
 		}
@@ -132,7 +132,7 @@ func (a *app) obTryStep(c *ui.Context) {
 	case store.KindTranslate:
 		target := session.TranslateTarget(a.prefs, i18n.Locale(), "")
 		sample := i18n.T("Let's go camping in the mountains this weekend; remember to bring a warm jacket and a torch.")
-		obSample(c, "ob-sample", i18n.T("Sample text · into %s", targetLanguageLabel(target)), sample, func() {
+		obSample(c, "ob-sample", i18n.T("Sample text · into %s", uitext.TargetLanguageLabel(target)), sample, func() {
 			if ui.Button(c.Key("ob-translate-sample"), i18n.T("Translate this text")).Disabled(a.sess.State.Live()).Clicked() {
 				a.obTry(sample)
 			}
@@ -145,20 +145,9 @@ func (a *app) obTryStep(c *ui.Context) {
 	}
 	id := a.ob.tries[step]
 	a.tryCard(c, tryOpts{
-		prefix: "ob-" + featurePrefix(feature), feature: feature, mine: id != "" && a.sess.ID == id,
+		prefix: "ob-" + uitext.FeaturePrefix(feature), feature: feature, mine: id != "" && a.sess.ID == id,
 		block: &a.ob.block, start: func() *sessionNotice { return a.obTry("") },
 	})
-}
-
-// triggerHowText says how a shortcut's trigger is used.
-func triggerHowText(trigger string) string {
-	switch trigger {
-	case settings.TriggerDouble:
-		return i18n.T("Press twice quickly to start; once more to stop.")
-	case settings.TriggerLong:
-		return i18n.T("Record while you hold the keys; release to stop.")
-	}
-	return i18n.T("Press to start, press again to stop.")
 }
 
 // obSample is a sample text in a grey card, with a title and an action.
@@ -214,8 +203,8 @@ func (a *app) obMoreStep(c *ui.Context) {
 			})
 		}
 		for _, f := range hotkey.Features {
-			row(featureTitle(f), a.featureKeys(f))
+			row(uitext.FeatureTitle(f), a.featureKeys(f))
 		}
-		row(featureTitle(hotkey.PasteLast), hotkeyText(a.prefs.Features.PasteLast.Keys))
+		row(uitext.FeatureTitle(hotkey.PasteLast), uitext.HotkeyText(a.prefs.Features.PasteLast.Keys))
 	})
 }

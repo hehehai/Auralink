@@ -1,8 +1,8 @@
-package main
+package uitext
 
-// The words of the Model services page (providers_page.go) and of the
-// services' card: providers' and presets' names, what a key is called, a
-// preset's mode, and what a provider's error means.
+// The words of the Model services page and of the services' card:
+// providers' and presets' names, what a key is called, a preset's mode,
+// and what a provider's error means.
 
 import (
 	"errors"
@@ -16,17 +16,17 @@ import (
 	"github.com/hehehai/Auralink/internal/settings"
 )
 
-// providerName is a service's name in the UI language: the user's label,
+// ProviderName is a service's name in the UI language: the user's label,
 // else the preset's (translated where it has a Chinese name).
-func providerName(kind providers.Kind, p settings.Provider) string {
+func ProviderName(kind providers.Kind, p settings.Provider) string {
 	if p.Name != "" {
 		return p.Name
 	}
 	pr, _ := providers.PresetOf(kind, p)
-	return presetName(pr)
+	return PresetName(pr)
 }
 
-func presetName(pr providers.Preset) string {
+func PresetName(pr providers.Preset) string {
 	if pr.Kind == providers.ASR {
 		switch pr.ID {
 		case "doubao":
@@ -67,16 +67,16 @@ func presetName(pr providers.Preset) string {
 	return pr.ID
 }
 
-// keyLabel is what a service calls its key.
-func keyLabel(kind providers.Kind, id string) string {
+// KeyLabel is what a service calls its key.
+func KeyLabel(kind providers.Kind, id string) string {
 	if kind == providers.ASR && id == "doubao" {
 		return i18n.T("Access Token or API key")
 	}
 	return i18n.T("API key")
 }
 
-// modeLabel is the chip of a service: how it works.
-func modeLabel(pr providers.Preset) string {
+// ModeLabel is the chip of a service: how it works.
+func ModeLabel(pr providers.Preset) string {
 	switch pr.Mode {
 	case providers.ModeStream:
 		return i18n.T("Streaming")
@@ -88,9 +88,9 @@ func modeLabel(pr providers.Preset) string {
 	return i18n.T("OpenAI API")
 }
 
-// providerErrorText says what went wrong with a service, and its detail
+// ProviderErrorText says what went wrong with a service, and its detail
 // (the service's own message, for the ⓘ).
-func providerErrorText(err error) (msg, more string) {
+func ProviderErrorText(err error) (msg, more string) {
 	if err == nil {
 		return "", ""
 	}
@@ -147,9 +147,9 @@ func providerErrorText(err error) (msg, more string) {
 	return i18n.T("Could not reach the service. Check the network, the proxy and the endpoint."), more
 }
 
-// providerErrorShort is a failed test's reason beside its button: a few
+// ProviderErrorShort is a failed test's reason beside its button: a few
 // words, and what to change.
-func providerErrorShort(err error) string {
+func ProviderErrorShort(err error) string {
 	var ae *asr.Error
 	if errors.As(err, &ae) {
 		switch ae.Kind {
@@ -202,9 +202,9 @@ func providerErrorShort(err error) string {
 	return i18n.T("Unreachable: check the network, proxy and endpoint")
 }
 
-// providerErrorDetail is what the service said, for a failure's ⓘ: its
+// ProviderErrorDetail is what the service said, for a failure's ⓘ: its
 // HTTP status, code and message (never a key: errors carry none).
-func providerErrorDetail(err error) string {
+func ProviderErrorDetail(err error) string {
 	var ae *asr.Error
 	if errors.As(err, &ae) {
 		var parts []string

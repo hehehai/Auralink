@@ -13,6 +13,7 @@ import (
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/permission"
 	"github.com/hehehai/Auralink/internal/providers"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // ---- The page ----
@@ -49,7 +50,7 @@ func (a *app) readinessList() []readiness {
 		out = append(out, readiness{key: "home-asr", title: i18n.T("Speech recognition"), kind: noticeWarn,
 			text: i18n.T("No speech service is ready: set one up to transcribe, translate and rewrite by voice."), action: i18n.T("Open Model services"), fix: openProv})
 	default:
-		out = append(out, readiness{key: "home-asr", title: i18n.T("Speech recognition"), ok: true, text: providerName(providers.ASR, pa)})
+		out = append(out, readiness{key: "home-asr", title: i18n.T("Speech recognition"), ok: true, text: uitext.ProviderName(providers.ASR, pa)})
 	}
 	switch {
 	case !okA && !okL:
@@ -57,7 +58,7 @@ func (a *app) readinessList() []readiness {
 		out = append(out, readiness{key: "home-llm", title: i18n.T("Language model"), kind: noticeWarn,
 			text: i18n.T("No language model is ready: Translate and Rewrite need one, and Transcribe types the text as recognised."), action: i18n.T("Open Model services"), fix: openProv})
 	default:
-		out = append(out, readiness{key: "home-llm", title: i18n.T("Language model"), ok: true, text: providerName(providers.LLM, pl)})
+		out = append(out, readiness{key: "home-llm", title: i18n.T("Language model"), ok: true, text: uitext.ProviderName(providers.LLM, pl)})
 	}
 	// The Microphone.
 	switch {
@@ -88,10 +89,10 @@ func (a *app) readinessList() []readiness {
 	case st.State == helper.Ready, st.State == helper.Starting:
 	case st.Reason == helper.FailUpdated:
 		out = append(out, readiness{key: "home-helper", title: i18n.T("Helper"), kind: noticeWarn,
-			text: helperFailText(st), action: i18n.T("Restart Auralink"), fix: a.relaunch})
+			text: uitext.HelperFailText(st), action: i18n.T("Restart Auralink"), fix: a.relaunch})
 	default:
 		out = append(out, readiness{key: "home-helper", title: i18n.T("Helper"), kind: noticeError,
-			text: helperFailText(st), action: i18n.T("Restart the helper"), fix: a.restartHelper})
+			text: uitext.HelperFailText(st), action: i18n.T("Restart the helper"), fix: a.restartHelper})
 	}
 	return out
 }
@@ -110,15 +111,15 @@ func (a *app) shortcutReadiness() readiness {
 	// and the first one (Transcribe's) wins.
 	for _, p := range hotkey.Check(a.prefs.Features) {
 		if p.Feature == hotkey.Transcribe && p.Index == 0 {
-			r.kind, r.text, r.action, r.fix = noticeWarn, i18n.T("Transcribe's shortcut %s: %s", hotkeyText(hs[0].Keys), hotkeyProblemText(p)), i18n.T("Open Transcribe"), openTr
+			r.kind, r.text, r.action, r.fix = noticeWarn, i18n.T("Transcribe's shortcut %s: %s", uitext.HotkeyText(hs[0].Keys), uitext.HotkeyProblemText(p)), i18n.T("Open Transcribe"), openTr
 			return r
 		}
 	}
-	r.ok, r.text = true, hotkeyText(hs[0].Keys)
+	r.ok, r.text = true, uitext.HotkeyText(hs[0].Keys)
 	if hotkey.NeedsTap(hs[0]) && !a.hotkeys.Installed {
 		// The Accessibility line says what to do; this one says it waits.
 		r.warn = true
-		r.text = i18n.T("%s (once Accessibility is allowed)", hotkeyText(hs[0].Keys))
+		r.text = i18n.T("%s (once Accessibility is allowed)", uitext.HotkeyText(hs[0].Keys))
 	}
 	return r
 }

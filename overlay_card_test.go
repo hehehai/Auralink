@@ -17,6 +17,7 @@ import (
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // cardLong is a translation longer than the card's 220 of text.
@@ -59,7 +60,7 @@ func cardSteps() []cardStep {
 		{name: "copied", apply: func(a *app) { a.answer.copied = true }, body: ovCardBodyMax, insert: true, copy: true, lang: true},
 		{name: "insert-failed", apply: func(a *app) {
 			a.answer.copied, a.answer.text = false, "goroutine 是由 Go 运行时管理的轻量级线程。"
-			a.answer.msg = deliveryText(deliver.Result{Reason: deliver.ReasonNotFront}, arc)
+			a.answer.msg = uitext.DeliveryText(deliver.Result{Reason: deliver.ReasonNotFront}, arc)
 		}, msg: true, insert: true, copy: true, lang: true},
 		{name: "failed", apply: func(a *app) {
 			snap(a, session.Snapshot{ID: "t3", Kind: store.KindTranslate, State: session.Recording})

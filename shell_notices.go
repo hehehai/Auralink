@@ -11,7 +11,6 @@ package main
 import (
 	"context"
 	"slices"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/core"
@@ -19,6 +18,7 @@ import (
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/providers"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // The problems' notifications: one ID each, so a problem shows once.
@@ -153,24 +153,8 @@ func (a *app) checkHelper() {
 		}
 		return
 	}
-	a.setProblem(problemHelper, string(st.Reason), &core.Notification{Severity: core.SeverityError, Title: helperFailText(st),
+	a.setProblem(problemHelper, string(st.Reason), &core.Notification{Severity: core.SeverityError, Title: uitext.HelperFailText(st),
 		Body: i18n.T("Recording and the shortcuts wait for it."), Link: linkRestartHelper})
-}
-
-// helperFailText says why the helper does not run.
-func helperFailText(st helper.Status) string {
-	switch st.Reason {
-	case helper.FailMissing:
-		return i18n.T("Helper missing")
-	case helper.FailProtocol:
-		return i18n.T("Helper out of date")
-	case helper.FailUpdated:
-		return i18n.T("Auralink was updated: restart it to finish.")
-	}
-	if st.State == helper.Stopped {
-		return i18n.T("Helper stopped")
-	}
-	return i18n.T("Helper stopped unexpectedly")
 }
 
 // cardAction runs a card's action: restart the helper, or open its link.
@@ -185,19 +169,6 @@ func (a *app) cardAction(n core.Notification) {
 		return
 	}
 	a.openURL(n.Link)
-}
-
-// cardActionLabel names a card's action by its link.
-func cardActionLabel(link string) string {
-	switch link {
-	case linkRestartHelper:
-		return i18n.T("Restart the helper")
-	case linkRelaunch:
-		return i18n.T("Restart Auralink")
-	case "/providers":
-		return i18n.T("Open Model services")
-	}
-	return i18n.T("Open")
 }
 
 // noticeStack is the cards, newest on top, the next ones peeking under it,
@@ -315,16 +286,15 @@ func (a *app) noticePopover(c *ui.Context) {
 	})
 }
 
-// timeAgo says how long ago t was, briefly.
-func timeAgo(t time.Time) string {
-	d := time.Since(t)
-	switch {
-	case d < time.Minute:
-		return i18n.T("just now")
-	case d < time.Hour:
-		return i18n.N(int(d.Minutes()), "%d minute ago", "%d minutes ago", int(d.Minutes()))
-	case d < 24*time.Hour:
-		return i18n.N(int(d.Hours()), "%d hour ago", "%d hours ago", int(d.Hours()))
+// cardActionLabel names a card's action by its link.
+func cardActionLabel(link string) string {
+	switch link {
+	case linkRestartHelper:
+		return i18n.T("Restart the helper")
+	case linkRelaunch:
+		return i18n.T("Restart Auralink")
+	case "/providers":
+		return i18n.T("Open Model services")
 	}
-	return i18n.DateTime(t)
+	return i18n.T("Open")
 }

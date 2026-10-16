@@ -7,7 +7,7 @@ package main
 import (
 	"github.com/egoist/mygo"
 	"github.com/hehehai/Auralink/internal/i18n"
-	"github.com/hehehai/Auralink/internal/lang"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // applyLocale switches the UI to the settings' language, or the system's,
@@ -70,21 +70,7 @@ var mainLanguages = []string{"zh", "en", "ja", "ko", "yue", "fr", "de", "es", "p
 func mainLanguageOptions() []string {
 	opts := []string{i18n.T("Same as the app")}
 	for _, code := range mainLanguages {
-		opts = append(opts, langLabel(code))
+		opts = append(opts, uitext.LangLabel(code))
 	}
 	return opts
-}
-
-// langLabel names a language in the UI's language, with its own name
-// when that differs: "Japanese · 日本語", "日语 · 日本語".
-func langLabel(code string) string {
-	l, ok := lang.Lookup(code)
-	if !ok {
-		return code
-	}
-	name := l.NameIn(i18n.Locale())
-	if l.Native != "" && l.Native != name {
-		return name + " · " + l.Native
-	}
-	return name
 }

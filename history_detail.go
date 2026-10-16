@@ -17,6 +17,7 @@ import (
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/providers"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // entryService is a service and its model as the details show them: the
@@ -26,7 +27,7 @@ func (a *app) entryService(kind providers.Kind, id, model string) string {
 		return ""
 	}
 	p, _ := providers.Setup(a.prefs, kind, id)
-	name := providerName(kind, p)
+	name := uitext.ProviderName(kind, p)
 	if name == "" {
 		name = id
 	}
@@ -57,9 +58,9 @@ func (a *app) historyDetail(c *ui.Context, e store.Entry) {
 			}
 		})
 		if e.Error != "" {
-			kind, text := noticeError, i18n.T("Failed: %s", firstLine(e.Error))
+			kind, text := noticeError, i18n.T("Failed: %s", uitext.FirstLine(e.Error))
 			if e.Status != store.StatusFailed {
-				kind, text = noticeWarn, i18n.T("Done with a problem: %s", firstLine(e.Error))
+				kind, text = noticeWarn, i18n.T("Done with a problem: %s", uitext.FirstLine(e.Error))
 			}
 			notice(c, "hist-detail-err", kind, text, e.Error, nil, nil)
 		}
@@ -98,24 +99,24 @@ func (a *app) historyDetail(c *ui.Context, e store.Entry) {
 		}
 		details := [][2]string{{i18n.T("Time"), i18n.DateTime(e.CreatedAt)}, {i18n.T("App"), app}}
 		if e.Kind == store.KindTranslate {
-			details = append(details, [2]string{i18n.T("Target language"), targetLang(e)})
+			details = append(details, [2]string{i18n.T("Target language"), uitext.TargetLang(e)})
 		}
 		details = append(details,
-			[2]string{i18n.T("Delivery"), deliveryLabel(e)},
+			[2]string{i18n.T("Delivery"), uitext.DeliveryLabel(e)},
 			[2]string{i18n.T("Speech recognition"), a.entryService(providers.ASR, e.ASRProvider, e.ASRModel)},
-			[2]string{i18n.T("Sound optimization"), soundText(e)},
+			[2]string{i18n.T("Sound optimization"), uitext.SoundText(e)},
 			[2]string{i18n.T("Language model"), a.entryService(providers.LLM, e.LLMProvider, e.LLMModel)},
-			[2]string{i18n.T("App rule"), ruleText(e)})
+			[2]string{i18n.T("App rule"), uitext.RuleText(e)})
 		sections := []struct {
 			title string
 			rows  [][2]string
 		}{
 			{i18n.T("Details"), details},
 			{i18n.T("Timing"), [][2]string{
-				{i18n.T("Recording"), recordingTime(e)},
-				{i18n.T("Recognition"), stageTime(e.ASRMS)},
-				{i18n.T("Language model"), stageTime(e.LLMMS)},
-				{i18n.T("Total"), stageTime(e.TotalMS)},
+				{i18n.T("Recording"), uitext.RecordingTime(e)},
+				{i18n.T("Recognition"), uitext.StageTime(e.ASRMS)},
+				{i18n.T("Language model"), uitext.StageTime(e.LLMMS)},
+				{i18n.T("Total"), uitext.StageTime(e.TotalMS)},
 			}},
 		}
 		sectionGap := [2]float32{sp1, sp4} // above the first heading, above the others
@@ -124,7 +125,7 @@ func (a *app) historyDetail(c *ui.Context, e store.Entry) {
 				sectionTitleText(c, sec.title).ColumnSpan(2).Margin(px(t, sectionGap[min(i, 1)]), 0, px(t, 2), 0)
 				for _, r := range sec.rows {
 					ui.Text(c, r[0]).FontSize(px(t, fsCaption)).TextColor(k.Text2)
-					v := ui.Text(c.Key(fmt.Sprintf("hist-fact-%d-%s", i, r[0])), orDash(r[1])).FontSize(px(t, fsCaption)).Selectable().MinWidth(0)
+					v := ui.Text(c.Key(fmt.Sprintf("hist-fact-%d-%s", i, r[0])), uitext.OrDash(r[1])).FontSize(px(t, fsCaption)).Selectable().MinWidth(0)
 					if r[1] == "" {
 						v.TextColor(k.Text3)
 					}
@@ -132,18 +133,6 @@ func (a *app) historyDetail(c *ui.Context, e store.Entry) {
 			}
 		})
 	})
-}
-
-// ruleText is an entry's app enhancement group and how it matched:
-// "Team chat (app)"; "" for none.
-func ruleText(e store.Entry) string {
-	if e.RuleName == "" {
-		return ""
-	}
-	if how := ruleSourceLabel(e.RuleSource); how != "" { // appenhance_preview.go
-		return i18n.T("%s (%s)", e.RuleName, how)
-	}
-	return e.RuleName
 }
 
 // historyDeleteDialog confirms Delete.

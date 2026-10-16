@@ -12,6 +12,7 @@ import (
 	"os"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // overlayInkWant is what the face shows now, for the ink check: the
@@ -31,7 +32,7 @@ func (a *app) overlayInkWant() ovInkWant {
 	// (it moves) a working pill's size is checked; TestOverlayInk checks
 	// its row still.
 	w.row = a.ov.mode == ovRecording
-	w.even = a.ov.mode == ovRecording && !a.prefs.Overlay.ShowTime && sceneShort(a.sess) == ""
+	w.even = a.ov.mode == ovRecording && !a.prefs.Overlay.ShowTime && uitext.SceneShort(a.sess) == ""
 	if text := liveLineText(a.sess); text != "" {
 		tw, _ := a.ovTextWidth(liveTextKey(text))
 		w.text, w.scrolled = true, tw > ovLiveTextW

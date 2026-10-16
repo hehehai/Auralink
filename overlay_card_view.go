@@ -12,6 +12,7 @@ import (
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // overlayCard is the answer card's content, in the face.
@@ -50,7 +51,7 @@ func (a *app) cardHeader(c *ui.Context, v cardView) {
 	if v.conversation {
 		ic = icons.VoxtTranscribe
 	}
-	ui.Icon(c, ic.Bold).Size(ovCardIcon, ovCardIcon).TextColor(ui.RGB(255, 255, 255)).Opacity(ovCardIconA(v)).Shrink(0).Label(kindTitle(v.kind))
+	ui.Icon(c, ic.Bold).Size(ovCardIcon, ovCardIcon).TextColor(ui.RGB(255, 255, 255)).Opacity(ovCardIconA(v)).Shrink(0).Label(uitext.KindTitle(v.kind))
 	if v.conversation {
 		// Voxt's: a small waveform in the title's place, moving while a
 		// follow-up records.
@@ -198,7 +199,7 @@ func (a *app) cardLanguage(c *ui.Context, v cardView) {
 	}()
 	b.Children(func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, targetLanguageLabel(v.lang)).FontSize(11).FontWeight(600).TextColor(ui.RGBA(255, 255, 255, 0.92*alpha)).
+			ui.Text(c, uitext.TargetLanguageLabel(v.lang)).FontSize(11).FontWeight(600).TextColor(ui.RGBA(255, 255, 255, 0.92*alpha)).
 				SingleLine().Ellipsis("…").MaxWidth(ovCardLangMaxW).MinWidth(0)
 			ui.Icon(c, chevron.Bold).Size(10, 10).TextColor(ui.RGBA(255, 255, 255, 0.72*alpha)).Shrink(0)
 		})

@@ -58,6 +58,9 @@ github.com/hehehai/Auralink
 │   │                     there or missing; the PNGs on disk (a week fresh); fetching a batch
 │   ├── appbundle/        the version of the app bundle on disk (Info.plist), to tell an update      (leaf)
 │   │                     installed while the app runs (updates.go, helper.Config.Stale)
+│   ├── uitext/           the words the UI shows from the domain's values (shortcuts, providers' errors,
+│   │                     a session's state, history entries, sizes and times, the menu bar's labels):
+│   │                     i18n, no MyGo; the one internal package that imports i18n
 │   ├── datadir/          where the data folder is: location.json, a move or an erase finished at the
 │   │                     start (Resolve, before the library opens), copying and checking a tree
 │   ├── dict/             the dictionary's rules: cleaning a term, hints for speech services,
@@ -78,6 +81,7 @@ Arrows point to what a package may import. No cycles. Leaves import nothing inte
 ```
 main ──▶ every internal package
 store ──▶ core                 store/sqlitestore ──▶ core, store      datadir ──▶ store/sqlitestore
+uitext ──▶ i18n and the domain's types (appctx, asr, compose, core, deliver, dict, helper, helper/proto, hotkey, lang, llm, permission, providers, session, settings, store)
 helper ──▶ core, helper/proto  helper/helpertest ──▶ helper/proto
 notify, logs ──▶ core
 asr ──▶ core, netx            asr/openai, doubao, aliyun ──▶ asr, netx     asr/asrtest ──▶ (nothing internal)
@@ -183,15 +187,15 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `a.railMode()` (the only place that decides: the user's choice, else a window narrower than 740), `a.setRail(on)` | shell_nav.go | the sidebar, `pageWidth`, Settings → Appearance |
 | `a.audio` (the inputs `capture.devices` listed), `a.loadDevices()`, `a.audioShown()`, `deviceInUse(list, devs)`, `a.playSound` (`macx.Play`; tests record), `recordingCue(was, s)`, `a.playCue(was, s)` | settings_audio.go | Settings → Audio, helperlink.go (a helper that became ready), session_link.go (`sessionChanged`) |
 | `faceStyle(e, o, mode, h)`, `overlayPill(c, s, mode, look)`, `a.overlayRestyle()` | overlay_face.go, overlay.go | the overlay, the preview of Settings → Overlay style (settings_overlay.go), `settingsChanged` |
-| `triggerText(trigger)` (its name; the setup guide's `triggerHowText` says how to use it), `featurePath(feature)` | settings_shortcuts.go | Settings → Shortcuts |
+| `uitext.TriggerText(trigger)` (its name; the setup guide's `uitext.TriggerHowText` says how to use it), `featurePath(feature)` | internal/uitext (keys.go), settings_shortcuts.go | Settings → Shortcuts |
 | `a.trayItems()`, `a.loadTrayRecent()` (the last three results), `trayicon.Icon(recording)` (Voxt's microphone, `internal/trayicon`), `a.copyText` (tests) | tray.go | `historyChanged`, the menu bar |
 | `a.helperStatus()`, `helperCall[T](a, method, params, timeout, then)`, `a.helperNotified(m)`, `a.restartHelper()`, `a.hotkeys` (hotkey.state), `a.front` (app.activated) | helperlink.go | the helper's card (shell_notices.go), Home, permissions, Diagnostics, sessions |
 | `a.mgr` (`*session.Manager`), `a.sess` (the newest snapshot), `a.startSession(req)`, `a.startTranscribe(target, hold, try)`, `a.sessionBlocker(kind)`, `a.stopSession()`, `a.cancelSession()`, `a.toggleTranscribe()`, `a.pasteLast(target)`, `a.answer` + `openAnswer` / `insertAnswer` / `copyAnswer` / `closeAnswer` / `retryAnswer(lang)` / `followUpAnswer(hold)`, `a.showNotice`, `sessionProblemText(p)`, `a.syncHotkeys()` | session_link.go (the snapshots, notices), session_control.go (start, stop, paste the last), session_answer.go (the card's actions), session_hotkeys.go | the overlay, the feature pages' Try areas, the menu bar, helperlink.go |
-| `a.overlaySync()`, `a.ov` (mode, size, visible), `a.later(d, fn)` (timers; `laterHook` in tests), `overlayView`, `waveform` / `waveBars`, `overlayLoader`, `workingText(s)`, `kindIcon`, `kindTitle`, `cardNow`, `targetLanguageLabel`, `noticeActionLabel` | overlay.go (state, sync), overlay_size.go, overlay_face.go, overlay_wave.go, overlay_card.go | session_link.go; the feature pages and History reuse the texts |
-| `a.featurePage(c, feature)`, `a.fui(feature)` (each page's controls), `featureKind`, `hotkeyText`, `featureTitle` | feature_page.go; feature_keys.go, feature_keys_text.go (`hotkeyText`), feature_services.go, feature_prompts.go | pages.go (Transcribe, Translate, Rewrite) |
-| `a.historyChanged()` | history_page.go (history_detail.go: an entry's details; history_text.go: its words) | session_link.go, after an entry is kept or changed |
+| `a.overlaySync()`, `a.ov` (mode, size, visible), `a.later(d, fn)` (timers; `laterHook` in tests), `overlayView`, `waveform` / `waveBars`, `overlayLoader`, `uitext.WorkingText(s)`, `kindIcon`, `uitext.KindTitle`, `cardNow`, `uitext.TargetLanguageLabel`, `noticeActionLabel` | overlay.go (state, sync), overlay_size.go, overlay_face.go, overlay_wave.go, overlay_card.go; the texts in internal/uitext (session.go) and session_text.go | session_link.go; the feature pages and History reuse the texts |
+| `a.featurePage(c, feature)`, `a.fui(feature)` (each page's controls), `featureKind`, `uitext.HotkeyText`, `uitext.FeatureTitle` | feature_page.go; feature_keys.go, feature_services.go, feature_prompts.go; internal/uitext (keys.go: shortcuts' words) | pages.go (Transcribe, Translate, Rewrite) |
+| `a.historyChanged()` | history_page.go (history_detail.go: an entry's details; internal/uitext history.go: its words) | session_link.go, after an entry is kept or changed |
 | `a.aeBook` (`ruleBook`: the groups for sessions, goroutine-safe), `a.aeRules` + `a.setRules(r)`, `a.sceneConfig()`, `a.urlReads`, `a.frontChanged(app)`, `a.lastOther`, `a.previewApp()`, `a.refreshPreview(force)`, `a.previewMatch()` | appenhance.go | session_link.go (the manager's Scene), helperlink.go (app.activated), the App enhancement page |
-| `ruleSourceLabel(source)`, `sourceText(source, pattern)` | appenhance_preview.go | History's details |
+| `uitext.SourceText(source, pattern)` | internal/uitext (history.go) | History's details, App enhancement's preview |
 | `a.loadDict()`, `a.openTerm(term)`, `chooseImportFile`, `chooseExportFile` (test seams) | dictionary_page.go | the Dictionary page |
 | `a.permSys` (`permission.System`), `a.recheckPermissions()`, `a.askPermission(which)` | permissions.go | Settings → Permissions, Diagnostics, Home, the setup guide |
 | `a.tryCard(c, tryOpts)` (a Try area), `a.tryIntro(feature)`, `a.startTry(kind)`, `a.startSessionID(req)` (the id, to tell a try from another session) | try_card.go, session_control.go | the feature pages, Home, the setup guide |
@@ -201,8 +205,8 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `a.upd` (`updateService`: MyGo's updater plugin; `fakeUpdates` in tests), `a.checkForUpdates()`, `a.updateMenuItems(act)`, `a.bundleStale` (`appbundle.Updated`), `a.appUpdated()` (the restart card), `a.relaunch()` (`appRelaunch`) | updates.go | the app menu, the menu bar, ⌘K, Settings → About, the helper's card (FailUpdated), Home |
 | `a.toast(msg)`, `a.notify(…)`, `a.post(fn)`, `a.async(fn)` | app.go, shell_notices.go | everyone |
 | `a.notices` (the centre's, newest first), `a.noticeStack(c)` (the cards at the foot of the sidebar; the rail's popover), `a.setProblem(id, code, n)` (a problem's card: shown once, withdrawn when solved, kept away this run once dismissed), `a.checkServices()`, `a.checkHelper()` | shell_notices.go | the sidebar, the rail; key reads and saves (providers_page.go), `settingsChanged`, `helperChanged` |
-| `a.keys` (`keyring`: the Keychain; memory in tests), `a.keyMasks`, `a.hasKey(account)`, `a.keysKnown`, `providerName(kind, p)`, `providerErrorText(err)` | providers_page.go, providers_dialog.go, providers_text.go | Model services page, the services' card; sessions read keys through `a.keys` off the main thread (`resolver`, session_link.go) |
-| `hotkeyGlyphs(keys)` | shell_commands.go | ? sheet, menu bar, feature pages |
+| `a.keys` (`keyring`: the Keychain; memory in tests), `a.keyMasks`, `a.hasKey(account)`, `a.keysKnown`, `uitext.ProviderName(kind, p)`, `uitext.ProviderErrorText(err)` | providers_page.go, providers_dialog.go; internal/uitext (provider.go) | Model services page, the services' card; sessions read keys through `a.keys` off the main thread (`resolver`, session_link.go) |
+| `uitext.HotkeyGlyphs(keys)` | internal/uitext (keys.go) | ? sheet, menu bar, feature pages |
 | Design tokens: `tok(t)`, `px`, `fs*`, `sp*`, `radius*`; `accentName` (teal) | ui_tokens.go | every view |
 | UI kit (AudioSmith 0.3): buttons by rank, `pageHeader`, `card`, `formRow`, `settingRow`, `emptyState`, `notice`, `sidePanel`, `dialogFrame`… | ui_kit.go (its overview), ui_buttons.go, ui_marks.go, ui_layout.go, ui_panels.go, ui_forms.go (AudioSmith's split), ui_rows.go (`settingRow`, `sectionTitle`) | every view |
 

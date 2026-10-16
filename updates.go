@@ -32,6 +32,7 @@ import (
 	"github.com/hehehai/Auralink/internal/core"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // updateCheck is the update check of -tags updatecheck builds
@@ -258,7 +259,7 @@ func (a *app) updateSettingsSection(c *ui.Context) {
 	case p.LastCheck.IsZero():
 		desc = i18n.T("New versions come from GitHub Releases, with their notes. Not checked yet.")
 	default:
-		desc = i18n.T("New versions come from GitHub Releases, with their notes. Last checked %s.", timeAgo(p.LastCheck))
+		desc = i18n.T("New versions come from GitHub Releases, with their notes. Last checked %s.", uitext.TimeAgo(p.LastCheck))
 	}
 	settingRowNote(c, "about-update", i18n.T("Check for updates"), desc, func() {
 		if ui.Button(c.Key("about-update"), i18n.T("Check for Updates…")).Clicked() {

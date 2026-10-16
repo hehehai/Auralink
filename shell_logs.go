@@ -14,6 +14,7 @@ import (
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/logs"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // logLines is how many lines the logs view shows at most.
@@ -26,18 +27,6 @@ func (a *app) logsPage(c *ui.Context) {
 
 // logSources are the filters of the logs view: "" every source.
 var logSources = []string{"", "app", helper.LogSource}
-
-func logSourceLabel(s string) string {
-	switch s {
-	case "":
-		return i18n.T("All sources")
-	case "app":
-		return i18n.T("App")
-	case helper.LogSource:
-		return i18n.T("Helper")
-	}
-	return s
-}
 
 // visibleLogs are the lines the filters select, oldest first.
 func (a *app) visibleLogs() []core.LogEntry {
@@ -66,13 +55,13 @@ func (a *app) logsView(c *ui.Context, panel bool) {
 		}
 		var labels []string
 		for _, s := range logSources {
-			labels = append(labels, logSourceLabel(s))
+			labels = append(labels, uitext.LogSourceLabel(s))
 		}
-		chosen := logSourceLabel(a.logsSource)
+		chosen := uitext.LogSourceLabel(a.logsSource)
 		sel := ui.Select(c.Key("logs-source"), &chosen, labels).Label(i18n.T("Source")).MinWidth(px(t, 110)).Shrink(1)
 		if sel.Changed() {
 			for _, s := range logSources {
-				if logSourceLabel(s) == chosen {
+				if uitext.LogSourceLabel(s) == chosen {
 					a.logsSource = s
 				}
 			}

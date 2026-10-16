@@ -12,6 +12,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 func TestOverlayStyleSettings(t *testing.T) {
@@ -89,24 +90,24 @@ func TestOtherLanguages(t *testing.T) {
 	a, _, tt := newTestApp(t)
 	a.navigate("/settings/general")
 	click(t, tt, "Add a language")
-	if err := tt.ChooseMenuItem(langLabel("ja")); err != nil {
+	if err := tt.ChooseMenuItem(uitext.LangLabel("ja")); err != nil {
 		t.Fatal(err)
 	}
 	frames(tt)
 	if err := tt.Click("Add a language"); err != nil {
 		t.Fatal(err)
 	}
-	if slices.Contains(tt.Menu(), langLabel("en")) || slices.Contains(tt.Menu(), langLabel("ja")) {
+	if slices.Contains(tt.Menu(), uitext.LangLabel("en")) || slices.Contains(tt.Menu(), uitext.LangLabel("ja")) {
 		t.Errorf("the menu offers the main language or a chosen one: %q", tt.Menu())
 	}
-	if err := tt.ChooseMenuItem(langLabel("zh")); err != nil {
+	if err := tt.ChooseMenuItem(uitext.LangLabel("zh")); err != nil {
 		t.Fatal(err)
 	}
 	frames(tt)
 	if got := a.settings.Get().General.OtherLanguages; !slices.Equal(got, []string{"ja", "zh"}) {
 		t.Fatalf("added: %q", got)
 	}
-	click(t, tt, "Remove "+langLabel("ja"))
+	click(t, tt, "Remove "+uitext.LangLabel("ja"))
 	if got := a.settings.Get().General.OtherLanguages; !slices.Equal(got, []string{"zh"}) {
 		t.Fatalf("removed: %q", got)
 	}

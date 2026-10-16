@@ -14,6 +14,7 @@ import (
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/providers"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // ---- The dialog ----
@@ -66,10 +67,10 @@ func (a *app) providerDialogView(c *ui.Context) {
 	t := c.Theme()
 	pr, _ := providers.LookupPreset(d.kind, d.id)
 	acc := providers.Account(d.kind, d.id)
-	name := presetName(pr)
-	sub := i18n.T("Speech recognition · %s", modeLabel(pr))
+	name := uitext.PresetName(pr)
+	sub := i18n.T("Speech recognition · %s", uitext.ModeLabel(pr))
 	if d.kind == providers.LLM {
-		sub = i18n.T("Language model · %s", modeLabel(pr))
+		sub = i18n.T("Language model · %s", uitext.ModeLabel(pr))
 	}
 	dialogFrame(c, "prov-dialog", &d.open, name, sub, 560, func() {
 		ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Wrap().Children(func() {
@@ -101,13 +102,13 @@ func (a *app) providerDialogView(c *ui.Context) {
 			})
 		}
 		mask := a.keyMasks[acc]
-		fieldInfo(c, keyLabel(d.kind, d.id), i18n.T("Saved in this Mac's Keychain, never in Auralink's settings or logs."), func() {
+		fieldInfo(c, uitext.KeyLabel(d.kind, d.id), i18n.T("Saved in this Mac's Keychain, never in Auralink's settings or logs."), func() {
 			ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
 				ph := i18n.T("Paste the key")
 				if mask != "" && !d.removeKey {
 					ph = i18n.T("Saved: %s · paste a new one to replace it", mask)
 				}
-				ui.TextInput(c.Key("prov-key"), &d.key).Password().Placeholder(ph).Label(keyLabel(d.kind, d.id)).Grow(1).MinWidth(0)
+				ui.TextInput(c.Key("prov-key"), &d.key).Password().Placeholder(ph).Label(uitext.KeyLabel(d.kind, d.id)).Grow(1).MinWidth(0)
 				if mask != "" && !d.removeKey && ghostButton(c.Key("prov-key-remove"), i18n.T("Remove")).Label(i18n.T("Remove the saved key")).Clicked() {
 					d.removeKey, d.key = true, ""
 				}
@@ -184,9 +185,9 @@ func testStatus(c *ui.Context, tr providerTest, long bool) {
 		}
 		statusMark(c, icons.CheckCircle, k.Success, text).Shrink(1).Tooltip(text)
 	default:
-		short := providerErrorShort(tr.res.Err)
-		msg, _ := providerErrorText(tr.res.Err)
-		tip := msg + "\n\n" + providerErrorDetail(tr.res.Err)
+		short := uitext.ProviderErrorShort(tr.res.Err)
+		msg, _ := uitext.ProviderErrorText(tr.res.Err)
+		tip := msg + "\n\n" + uitext.ProviderErrorDetail(tr.res.Err)
 		if !long {
 			statusMark(c, icons.CloseCircle, k.Danger, i18n.T("Failed")).Shrink(0).Tooltip(short + "\n" + tip)
 			return
@@ -244,12 +245,12 @@ func (a *app) saveProviderDialog() {
 	d := &a.provDlg
 	kind, p := d.kind, d.setup()
 	if err := providers.CheckEndpoint(kind, p); err != nil {
-		d.err, d.errMore = providerErrorText(err)
+		d.err, d.errMore = uitext.ProviderErrorText(err)
 		return
 	}
 	acc := providers.Account(kind, p.ID)
 	key, remove := strings.TrimSpace(d.key), d.removeKey
-	label := "Auralink " + providerName(kind, p)
+	label := "Auralink " + uitext.ProviderName(kind, p)
 	d.saving, d.err = true, ""
 	kr := a.keys
 	a.async(func() {
@@ -276,7 +277,7 @@ func (a *app) saveProviderDialog() {
 			a.updateSettings(func(s *settings.Settings) { providers.Put(s, kind, p) })
 			a.checkServices()
 			a.provDlg = providerDialog{}
-			a.toast(i18n.T("%s saved", providerName(kind, p)))
+			a.toast(i18n.T("%s saved", uitext.ProviderName(kind, p)))
 		})
 	})
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // transcribeState is the feature pages' view state, one featureUI per
@@ -80,30 +81,6 @@ func featureKind(feature string) store.Kind {
 	return store.KindTranscribe
 }
 
-// featurePrefix keys a feature page's controls.
-func featurePrefix(feature string) string {
-	switch feature {
-	case hotkey.Translate:
-		return "tl"
-	case hotkey.Rewrite:
-		return "rw"
-	}
-	return "tr"
-}
-
-// featureTitle names a feature (or paste-last) in a problem.
-func featureTitle(feature string) string {
-	switch feature {
-	case hotkey.Translate:
-		return i18n.T("Translate")
-	case hotkey.Rewrite:
-		return i18n.T("Rewrite")
-	case hotkey.PasteLast:
-		return i18n.T("Paste the last result")
-	}
-	return i18n.T("Transcribe")
-}
-
 // ---- The page ----
 
 // transcribePage builds the Transcribe page.
@@ -118,8 +95,8 @@ func (a *app) rewritePage(c *ui.Context) { a.featurePage(c, hotkey.Rewrite) }
 // featurePage builds a feature's page.
 func (a *app) featurePage(c *ui.Context, feature string) {
 	t := c.Theme()
-	p := featurePrefix(feature)
-	pageHeader(c, featureTitle(feature), nil)
+	p := uitext.FeaturePrefix(feature)
+	pageHeader(c, uitext.FeatureTitle(feature), nil)
 	if a.sess.Try && a.sess.State == session.Recording {
 		c.After(250 * time.Millisecond) // the Try area's clock
 	}

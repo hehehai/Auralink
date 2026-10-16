@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -18,6 +17,7 @@ import (
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // trTester is the test app on the Transcribe page, in a window tall
@@ -41,23 +41,6 @@ func readyServices(a *app) {
 	a.keyMasks["llm.deepseek"] = "sk-…wxyz"
 	a.keyMasks["llm.dashscope"] = "sk-…qrst"
 	a.checkServices() // as reading the keys does: the services' card goes
-}
-
-func TestHotkeyText(t *testing.T) {
-	for keys, want := range map[string]string{
-		"Fn":                   "fn",
-		"Fn+Shift":             "fn ⇧",
-		"RightCommand":         "Right ⌘",
-		"RightOption":          "Right ⌥",
-		"Control+Command+V":    "⌃⌘V",
-		"Control+Option+Space": "⌃⌥ Space",
-		"Fn+F5":                "fn F5",
-		"bogus":                "bogus",
-	} {
-		if got := hotkeyText(keys); got != want {
-			t.Errorf("hotkeyText(%q) = %q, want %q", keys, got, want)
-		}
-	}
 }
 
 func TestTranscribePageRenders(t *testing.T) {
@@ -97,7 +80,7 @@ func TestTranscribeHotkeysEdit(t *testing.T) {
 		t.Fatalf("added %+v", hs)
 	}
 	// Choose a preset through the select's state, as the Select does.
-	a.fui(hotkey.Transcribe).rows[1].sel = hotkeyText("RightCommand")
+	a.fui(hotkey.Transcribe).rows[1].sel = uitext.HotkeyText("RightCommand")
 	a.chooseKeys(hotkey.Transcribe, 1, &a.fui(hotkey.Transcribe).rows[1], func() map[string]string { _, m := keyOptions("Fn+Option", false); return m }())
 	frames(tt)
 	if hs := saved(); hs[1].Keys != "RightCommand" {
@@ -352,24 +335,6 @@ func TestTranscribeTry(t *testing.T) {
 	a.sessionChanged(n)
 	if has(tt, "so the meeting moves to Thursday") || !has(tt, "A transcription is running.") {
 		t.Errorf("a shortcut's session shows: %q", tt.Texts())
-	}
-}
-
-func TestParseErrorText(t *testing.T) {
-	for keys, want := range map[string]string{
-		"":         "Type the keys, as in Control+Option+Space.",
-		"A+B":      "Only one key besides the modifiers.",
-		"LeftFn":   "fn has no left or right side.",
-		"Hyper+K":  "A key is unknown. Write the modifiers first, then one key: Fn, RightCommand, Control+Option+Space, Fn+F5.",
-		"Option+K": "",
-	} {
-		_, err := hotkey.Parse(keys)
-		if got := parseErrorText(err); got != want {
-			t.Errorf("%q: %q, want %q", keys, got, want)
-		}
-	}
-	if parseErrorText(errors.New("x")) == "" {
-		t.Error("unknown error has no text")
 	}
 }
 

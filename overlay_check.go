@@ -45,6 +45,7 @@ import (
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // overlayCheckDir is the directory --overlay-check names ("": not the
@@ -140,7 +141,7 @@ func cardCheckSteps(lang string) []ovCheckStep {
 		}, true},
 		{"card-insert-failed", func(a *app) {
 			a.answer.copied = false
-			a.answer.msg = deliveryText(deliver.Result{Reason: deliver.ReasonNotFront}, arc)
+			a.answer.msg = uitext.DeliveryText(deliver.Result{Reason: deliver.ReasonNotFront}, arc)
 		}, true},
 		{"card-long", end(tr(lang+"-t3", session.Done, long, long, lang)), true},
 		{"card-rewrite", func(a *app) {

@@ -28,6 +28,7 @@ import (
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // dictionaryState is the Dictionary page's view state.
@@ -282,19 +283,6 @@ func (a *app) openTerm(term store.Term) {
 		enabled: term.Enabled, createdAt: term.CreatedAt, original: term.Term}
 }
 
-// termErrorText says why a term cannot be saved.
-func termErrorText(err error) string {
-	switch {
-	case errors.Is(err, dict.ErrEmpty):
-		return i18n.T("Type the term as it must be written.")
-	case errors.Is(err, dict.ErrLong):
-		return i18n.T("A term has at most %d characters.", dict.MaxTermChars)
-	case errors.Is(err, core.ErrExists):
-		return i18n.T("This term is in the dictionary already.")
-	}
-	return i18n.T("Could not save the term: %v", err)
-}
-
 func (a *app) termDialog(c *ui.Context) {
 	t := c.Theme()
 	d := &a.dv
@@ -346,7 +334,7 @@ func (a *app) submitTerm() {
 	e := &a.dv.edit
 	term := dict.Clean(store.Term{ID: e.id, Term: e.term, Aliases: dict.SplitAliases(e.aliases), Note: e.note, Enabled: e.enabled, CreatedAt: e.createdAt})
 	if err := dict.Check(term); err != nil {
-		e.err = termErrorText(err)
+		e.err = uitext.TermErrorText(err)
 		return
 	}
 	e.saving = true
@@ -372,12 +360,12 @@ func (a *app) saveTerm(term store.Term, fromDialog bool) {
 			if fromDialog {
 				a.dv.edit.saving = false
 				if err != nil {
-					a.dv.edit.err = termErrorText(err)
+					a.dv.edit.err = uitext.TermErrorText(err)
 					return
 				}
 				a.dv.editOpen = false
 			} else if err != nil {
-				a.toast(termErrorText(err))
+				a.toast(uitext.TermErrorText(err))
 			}
 			a.loadDict()
 		})

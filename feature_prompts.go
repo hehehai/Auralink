@@ -16,6 +16,7 @@ import (
 	"github.com/hehehai/Auralink/internal/providers"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // trySample is the input the prompt preview shows.
@@ -32,15 +33,15 @@ func (a *app) translateSettings(c *ui.Context) {
 	u := a.fui(hotkey.Translate)
 	f := &a.prefs.Features.Translate
 	sectionTitle(c, i18n.T("Translation"))
-	opts := []string{i18n.T("Automatic: %s", targetLanguageLabel(session.TranslateTarget(settings.Settings{General: a.prefs.General}, i18n.Locale(), "")))}
+	opts := []string{i18n.T("Automatic: %s", uitext.TargetLanguageLabel(session.TranslateTarget(settings.Settings{General: a.prefs.General}, i18n.Locale(), "")))}
 	for _, code := range compose.TargetLanguages {
-		opts = append(opts, targetLanguageLabel(code))
+		opts = append(opts, uitext.TargetLanguageLabel(code))
 	}
 	cur := opts[0]
 	if j := slices.Index(compose.TargetLanguages, f.Target); j >= 0 {
 		cur = opts[j+1]
 	} else if f.Target != "" {
-		cur = targetLanguageLabel(f.Target)
+		cur = uitext.TargetLanguageLabel(f.Target)
 		opts = append(opts, cur)
 	}
 	u.lang = cur // the settings say; a choice saves at once
@@ -147,7 +148,7 @@ const promptSaveDelay = 800 * time.Millisecond
 func (a *app) featureRules(c *ui.Context, feature string) {
 	t := c.Theme()
 	k := tok(t)
-	p := featurePrefix(feature)
+	p := uitext.FeaturePrefix(feature)
 	u := a.fui(feature)
 	a.promptSync(feature)
 	sectionTitle(c, i18n.T("Your rules"))
@@ -245,7 +246,7 @@ func (a *app) composedPreview(feature string) (compose.Output, error) {
 func (a *app) previewBody(c *ui.Context, feature string) {
 	t := c.Theme()
 	k := tok(t)
-	p := featurePrefix(feature)
+	p := uitext.FeaturePrefix(feature)
 	switch feature {
 	case hotkey.Transcribe:
 		if !a.prefs.Features.Transcribe.Enhance {

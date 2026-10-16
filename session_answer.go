@@ -14,6 +14,7 @@ import (
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // openAnswer opens the answer card on an ended session: its result (or
@@ -22,7 +23,7 @@ func (a *app) openAnswer(s session.Snapshot) {
 	card := answerCard{
 		open: true, id: s.ID, kind: s.Kind, text: s.Result, title: s.Title, target: s.Target,
 		input: session.TextInput{Raw: s.Raw, Selection: s.Selection}, lang: s.TargetLanguage,
-		why: whyInCard(s.Delivery, s.Selection != "", s.Target.Name),
+		why: uitext.WhyInCard(s.Delivery, s.Selection != "", s.Target.Name),
 	}
 	if s.State == session.Failed {
 		card.problem = s.Problem
@@ -71,7 +72,7 @@ func (a *app) endRedo(s session.Snapshot) {
 		if s.Problem != nil && s.Problem.Code != session.ProblemEmpty && s.Problem.Code != session.ProblemNoSpeech {
 			why, _, _ = sessionProblemText(s.Problem)
 		}
-		a.answer.msg = i18n.T("Not translated into %s: %s", targetLanguageLabel(lang), why)
+		a.answer.msg = i18n.T("Not translated into %s: %s", uitext.TargetLanguageLabel(lang), why)
 	}
 }
 
@@ -220,7 +221,7 @@ func (a *app) insertAnswer() {
 				a.closeAnswer()
 				return
 			}
-			a.answer.msg = deliveryText(res, card.target)
+			a.answer.msg = uitext.DeliveryText(res, card.target)
 			a.overlaySync()
 		})
 	})

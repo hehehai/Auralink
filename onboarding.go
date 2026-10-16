@@ -27,6 +27,7 @@ import (
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // The guide's steps.
@@ -142,10 +143,10 @@ func (a *app) tryIgnored(kind store.Kind) {
 	}
 	keys := a.featureKeys(string(want))
 	if keys == "" {
-		a.ob.hint = i18n.T("That was the %s shortcut: this step tries %s.", kindTitle(kind), kindTitle(want))
+		a.ob.hint = i18n.T("That was the %s shortcut: this step tries %s.", uitext.KindTitle(kind), uitext.KindTitle(want))
 		return
 	}
-	a.ob.hint = i18n.T("That was the %s shortcut: this step tries %s (%s).", kindTitle(kind), kindTitle(want), keys)
+	a.ob.hint = i18n.T("That was the %s shortcut: this step tries %s (%s).", uitext.KindTitle(kind), uitext.KindTitle(want), keys)
 }
 
 // obSessionChanged passes a step whose own try ended with a result.

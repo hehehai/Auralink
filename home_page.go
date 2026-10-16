@@ -26,6 +26,7 @@ import (
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // homeRecent is how many recent results Home lists.
@@ -54,17 +55,6 @@ type homeState struct {
 type dayStats struct {
 	count, chars int
 	byKind       map[store.Kind]int
-}
-
-// countChars counts the characters of s that are not spaces.
-func countChars(s string) int {
-	n := 0
-	for _, r := range s {
-		if !unicode.IsSpace(r) {
-			n++
-		}
-	}
-	return n
 }
 
 // readHome reads the recent results and today's numbers (since midnight
@@ -202,7 +192,7 @@ func sloganHint(h *settings.Hotkey) (before, keys, after string) {
 		hint = i18n.T("Press %s to start", sloganMark)
 	}
 	before, after, _ = strings.Cut(hint, sloganMark)
-	return before, hotkeyText(h.Keys), after
+	return before, uitext.HotkeyText(h.Keys), after
 }
 
 // homeSlogan is the line under Home's title: what Auralink does, then how
@@ -269,7 +259,7 @@ func (a *app) homeToday(c *ui.Context) {
 		fillCard(c.Key("home-kinds")).Gap(px(t, 2)).Grow(1).Basis(px(t, 140)).MinWidth(px(t, 120)).Padding(px(t, sp3), px(t, sp4)).Children(func() {
 			ui.Row(c).Gap(px(t, sp3)).AlignItems(ui.Center).Height(px(t, fsTitle*1.3)).Children(func() {
 				for _, kd := range store.Kinds {
-					ui.Row(c.Key("kind-" + string(kd))).Gap(px(t, 4)).AlignItems(ui.Center).Label(kindTitle(kd) + " " + itoa(st.byKind[kd])).Tooltip(kindTitle(kd)).Children(func() {
+					ui.Row(c.Key("kind-" + string(kd))).Gap(px(t, 4)).AlignItems(ui.Center).Label(uitext.KindTitle(kd) + " " + itoa(st.byKind[kd])).Tooltip(uitext.KindTitle(kd)).Children(func() {
 						ui.Icon(c, kindIcon(kd).Linear).Size(px(t, 16), px(t, 16)).TextColor(k.Text2)
 						ui.Text(c, itoa(st.byKind[kd])).FontSize(px(t, fsSection)).FontWeight(600).SingleLine()
 					})
@@ -278,22 +268,6 @@ func (a *app) homeToday(c *ui.Context) {
 			ui.Text(c, i18n.T("By feature")).FontSize(px(t, fsCaption)).TextColor(k.Text2).SingleLine().Ellipsis("…").MinWidth(0)
 		})
 	})
-}
-
-// groupDigits writes n with thousands separators: 12,345.
-func groupDigits(n int) string {
-	s := itoa(n)
-	if n < 0 || len(s) <= 3 {
-		return s
-	}
-	var b strings.Builder
-	for i, r := range s {
-		if i > 0 && (len(s)-i)%3 == 0 {
-			b.WriteByte(',')
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
 }
 
 // homeRecentList is the last results: each copies, or opens in History.
@@ -322,17 +296,17 @@ func (a *app) homeRecentList(c *ui.Context) {
 	c.After(time.Minute) // the times are relative
 	card(c.Key("home-recent")).Padding(px(t, sp1)).Gap(0).Children(func() {
 		for _, e := range hm.recent {
-			title, _ := entryTitle(e)
+			title, _ := uitext.EntryTitle(e)
 			row := ui.ButtonBase(c.Key("home-recent-"+e.ID)).Padding(px(t, sp2), px(t, sp3)).Radius(px(t, radiusControl)).
 				Gap(px(t, sp3)).AlignItems(ui.Center).Label(title).Tooltip(i18n.T("Open in History"))
 			if row.Hovered() {
 				row.Background(k.Hover)
 			}
 			row.Children(func() {
-				ui.Icon(c, kindIcon(e.Kind).Linear).Size(px(t, 16), px(t, 16)).TextColor(k.Text2).Shrink(0).Label(kindTitle(e.Kind))
+				ui.Icon(c, kindIcon(e.Kind).Linear).Size(px(t, 16), px(t, 16)).TextColor(k.Text2).Shrink(0).Label(uitext.KindTitle(e.Kind))
 				ui.Column(c).Grow(1).MinWidth(0).Gap(px(t, 2)).Children(func() {
 					ui.Text(c, title).SingleLine().Ellipsis("…").MinWidth(0)
-					ui.Text(c, entryMeta(e)).FontSize(px(t, fsCaption)).TextColor(k.Text3).SingleLine().Ellipsis("…").MinWidth(0)
+					ui.Text(c, uitext.EntryMeta(e)).FontSize(px(t, fsCaption)).TextColor(k.Text3).SingleLine().Ellipsis("…").MinWidth(0)
 				})
 				if iconButton(c.Key("copy"), icons.Copy, i18n.T("Copy")).Label(i18n.T("Copy: %s", title)).Clicked() {
 					c.Services().WriteClipboard(e.Result)
@@ -360,4 +334,31 @@ func (a *app) openHistoryEntry(e store.Entry) {
 	h.query = ""
 	h.sel = e.ID
 	a.navigate("/history")
+}
+
+// countChars counts the characters of s that are not spaces.
+func countChars(s string) int {
+	n := 0
+	for _, r := range s {
+		if !unicode.IsSpace(r) {
+			n++
+		}
+	}
+	return n
+}
+
+// groupDigits writes n with thousands separators: 12,345.
+func groupDigits(n int) string {
+	s := itoa(n)
+	if n < 0 || len(s) <= 3 {
+		return s
+	}
+	var b strings.Builder
+	for i, r := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
