@@ -20,7 +20,7 @@ The native UI rules below apply where the app uses package `ui`; preserve a web 
 
 ## Input and actions
 
-- Bound values update after construction and configuration. `Changed`/`Submitted` notices appear in the following build pass. Bind directly to persistent model fields when possible. A local value recomputed each pass loses the edit before its notice; write derived checkbox or segmented values back in `OnClick`, after that build's bound input updates them.
+- Since MyGo 0.5 a control writes the user's input through the pointer it binds before its constructor returns: the next statement reads the new value, a local copy too, and `Changed`/`Submitted` report it. Input follows the options of the frame the user acted on: `.Disabled(true)`/`.ReadOnly(true)` set in the build that applies an edit no longer drop it; to ignore input while busy, check the condition where the value is used. Bind directly to persistent model fields when possible.
 - `OnClick`/`OnShortcut` run after construction and bound input; `OnChange`/`OnSubmit` observe the rebuilt view's notices. Prefer deferred actions when changing a collection being built. `Clicked()` and shortcut queries remain supported for local interactions.
 - Declare scoped commands with `handle.OnShortcut(c, mods, key, fn)`, before or after Bind. Only an enabled control present in the current build takes its command. Use `c.OnShortcut` for commands in the current parent scope.
 
