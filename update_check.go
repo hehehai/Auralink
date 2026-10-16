@@ -1,0 +1,88 @@
+//go:build updatecheck
+
+package main
+
+// The update check (scripts/mac-update-e2e.sh): with -tags updatecheck,
+// `Auralink --update-check <report.json>` runs instead of the app and
+// drives MyGo's updater with no window, no data, no lock: it checks the
+// build's feed, installs what it finds (the delta of the running version
+// when there is one, else the archive), reads the version of the bundle on
+// disk afterwards, and starts the helper supervisor as the app does, which
+// must see the update (appbundle.Updated) and start no helper. It writes
+// what happened to <report.json> and quits. Release builds do not have it.
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"slices"
+	"time"
+
+	"github.com/egoist/mygo"
+	"github.com/hehehai/Auralink/internal/appbundle"
+	"github.com/hehehai/Auralink/internal/core"
+	"github.com/hehehai/Auralink/internal/helper"
+)
+
+func init() { updateCheck = runUpdateCheck }
+
+// updateCheckReport is what the check found and did.
+type updateCheckReport struct {
+	Running  string `json:"running"`  // App.Version
+	Enabled  bool   `json:"enabled"`  // Updater.Enabled
+	Found    string `json:"found"`    // the version Check found, "" when up to date
+	Notes    string `json:"notes"`    // its release notes
+	CheckErr string `json:"checkErr"` // Check's error
+	// Totals are the sizes the progress reported, one per download: the
+	// delta's alone, or the archive's (after the delta's when it failed).
+	Totals     []int64 `json:"totals"`
+	Downloaded int64   `json:"downloaded"`
+	InstallErr string  `json:"installErr"`
+	// After the install: the bundle on disk, and the supervisor's view.
+	DiskVersion  string `json:"diskVersion"`
+	Stale        bool   `json:"stale"`
+	HelperState  string `json:"helperState"`
+	HelperReason string `json:"helperReason"`
+	HelperPID    int    `json:"helperPID"`
+}
+
+func runUpdateCheck(out string) {
+	rep := updateCheckReport{Running: mygo.App.Version(), Enabled: mygo.Updater.Enabled()}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	up, err := mygo.Updater.Check(ctx)
+	if err != nil {
+		rep.CheckErr = err.Error()
+	}
+	if up != nil {
+		rep.Found, rep.Notes = up.Version, up.Notes
+		err := up.Install(ctx, func(downloaded, total int64) {
+			if n := len(rep.Totals); n == 0 || rep.Totals[n-1] != total || downloaded < rep.Downloaded {
+				rep.Totals = append(rep.Totals, total)
+			}
+			rep.Downloaded = downloaded
+		})
+		if err != nil {
+			rep.InstallErr = err.Error()
+		}
+	}
+	resources, _ := mygo.App.Path(mygo.PathResources)
+	rep.DiskVersion, _ = appbundle.Version(resources)
+	stale := func() bool { return appbundle.Updated(resources, rep.Running) }
+	rep.Stale = stale()
+	if rep.Stale {
+		// As the app makes it (helperlink.go): it must start nothing.
+		sup := helper.New(helper.Config{Bin: helper.Find(resources), AppVersion: rep.Running, Bus: core.NewBus(), Stale: stale,
+			Logf: func(string, ...any) {}})
+		sup.Start(ctx)
+		st := sup.Status()
+		sup.Stop()
+		rep.HelperState, rep.HelperReason, rep.HelperPID = string(st.State), string(st.Reason), st.PID
+	}
+	rep.Totals = slices.Clip(rep.Totals)
+	data, _ := json.MarshalIndent(rep, "", "  ")
+	if err := os.WriteFile(out, append(data, '\n'), 0o644); err != nil {
+		os.Stderr.WriteString(err.Error() + "\n")
+		os.Exit(1)
+	}
+}
