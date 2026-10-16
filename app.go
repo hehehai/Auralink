@@ -38,6 +38,7 @@ type app struct {
 	// goroutines (the helper's supervisor): they pump it on the test's
 	// goroutine. nil: post runs fn at once (other tests).
 	postQueue func(func())
+	events    // events.go: the observers of sessions and the history
 
 	shellState
 	settingsState
@@ -60,6 +61,7 @@ type app struct {
 
 func newApp(lib *library, h *helperHost) *app {
 	a := &app{lib: lib, shellState: newShellState()}
+	a.connectEvents() // events.go: who hears of sessions and the history
 	a.helperLink.host = h
 	a.openShell(lib)
 	a.openPermissions()

@@ -168,8 +168,9 @@ Rewrite:   textio.selection while recording; the instruction (+ the selection) �
    Translate: compose.Untranslated? ─▶ once more with the Strict layer
    fails ─▶ failed, in the card with Try again (retryAnswer: StartRequest.Text)
    history entry (+ audio/<id>.wav) ─▶ the end snapshot
-snapshots ─▶ a.post ─▶ sessionChanged ─▶ the start and stop sounds, overlay, hotkey.configure {active},
-                                         menu bar (its menu and recording icon), History
+snapshots ─▶ a.post ─▶ sessionChanged ─▶ (events.go, in order) the setup guide, the start and stop sounds;
+                                         hotkey.configure {active}; the menu bar (its menu and recording icon), the overlay;
+                                         at the end: Home, the card or a notice, then onHistory (Home, the menu bar, History)
 ```
 
 While a session is live (or the answer card shows) the bindings go to the helper with `active`: a tap fires at once and Escape is reported. Without Accessibility the event tap is not installed; the bindings Carbon can express are registered with `mygo.GlobalShortcut` until it is.
@@ -212,6 +213,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `floatingWindowOptions(…)`, `showFloating(w, x, y)` (non-activating windows, mygo patch 0003), `hudContent(view)` (their text unsmoothed, patch 0005), `activateTarget(pid)` (`macx.Activate`) | floating.go | the recording pill and the answer card (M3, M4) |
 | `a.upd` (`updateService`: MyGo's updater plugin; `fakeUpdates` in tests), `a.checkForUpdates()`, `a.updateMenuItems(act)`, `a.bundleStale` (`appbundle.Updated`), `a.appUpdated()` (the restart card), `a.relaunch()` (`appRelaunch`) | updates.go | the app menu, the menu bar, ⌘K, Settings → About, the helper's card (FailUpdated), Home |
 | `a.toast(msg)`, `a.notify(…)`, `a.post(fn)`, `a.async(fn)` | app.go, shell_notices.go | everyone |
+| `a.onSession`, `a.afterSession`, `a.onSessionEnd`, `a.onHistory` (observers, in order; `connectEvents` lists them all), published by `sessionChanged` / `sessionEnded` (session_link.go) and `historyChanged` (history_page.go) | events.go | the setup guide, the sounds, the menu bar, the overlay, Home, History: an area that cares about sessions or the history adds itself there, instead of the publisher calling it |
 | `a.notices` (the centre's, newest first), `a.noticeStack(c)` (the cards at the foot of the sidebar; the rail's popover), `a.setProblem(id, code, n)` (a problem's card: shown once, withdrawn when solved, kept away this run once dismissed), `a.checkServices()`, `a.checkHelper()` | shell_notices.go | the sidebar, the rail; key reads and saves (providers_page.go), `settingsChanged`, `helperChanged` |
 | `a.keys` (`keyring`: the Keychain; memory in tests), `a.keyMasks`, `a.hasKey(account)`, `a.keysKnown`, `uitext.ProviderName(kind, p)`, `uitext.ProviderErrorText(err)` | providers_page.go, providers_dialog.go; internal/uitext (provider.go) | Model services page, the services' card; sessions read keys through `a.keys` off the main thread (`resolver`, session_link.go) |
 | `uitext.HotkeyGlyphs(keys)` | internal/uitext (keys.go) | ? sheet, menu bar, feature pages |
