@@ -27,12 +27,9 @@ import (
 //
 // AURALINK_SNAPSHOTS_SIZE=680x440 renders at the window's smallest size
 // (snapshotSize).
-func TestSnapshots(t *testing.T) {
-	out := os.Getenv("AURALINK_SNAPSHOTS")
-	if out == "" {
-		t.Skip("set AURALINK_SNAPSHOTS to a directory")
-	}
-	os.MkdirAll(out, 0o755)
+func TestSnapshots(t *testing.T) { runSnapshots(t, "AURALINK_SNAPSHOTS", snapshotsMain) }
+
+func snapshotsMain(t *testing.T, out string) {
 	w, h := snapshotSize()
 	for _, run := range []struct {
 		lang string
@@ -101,6 +98,10 @@ func TestSnapshots(t *testing.T) {
 		})
 		for _, s := range settingsSections() {
 			a.navigate("/settings/" + s.id)
+			if s.id == "storage" {
+				frames(tt)    // the section measures the folders when it first builds
+				pinStorage(a) // snapshot_env_test.go
+			}
 			if s.id == "network" {
 				a.proxyInfo = i18n.T("Requests go through %s.", "http://127.0.0.1:7897")
 			}

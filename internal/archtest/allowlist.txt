@@ -1,0 +1,28 @@
+# Files over the line limit today (TestFileSizes: 600 lines of code, 800 of
+# tests), each with the most lines it may have: its size when the list was
+# made (refactor R0, docs/architecture.md "Code structure rules"). A file
+# here may shrink but not grow; once it is within the limit, its line goes.
+# Each says why it is long and the refactor batch that splits it (the plan:
+# R1 and R2 split package main's files, R3 internal's, without changing
+# code). New files may not be added here except for a fix that cannot wait,
+# said why in the commit.
+#
+# path                                  lines  # why it is long; the batch that splits it
+transcribe_page.go                       1323  # three feature pages, their shortcuts, services, prompts and the Try card; R1
+overlay.go                               1157  # the overlay's state, sizes, face and waveform in one file; R1
+providers_page.go                         920  # the page, its dialog and the providers' error texts; R1
+ui_kit.go                                 917  # the whole UI kit (AudioSmith's file); R1, cut as AudioSmith plans
+appenhance_page.go                        909  # the page, its preview and three dialogs; R1
+sessionlink.go                            909  # sessions, the answer card's actions and the shortcuts; R1
+demo.go                                   724  # the demo build's machinery and its sample data; R2
+overlay_card.go                           714  # the answer card's model and its view; R2
+shell_settings.go                         674  # the settings dialog, General, the locale and the rows every section uses; R2
+home_page.go                              624  # Home and its readiness list; R2
+onboarding.go                             618  # the setup guide's flow and its steps; R2
+history_page.go                           607  # the page and the entry's details; R2
+session_e2e_test.go                       855  # the session tests of the three features over the fake helper; R3
+internal/session/run.go                   981  # a session's run: listening, audio, composing and ending; R3
+internal/helper/helpertest/fake.go        936  # the fake helper: its protocol, capture and text I/O; R3
+internal/helper/supervise.go              767  # the supervisor's API, its process and its I/O; R3
+internal/helper/proto/methods.go          668  # every method's wire types; R3, by the protocol's sections
+internal/session/session.go               617  # the session's types and its Manager; R3

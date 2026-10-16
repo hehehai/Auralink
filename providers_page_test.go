@@ -192,12 +192,9 @@ func TestProvidersKeychainFailure(t *testing.T) {
 
 // TestSnapshotsProviders renders the Model services page in its states
 // (AURALINK_SNAPSHOTS, as TestSnapshots).
-func TestSnapshotsProviders(t *testing.T) {
-	out := os.Getenv("AURALINK_SNAPSHOTS")
-	if out == "" {
-		t.Skip("set AURALINK_SNAPSHOTS to a directory")
-	}
-	os.MkdirAll(out, 0o755)
+func TestSnapshotsProviders(t *testing.T) { runSnapshots(t, "AURALINK_SNAPSHOTS", snapshotsProviders) }
+
+func snapshotsProviders(t *testing.T, out string) {
 	w, h := snapshotSize()
 	for _, run := range []struct {
 		lang string

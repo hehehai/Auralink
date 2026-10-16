@@ -118,6 +118,11 @@ jobs:
       - name: MyGo vet
         run: go tool mygo vet .
 
+      - name: Vet the demo and update-check builds
+        run: |
+          go vet -tags demo ./...
+          go vet -tags updatecheck .
+
       - name: Snapshots
         run: |
           AURALINK_SNAPSHOTS="$RUNNER_TEMP/shots" go test -count=1 -run TestSnapshots .

@@ -124,7 +124,7 @@ func (f *fakeSupervisor) methods() []string {
 // Accessibility not).
 func newTestApp(t *testing.T) (*app, *fakeSupervisor, *ui.Tester) {
 	t.Helper()
-	return newTestAppIn(t, t.TempDir())
+	return newTestAppIn(t, testDir(t))
 }
 
 // newTestAppIn is newTestApp over the library in dir, which may hold one

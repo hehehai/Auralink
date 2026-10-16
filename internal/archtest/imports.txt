@@ -1,0 +1,50 @@
+# Every import of an internal package by another (TestImports): "from to",
+# paths under internal/. A new dependency adds its line here, so that review
+# sees it (docs/architecture.md, "Code structure rules"); a line no import
+# needs any more fails until it is removed. package main imports what it
+# likes and is not listed.
+appctx helper/proto
+appctx hotkey
+appctx settings
+appicons helper/proto
+asr core
+asr netx
+asr/aliyun asr
+asr/doubao asr
+asr/openai asr
+asr/openai netx
+compose lang
+deliver helper/proto
+dict store
+dsp vad
+helper core
+helper helper/proto
+helper/helpertest helper/proto
+helper/helpertest/cmd/fakehelper helper/helpertest
+hotkey helper/proto
+hotkey settings
+llm core
+logs core
+notify core
+providers asr
+providers asr/aliyun
+providers asr/doubao
+providers asr/openai
+providers llm
+providers netx
+providers settings
+session appctx
+session asr
+session compose
+session core
+session deliver
+session dict
+session dsp
+session helper/proto
+session lang
+session llm
+session settings
+session store
+session vad
+store/sqlitestore core
+store/sqlitestore store

@@ -708,12 +708,9 @@ func TestOverlayInk(t *testing.T) {
 // English over a light desktop and Chinese over a dark one:
 //
 //	AURALINK_OVERLAY_SHOTS=/tmp/ov go test -run TestOverlayShots .
-func TestOverlayShots(t *testing.T) {
-	out := os.Getenv("AURALINK_OVERLAY_SHOTS")
-	if out == "" {
-		t.Skip("set AURALINK_OVERLAY_SHOTS to a directory")
-	}
-	os.MkdirAll(out, 0o755)
+func TestOverlayShots(t *testing.T) { runSnapshots(t, "AURALINK_OVERLAY_SHOTS", snapshotsOverlay) }
+
+func snapshotsOverlay(t *testing.T, out string) {
 	for _, run := range []struct {
 		lang string
 		dark bool

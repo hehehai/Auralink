@@ -58,8 +58,11 @@ github.com/hehehai/Auralink
 │   │                     there or missing; the PNGs on disk (a week fresh); fetching a batch
 │   ├── appbundle/        the version of the app bundle on disk (Info.plist), to tell an update      (leaf)
 │   │                     installed while the app runs (updates.go, helper.Config.Stale)
-│   └── dict/             the dictionary's rules: cleaning a term, hints for speech services,
-│                         CSV and text import and export, merging an import
+│   ├── dict/             the dictionary's rules: cleaning a term, hints for speech services,
+│   │                     CSV and text import and export, merging an import
+│   ├── archtest/         tests of the code's structure only: file sizes, import layering ("Code structure rules")
+│   └── tools/            developer commands (standard library only): snapcmp (snapshot comparison),
+│                         declhash (pure-move check)
 ├── helper/               the Swift helper (helper/README.md): Sources/, Tests/, Fixtures/, Support/
 └── third_party/mygo/     MyGo 0.4.8 with three patches (scripts/vendor-mygo.sh)
 ```
@@ -99,6 +102,15 @@ Event types live next to their publisher, and their topic starts with the publis
 ### Why the UI stays in package main
 
 MyGo builds the root `main` package (`mygo dev`, `mygo build`, `ui.View`); views need the window and its main thread. The domain, which must be goroutine-safe and testable, is in `internal/`. Each area of the UI keeps its fields in a struct of its own, embedded in `app` (app.go).
+
+### Code structure rules
+
+`internal/archtest` checks these with every `go test ./...`; each failure says how to fix it (the rules from AudioSmith's refactor, the plan of refactor R0–R8).
+
+- **File size.** A Go file has at most 600 lines, a test file 800; code should keep to about 400 (files over it are reported by `go test -v -run TestFileSizes ./internal/archtest`, not failed). Generated files, `third_party/`, `testdata/`, `build/` and the Swift helper are not counted. The files over the limit today are listed in `internal/archtest/allowlist.txt` with their size as a ceiling, why they are long and the batch that splits them: they may shrink, not grow, and leave the list once split. Functions over 150 lines are reported (`-run TestLongFuncs`).
+- **Layering.** Leaves (above) import nothing internal; only `icons` uses `mygo/ui` and only `store/sqlitestore` another MyGo package (`plugins/sqlite`); only `uitext` may import `i18n` (the domain returns codes and errors, package main and `uitext` say them); fakes (packages whose name ends in `test`) are for tests; `internal/tools` is standard library only. The rules and their reasons are in `internal/archtest/imports_test.go`.
+- **Every internal → internal import is listed** in `internal/archtest/imports.txt` (`from to`, paths under `internal/`). A new dependency adds a line there, so that review sees it; a line no import needs fails until removed.
+- **Refactors that only move code** prove it: `go run ./internal/tools/declhash . ./internal/...` on the base and on the branch print the same lines (a hash per top-level declaration, comments and build constraints included; `-nocomments` tells a move that also updated the file names comments mention), and `scripts/snapshots.sh check` renders every set of UI snapshots of both and compares them pixel for pixel (§6). Snapshots are reproducible: `snapshot_env_test.go` pins the clock (a `testing/synctest` bubble), the data directories, the free disk space and the sizes Settings → Storage measures.
 
 ## 2. Processes and data flow
 
@@ -235,6 +247,7 @@ Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services,
 | All Go tests | `CGO_ENABLED=0 go test ./...` | Views in `ui.Tester` with a fake supervisor in process; the real supervisor against the fake helper process; protocol fixtures; the store over real SQLite (the plugin's library is downloaded and checked once, or `MYGO_SQLITE_LIBRARY`); i18n key parity |
 | MyGo vet | `go tool mygo vet .` | `go vet ./...` and the UI-lifetime checks |
 | Race | `CGO_ENABLED=1 go test -race ./...` | needs cgo |
+| Snapshots, compared | `scripts/snapshots.sh check [BASE]` (`twice`: is it reproducible?; `render DIR`) | every set below (main, min, home, overlay, ink) of BASE (default: the merge base with origin/main) and of the working tree, compared pixel for pixel by `internal/tools/snapcmp`; about a minute; the pictures of what differs in `$SNAP_TMP/diff`. New snapshot tests call `runSnapshots` and make their directories with `testDir` (snapshot_env_test.go). The overlay's flows (`AURALINK_FLOW_SHOTS`) are left out: they run real goroutines, and their tests check the steps |
 | Snapshots | `AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .` | every page, the settings sections and the overlays, light/dark, en/zh-Hans, 2×; the window's default size (800×520); `AURALINK_SNAPSHOTS_SIZE=680x440` (or `min`) for the smallest; the foot of the sidebar with none, one and three notifications and the rail's dot and popover (`sidebar-notices-*`, `rail-notices*`) |
 | Swift helper | `scripts/mac.sh 'cd helper && swift test'` | the wire types against helper/Fixtures (the same lines the Go tests decode), the hotkey recognizer, the PCM framer; CI runs it on macOS (the `helper` job, with the release build and `go test ./internal/helper/...`) |
 | Mac checks | `scripts/mac.sh 'AURALINK_MAC=1 go test -run "TestMacKeychain|TestNative|TestActivate|TestPlay" -v ./internal/secrets ./internal/permission ./internal/macx'` | the Keychain, the permission calls, activation, the recording's sounds |

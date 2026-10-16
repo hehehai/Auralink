@@ -80,8 +80,9 @@ func (a *app) home() string {
 	return a.dataDir()
 }
 
-// diskFree is the space free for the user on path's disk.
-func diskFree(path string) int64 {
+// diskFree is the space free for the user on path's disk (a variable:
+// snapshots pin it, snapshot_env_test.go).
+var diskFree = func(path string) int64 {
 	var st syscall.Statfs_t
 	for p := path; p != "" && p != "/" && p != "."; p = filepath.Dir(p) {
 		if syscall.Statfs(p, &st) == nil {
