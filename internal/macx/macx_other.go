@@ -10,4 +10,6 @@ func frontmost() App { return App{} }
 
 func play(Sound) error { return nil }
 
+func playWait(Sound) error { return nil }
+
 func windowNumber(uintptr) int { return 0 }

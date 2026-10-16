@@ -115,11 +115,14 @@ type Audio struct {
 	// ones that are not connected (M6).
 	Devices     []string          `json:"devices,omitempty"`
 	DeviceNames map[string]string `json:"deviceNames,omitempty"`
-	// MuteOutput lowers the system's output while recording, restoring
-	// only what Auralink changed (P1). Sounds plays a cue when recording
-	// starts and another when it stops (M6).
-	MuteOutput bool `json:"muteOutput,omitempty"`
-	Sounds     bool `json:"sounds"`
+	// MuteOutput mutes the default output device while recording (after
+	// the start cue, until the recording stops), unmuting only what
+	// Auralink muted (internal/outmute, 10-16). Nil until the user
+	// chooses: on (MuteOn), for older documents too, without a
+	// migration. Sounds plays a cue when recording starts and another
+	// when it stops (M6).
+	MuteOutput *bool `json:"muteOutput,omitempty"`
+	Sounds     bool  `json:"sounds"`
 	// VAD is the local voice activity detection a recording goes
 	// through before a speech service hears it (10-15).
 	VAD VAD `json:"vad,omitzero"`
@@ -127,6 +130,10 @@ type Audio struct {
 	// of a recording (10-16).
 	Clean Clean `json:"clean,omitzero"`
 }
+
+// MuteOn reports whether recordings mute the system's output: the user's
+// choice, else on.
+func (a Audio) MuteOn() bool { return a.MuteOutput == nil || *a.MuteOutput }
 
 // Clean tunes the sound processing of what a speech service gets of a
 // recording (internal/dsp, pure DSP, no model): a high-pass filter (80

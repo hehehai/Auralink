@@ -39,6 +39,9 @@ func TestPlay(t *testing.T) {
 		if err := Play(SoundStart); err != nil {
 			t.Fatal(err)
 		}
+		if err := PlayWait(SoundStart); err != nil {
+			t.Fatal(err)
+		}
 		return
 	}
 	if os.Getenv("AURALINK_MAC") == "" {
@@ -52,5 +55,10 @@ func TestPlay(t *testing.T) {
 			t.Errorf("%s: %v", s, err)
 		}
 		time.Sleep(300 * time.Millisecond)
+	}
+	// PlayWait returns when the sound ended: Pop is about 0.1–0.2 s.
+	t0 := time.Now()
+	if err := PlayWait(SoundStart); err != nil || time.Since(t0) < 50*time.Millisecond || time.Since(t0) > 2*time.Second {
+		t.Errorf("PlayWait: %v after %v", err, time.Since(t0))
 	}
 }

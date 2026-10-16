@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/hehehai/Auralink/internal/helper"
@@ -107,8 +108,11 @@ func TestRecordingCues(t *testing.T) {
 
 func TestSessionSounds(t *testing.T) {
 	a, _, _ := newTestApp(t)
+	var mu sync.Mutex
 	var cues []macx.Sound
-	a.playSound = func(s macx.Sound) { cues = append(cues, s) }
+	// The stop cue plays once the output is back (mute_link.go), from
+	// the mute's goroutine: a.mute.Wait() before reading.
+	a.playSound = func(s macx.Sound) { mu.Lock(); cues = append(cues, s); mu.Unlock() }
 	rev := a.sess.Rev
 	feed := func(id string, st session.State) {
 		rev++
@@ -119,6 +123,9 @@ func TestSessionSounds(t *testing.T) {
 	feed("s1", session.Done)
 	feed("s2", session.Recording)
 	feed("s2", session.Cancelled)
+	a.mute.Wait()
+	mu.Lock()
+	defer mu.Unlock()
 	if want := []macx.Sound{macx.SoundStart, macx.SoundStop, macx.SoundStart}; !slices.Equal(cues, want) {
 		t.Fatalf("cues %q, want %q", cues, want)
 	}
@@ -126,8 +133,11 @@ func TestSessionSounds(t *testing.T) {
 	a.navigate("/settings/audio")
 	a.updateSettings(func(s *settings.Settings) { s.Audio.Sounds = false })
 	cues = nil
+	mu.Unlock()
 	feed("s3", session.Recording)
 	feed("s3", session.Recognizing)
+	a.mute.Wait()
+	mu.Lock()
 	if len(cues) != 0 {
 		t.Errorf("sounds off: %q", cues)
 	}

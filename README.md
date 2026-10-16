@@ -68,7 +68,9 @@ Before audio goes to a speech service, Auralink can prepare it (plain signal pro
 - **Optimize sound** (on by default): a high-pass filter at 80 Hz removes hum and rumble, and one gain measured on the speech alone raises a quiet voice (up to +12 dB, without lifting background noise above −50 dBFS), with a limiter so nothing clips.
 - **Skip silence** (on by default): leading and trailing silence is cut and long pauses shortened before upload, which saves upload time and, with services billed by duration, money. A recording with no speech is not sent at all.
 
-The recording kept in the history is always the original. Both switches are in **Settings → Audio**, with the microphones in your order of preference.
+While you speak, **Mute system audio while recording** (on by default) mutes the current output device, so that a video, music or a call playing on the speakers is not recorded with you: from just after the start sound until the recording stops, then the sound comes back. A device you muted yourself stays muted, and one you unmute during the recording stays on. It only switches the device's mute, so it needs no permission and records nothing of the system's sound.
+
+The recording kept in the history is always the original. These switches are in **Settings → Audio**, with the microphones in your order of preference.
 
 ![Settings → Audio: microphones, skip silence, optimize sound](docs/images/settings-audio.png)
 

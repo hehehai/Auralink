@@ -43,6 +43,10 @@ func snapshotsMain(t *testing.T, out string) {
 		tt.SetDark(run.dark)
 		tt.SetScale(2)
 		a.version = "0.1.0"
+		// The try sessions here mute nothing: the mute's log lines come
+		// from its goroutine, in no fixed order with the others, and the
+		// logs panel is a snapshot (mute_link_test.go tests the mute).
+		a.mute.Close(time.Second)
 		seedHistory(t, a)      // history_page_test.go
 		seedWriteHistory(t, a) // history_page_test.go
 		suffix := "light"
@@ -123,6 +127,10 @@ func snapshotsMain(t *testing.T, out string) {
 				save("settings-about-beta-off")
 				a.prefs.Updates.Beta = nil
 				a.version = ver
+			}
+			if s.id == "audio" { // the sounds and the output's mute, under the fold
+				scrollToText(tt, i18n.T("Mute system audio while recording"))
+				save("settings-audio-sounds")
 			}
 			if s.id == "overlay" { // its preview, under the controls
 				w, h := snapshotSize()

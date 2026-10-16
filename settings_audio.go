@@ -8,8 +8,8 @@ package main
 // internal/dsp), and the sounds a recording makes when it starts and
 // stops. The helper lists the inputs
 // (capture.devices) when the section opens, when the helper becomes
-// ready while it shows, and with Refresh. Muting the system's output
-// while recording (Audio.MuteOutput) is P1: no switch yet.
+// ready while it shows, and with Refresh. The system's output is muted
+// while recording (Audio.MuteOutput, mute_link.go), unless turned off.
 
 import (
 	"maps"
@@ -35,12 +35,13 @@ type audioState struct {
 		loading bool
 		err     string // why the last read failed ("" for none)
 	}
-	// playSound plays a cue (macx.Play); tests record the cues instead.
+	// playSound plays a cue and returns when it ended (macx.PlayWait,
+	// on a goroutine); tests record the cues instead.
 	playSound func(macx.Sound)
 }
 
 func (a *app) openAudio() {
-	a.playSound = func(s macx.Sound) { macx.Play(s) }
+	a.playSound = func(s macx.Sound) { macx.PlayWait(s) }
 }
 
 // audioShown reads the inputs when the section shows; helperChanged
@@ -275,6 +276,13 @@ func (a *app) audioSettings(c *ui.Context) {
 			a.updateSettings(func(s *settings.Settings) { s.Audio.Sounds = on })
 		}
 	})
+	settingRow(c, "audio-mute", i18n.T("Mute system audio while recording"), i18n.T("Mutes every sound of the current output device while you speak, so that videos, music or calls are not recorded: from just after the start sound until the recording stops, then they come back. A device you muted yourself stays muted. Some devices cannot be muted by software. No permission is needed: nothing of the system's sound is recorded."), func() {
+		if ui.Switch(c.Key("audio-mute-switch"), &a.settingsForm.muteOutput).Label(i18n.T("Mute system audio while recording")).Changed() {
+			on := a.settingsForm.muteOutput
+			a.updateSettings(func(s *settings.Settings) { s.Audio.MuteOutput = &on })
+			a.muteSettingChanged(on) // mute_link.go: off during a recording gives the output back now
+		}
+	})
 }
 
 // deviceName is an input's name and, under it, notes on its state; a
@@ -311,16 +319,4 @@ func recordingCue(was, s session.Snapshot) (macx.Sound, bool) {
 		return macx.SoundStop, true
 	}
 	return "", false
-}
-
-// playCue plays the cue of a change of the session (Settings → Audio →
-// Play sounds), off the main thread.
-func (a *app) playCue(was, s session.Snapshot) {
-	if !a.prefs.Audio.Sounds || a.playSound == nil {
-		return
-	}
-	if cue, ok := recordingCue(was, s); ok {
-		play := a.playSound
-		a.async(func() { play(cue) })
-	}
 }

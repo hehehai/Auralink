@@ -27,6 +27,7 @@ import (
 //	homeState         home_page.go    Home: readiness, today, recent results
 //	onboardingState   onboarding.go   the setup guide
 //	audioState        settings_audio.go   Settings → Audio, the recording's sounds
+//	muteState         mute_link.go    the system's output, muted while recording
 //	updateState       updates.go      the updater, an update installed while running
 //
 // Add fields to your area's struct, not here.
@@ -56,6 +57,7 @@ type app struct {
 	homeState
 	onboardingState
 	audioState
+	muteState
 	updateState
 }
 
@@ -105,6 +107,7 @@ func (a *app) quit() {
 	a.closeSessions() // session_link.go
 	a.closeOverlay()  // overlay.go
 	a.closeTray()
+	a.closeMute() // mute_link.go: the output back before the helper goes
 	a.stopHelper()
 	a.closeShell()
 }

@@ -19,3 +19,7 @@ const soundVolume = "0.5"
 // nothing. Callers keep it off the main thread: starting a process may
 // take a few milliseconds.
 func Play(s Sound) error { return play(s) }
+
+// PlayWait plays s and returns when it ended (the start cue plays before
+// the system's output is muted). Off macOS it returns at once.
+func PlayWait(s Sound) error { return playWait(s) }

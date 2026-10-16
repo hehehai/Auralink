@@ -44,6 +44,9 @@ type fakeChat struct {
 	status int
 	delay  time.Duration
 	bodies []map[string]any
+	// onRequest runs as each request comes (mute_e2e_test.go: is the
+	// output back by then?).
+	onRequest func()
 }
 
 func (f *fakeChat) set(text string, status int) {
@@ -57,6 +60,9 @@ func (f *fakeChat) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var v map[string]any
 	json.Unmarshal(body, &v)
 	f.mu.Lock()
+	if f.onRequest != nil {
+		f.onRequest()
+	}
 	f.bodies = append(f.bodies, v)
 	text, status, delay := f.text, f.status, f.delay
 	if len(f.texts) > 0 {
@@ -207,6 +213,7 @@ func newSessionApp(t *testing.T, opts string, set func(*settings.Settings), keys
 	a.measureHook = guessText
 	s := &sessionApp{app: a, t: t, queue: make(chan func(), 4096), pasteLog: pasteLog}
 	a.postQueue = func(fn func()) { s.queue <- fn }
+	a.muteJournal = outputJournal(t.TempDir()) // as main.go: the helper's claims survive its crash
 	a.connectHelper()
 	a.startHelper()
 	t.Cleanup(func() {

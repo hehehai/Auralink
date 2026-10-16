@@ -10,6 +10,10 @@ Auralink is a Go app on MyGo (native UI, no cgo) with one small Swift helper pro
 github.com/hehehai/Auralink
 ├── *.go                  package main: the UI (views + view state) and the wiring
 ├── internal/
+│   ├── outmute/          the system's output muted while a session records: when (after the start
+│   │                     cue, until the recording stops), a change of device, the user's unmute,
+│   │                     a new helper undoing an earlier one's mutes (output.recover); over the
+│   │                     helper's output.* (helperio.go)
 │   ├── core/             event bus, ULIDs, error sentinels, notifications and log lines        (leaf)
 │   ├── settings/         the typed, versioned settings document (v1) + Service                 (leaf)
 │   ├── store/            persistence contract: Documents, History, Dictionary
@@ -98,7 +102,7 @@ session ──▶ appctx, asr, compose, core, deliver, dict, dsp, helper/proto, 
 dsp ──▶ vad
 compose ──▶ lang              deliver ──▶ helper/proto      hotkey ──▶ helper/proto, settings
 appctx ──▶ helper/proto, hotkey, settings                    dict ──▶ store
-appicons ──▶ helper/proto
+appicons ──▶ helper/proto        outmute ──▶ helper/proto
 core, settings, helper/proto, i18n, lang, secrets, netx, permission, macx, vad, appbundle ──▶ (nothing internal)
 icons ──▶ mygo/ui
 ```
@@ -133,7 +137,7 @@ MyGo builds the root `main` package (`mygo dev`, `mygo build`, `ui.View`); views
 ┌──────────────────────────────┐  calls (go …)  ┌──────────────────────────────────────────┐
 │ views (build pass: no I/O)   │──────────────▶ │ library: store (SQLite) · bus · settings │
 │ app view state + snapshots   │                │ helper.Supervisor ──stdio JSON lines──▶ auralink-helper (Swift)
-│        ▲ Window.Update       │                │    capture.* · hotkey.* · textio.* · app.* · browser.url · permissions.*
+│        ▲ Window.Update       │                │    capture.* · hotkey.* · textio.* · app.* · browser.url · permissions.* · output.*
 └────────┼─────────────────────┘                └──────────────────────────────────────────┘
    core.Bus subscribers ◀── Publish ─────────────┘
    (wiring code, once)
@@ -194,6 +198,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `a.page(c, p)`, `a.pageShown(path)` | pages.go | the router: each page's view, and what it reads when it shows |
 | `a.updateSettings(fn)`, `a.prefs`, `settingsSections()`, `a.settingsShown(sub)`, `a.setMainLanguage(code)`, `a.syncOpenAtLogin()` | shell_settings.go (the dialog, `settingsState`), settings_general.go, settings_locale.go | every area that changes a setting; sections that read something when they open; the window's opening (shell.go) |
 | `a.railMode()` (the only place that decides: the user's choice, else a window narrower than 740), `a.setRail(on)` | shell_nav.go | the sidebar, `pageWidth`, Settings → Appearance |
+| `a.mute` (`*outmute.Controller`), `a.muting`, `a.recordingAudio(was, s)` (the cues and the mute around a recording), `a.muteHelperChanged`, `a.muteNotified`, `a.pillSession()` (the pill's text line with the output's note), `a.closeMute()` | mute_link.go | events.go (onSession), helperlink.go, overlay_face.go, overlay_size.go, app.go (quit) |
 | `a.audio` (the inputs `capture.devices` listed), `a.loadDevices()`, `a.audioShown()`, `deviceInUse(list, devs)`, `a.playSound` (`macx.Play`; tests record), `recordingCue(was, s)`, `a.playCue(was, s)` | settings_audio.go | Settings → Audio, helperlink.go (a helper that became ready), session_link.go (`sessionChanged`) |
 | `faceStyle(e, o, mode, h)`, `overlayPill(c, s, mode, look)`, `a.overlayRestyle()` | overlay_face.go, overlay.go | the overlay, the preview of Settings → Overlay style (settings_overlay.go), `settingsChanged` |
 | `uitext.TriggerText(trigger)` (its name; the setup guide's `uitext.TriggerHowText` says how to use it), `featurePath(feature)` | internal/uitext (keys.go), settings_shortcuts.go | Settings → Shortcuts |

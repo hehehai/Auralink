@@ -4,9 +4,17 @@ All notable changes to Auralink. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+
+- **Mute system audio while recording** (Settings → Audio, on by default): the current output device is muted from just after the start sound until the recording stops, so that videos, music or calls are not recorded; a device you muted stays muted, one you unmute during the recording stays on, and a device that cannot be muted leaves the recording as it is (the overlay says so). No permission is needed. If Auralink or its helper stops while muting, the sound comes back at once, or at the next start.
+
 ### Changed
 
 - Auralink's licence is now the GNU Affero General Public License, version 3 or later (AGPL-3.0-or-later; it was the Apache License 2.0 up to 0.1.0-beta.1). Contributions come in under a Contributor License Agreement (CLA.md). Settings → About shows the copyright and the licence, with links to the licence, the source code and the third-party notices.
+
+### 新增
+
+- **录音时静音系统声音**（设置 → 音频，默认开启）：从开始提示音之后到停止录音为止，当前输出设备静音，免得视频、音乐、通话的声音被录进去；你自己静音的设备保持静音，录音中你取消静音后不会再被静音，不支持软件静音的设备照常录音（浮窗会提示）。不需要任何权限。Auralink 或辅助进程在静音期间意外退出时，声音会立即恢复，最迟在下次启动时恢复。
 
 ### 变更
 
