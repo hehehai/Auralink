@@ -212,12 +212,32 @@ func compileIcon(src, minimumSystemVersion string) (*assetCatalog, error) {
 	return &assetCatalog{car, icns}, nil
 }
 
+// bundleVersion is CFBundleVersion for version: its numbers, as Apple
+// requires ("one to three period-separated integers"), without a
+// pre-release part or build metadata (1.3.0-beta.1 is 1.3.0), or version
+// itself when it has no such numbers. CFBundleShortVersionString keeps the
+// whole version, which App.Version reads and updates compare.
+func bundleVersion(version string) string {
+	v, _, _ := strings.Cut(version, "+")
+	v, _, _ = strings.Cut(v, "-")
+	fields := strings.Split(v, ".")
+	if len(fields) > 3 {
+		return version
+	}
+	for _, f := range fields {
+		if f == "" || strings.Trim(f, "0123456789") != "" {
+			return version
+		}
+	}
+	return v
+}
+
 func infoPlist(c *Config, executable, icon, iconName string) []byte {
 	d := map[string]any{
 		"CFBundleName":                         c.Name,
 		"CFBundleDisplayName":                  c.Name,
 		"CFBundleIdentifier":                   c.Identifier,
-		"CFBundleVersion":                      c.Version,
+		"CFBundleVersion":                      bundleVersion(c.Version),
 		"CFBundleShortVersionString":           c.Version,
 		"CFBundleExecutable":                   executable,
 		"CFBundlePackageType":                  "APPL",
