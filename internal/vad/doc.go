@@ -50,4 +50,14 @@
 // after, pauses included (streaming servers need a continuous timeline). It
 // opens anyway after MaxHoldMS of audio without speech, from PreRollMS
 // before that point, because servers time out on a silent connection.
+//
+// # Two versions of a recording
+//
+// When the speech service gets a filtered recording (internal/dsp), the
+// detection runs on both the filtered and the original audio and keeps the
+// speech either finds: Merge joins two analyses' segments, and Gate.Hear
+// lets a gate listen to the original while it holds and sends the filtered
+// stream. The filter takes hum out of the noise floor, so the filtered
+// audio shows quiet speech the original hides; the original keeps what a
+// strong hum made all speech. Either way a filter only makes it keep more.
 package vad

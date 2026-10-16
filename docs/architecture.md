@@ -41,6 +41,11 @@ github.com/hehehai/Auralink
 │   │                     recording → recognizing → composing → delivering → done/cancelled/
 │   │                     failed), the selection, Translate's and Rewrite's streaming answer, its
 │   │                     snapshots, the history entry; adapters over the helper (helperio.go)
+│   ├── vad/              local voice activity detection (energy over an adaptive noise floor, no
+│   │                     model): Analyze, Compact (file services), Gate (streams), Merge   (leaf)
+│   ├── dsp/              the sound of what a speech service gets: a high-pass filter (4th-order
+│   │                     Butterworth, 80 Hz), one gain from the speech (files) or a slow one
+│   │                     (streams, Leveler), a peak limiter; pure Go
 │   ├── compose/          the layered prompt composer: Transcribe, Translate, Rewrite;
 │   │                     templates/{en,zh-Hans}; 112 golden prompts; Untranslated, ParseAnswer
 │   ├── deliver/          the insert transaction: textio.focus, then textio.paste or the answer card
@@ -70,11 +75,12 @@ helper ──▶ core, helper/proto  helper/helpertest ──▶ helper/proto
 notify, logs ──▶ core
 asr ──▶ core, netx            asr/openai, doubao, aliyun ──▶ asr, netx     asr/asrtest ──▶ (nothing internal)
 llm ──▶ core                  providers ──▶ asr (+ its providers), llm, settings, netx
-session ──▶ appctx, asr, compose, core, deliver, dict, helper/proto, lang, llm, settings, store
+session ──▶ appctx, asr, compose, core, deliver, dict, dsp, helper/proto, lang, llm, settings, store, vad
+dsp ──▶ vad
 compose ──▶ lang              deliver ──▶ helper/proto      hotkey ──▶ helper/proto, settings
 appctx ──▶ helper/proto, hotkey, settings                    dict ──▶ store
 appicons ──▶ helper/proto
-core, settings, helper/proto, i18n, lang, secrets, netx, permission, macx ──▶ (nothing internal)
+core, settings, helper/proto, i18n, lang, secrets, netx, permission, macx, vad ──▶ (nothing internal)
 icons ──▶ mygo/ui
 ```
 
@@ -121,7 +127,9 @@ hotkey.event (helper) ─▶ helperNotified ─▶ hotkeyFired ─▶ hotkey.Rou
       app enhancement, meanwhile: a browser's address (browser.url by the front's pid, 800 ms),
          appctx.Resolve(rules, front, address, feature) ─▶ the snapshot's Scene (the overlay's label)
    Stop (a shortcut, the menu bar) ─▶ capture.stop ─▶ Finish / upload ─▶ the text
+         (internal/dsp: high-pass 80 Hz, then the level: one gain for an upload, a slow one after a stream's gate; a limiter)
          (internal/vad: a stream gets nothing before the speech, an upload no silence around it; no speech: nothing is sent)
+         (the recording kept in the history is the original)
    compose.Build (+ the Scene layer, the glossary) ─▶ one chat (8 s) ─▶ compose.Clean      (fails: the text as recognised, a warning)
    deliver.Insert: textio.focus ─▶ textio.paste {targetPid, press: the group's auto key}   (or the answer card)
 Translate: textio.selection {allowCopy: session.AllowCopy(app)} first ─ text ─▶ compose (no recording)
@@ -215,7 +223,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 
 | `internal/llm` | `llm` | no engine backend, no dubbing skills, no Ollama/LM Studio presets; skills `transcribe_enhance`, `translate_text`, `rewrite`; Volcengine Ark, MiniMax, StepFun, MiMo presets; `extraBody` (thinking off); https-only base URLs; `Probe` (its README) |
 
-Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services, dsp, translate, text, doc, dub, api, mcp, workflow, telephony, watermark, gallery, voicedesign, audio, and the dictation's paste and clipboard code (pasting is the helper's `textio.paste`).
+Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services, dsp (Auralink's `internal/dsp` is its own), translate, text, doc, dub, api, mcp, workflow, telephony, watermark, gallery, voicedesign, audio, and the dictation's paste and clipboard code (pasting is the helper's `textio.paste`).
 
 ## 6. Testing
 
@@ -231,6 +239,7 @@ Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services,
 | Provider protocols | `go test ./internal/asr/... ./internal/llm ./internal/providers` | golden files of what each client sends (`testdata/*.golden`; `AURALINK_UPDATE_GOLDEN=1` rewrites them) against loopback servers replaying recorded answers |
 | Settings (M6) | `go test -run 'TestAudioSettings|TestDeviceInUse|TestRecordingCues|TestSessionSounds|TestOverlayStyle|TestShortcutsSettings|TestOtherLanguages|TestAutoRail|TestStartHidden|TestTray' .`; `go test -run 'TestPlay' ./internal/macx` | the microphones' list over the fake helper's `capture.devices`, the cues of each change of a session, the overlay's settings, the shortcut table's problems and links, the automatic rail at 680 and 800 wide, the menu bar's items and icons |
 | App enhancement, dictionary | `go test ./internal/appctx ./internal/dict`; `go test -run 'TestScene' ./internal/session`; `go test -run 'TestAppEnhancement|TestDictionary|TestSessionAppEnhancement|TestSceneConfig' .`; `go test -run Dictionary ./internal/asr/...` | URL rules and the matching order (table tests); sessions in a URL group, a browser's group, an app's group, none, an address that times out, the auto key; the dictionary's hints in each service's request (golden files) |
+| Sound | `go test -v -run 'TestCompareVariants' ./internal/dsp` (the table of levels before and after; `AURALINK_DSP_OUT=dir` writes the WAVs); `AURALINK_DSP_E2E=1 go test -run TestE2EStepFun ./internal/dsp` (two real StepFun requests) | the filter's response at 50, 60, 80, 100, 200 Hz and 1 kHz, a DC offset at the start and a jump of it, chunks against the whole byte for byte; the gain rule (table), quiet speech raised as a file and as a stream, noise alone never raised, a stream's gain holding through silence and moving smoothly, the limiter on full-scale squares and on speech raised by 30 dB, nothing, a byte, zeros; the speech sample quiet, under hum, white and fan noise, and clipped (no speech frame cut, never over -1 dBFS, the stream's gain near the file's) |
 | Sessions | `go test ./internal/session ./internal/vad ./internal/compose ./internal/deliver ./internal/hotkey`; `go test -run 'TestSession|TestOverlay|TestAnswer|TestTranslate|TestRewrite' .` | the state machine with in-process fakes (both kinds of speech service × the language model on, off, failing, timing out × cancel at each stage × a target that takes no text × late callbacks; Translate and Rewrite: a selection read, missing, failing, by ⌘C, the strict retry, the card by choice, by a target that takes no text and by length, the JSON answer, the text given at Start, follow-ups; the voice activity detection on the speech sample with silence and noise added, a stream held until the speech, a recording without speech sent nowhere; the overlay leaving the screen after each way a session ends, on a fake clock); the app over the fake helper process (`selection=`, `copy-selection=`, `readonly`, `paste-log=`) with loopback transcription, streaming and chat (streaming too) servers |
 | Real services | `AURALINK_E2E=1 go test -run 'TestE2E' -v . ./internal/asr/... ./internal/providers` | keys from the environment or `~/.config/auralink-dev/keys.env` (`DOUBAO_APP_ID`, `DOUBAO_ACCESS_TOKEN`, `DASHSCOPE_API_KEY`, `OPENAI_API_KEY`, `STEPFUN_API_KEY`, `DEEPSEEK_API_KEY`); speech sample `testdata/speech/sample-zh-en.wav`; each test skips without its key |
 | Headless on a Mac | `MAC_DIR=code/Auralink-mt scripts/mac.sh scripts/mac-e2e.sh [--offline]` | the real supervisor and Swift helper (`mac_e2e_test.go`, `AURALINK_MAC_E2E=1`): the helper's read-only methods, its test-only file input (`AURALINK_HELPER_CAPTURE_FILE`) against the speech sample, a Transcribe session with StepFun and DeepSeek, Translate and Rewrite with DeepSeek, the history in a temporary SQLite; text fit with Core Text. No window, key, tap, clipboard or microphone: it runs beside other work (manual-test.md, "自动真机测试（无界面）") |

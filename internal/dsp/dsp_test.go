@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/hehehai/Auralink/internal/vad"
 )
@@ -303,5 +304,29 @@ func TestExtremes(t *testing.T) {
 	f := ProcessFile(pcm, rate, Params{HighPassOff: true, LevelOff: true}, vad.Params{})
 	if !bytes.Equal(f.PCM, pcm) || &f.PCM[0] == &pcm[0] {
 		t.Error("off: not a copy")
+	}
+}
+
+// TestTenMinutesFast: ten minutes of audio take well under a second or
+// two, as a file and as a stream.
+func TestTenMinutesFast(t *testing.T) {
+	if testing.Short() {
+		t.Skip("short")
+	}
+	s := loadSample(t)
+	var x []float64
+	for len(x) < sec(600) {
+		x = append(x, gainOf(s, -15)...)
+	}
+	pcm := toPCM(add(x, white(len(x), -66, 6)))
+	start := time.Now()
+	ProcessFile(pcm, rate, Params{}, vad.Params{})
+	file := time.Since(start)
+	start = time.Now()
+	stream(pcm, 1600, Params{}, vad.Params{}, true)
+	str := time.Since(start)
+	t.Logf("10 min: file %v, stream %v", file, str)
+	if file > 5*time.Second || str > 5*time.Second {
+		t.Errorf("slow: file %v, stream %v", file, str)
 	}
 }
