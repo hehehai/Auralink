@@ -352,11 +352,16 @@ func TestFailures(t *testing.T) {
 				t.Errorf("entry %+v", e[0])
 			}
 			if h.audio.recorded() > 0 {
-				// The recording stopped with the session.
+				// The recording stopped with the session: the capture
+				// returns (a frame in flight when the session ended may
+				// still count), then no more frames come.
+				if !h.audio.waitStopped(2 * time.Second) {
+					t.Fatal("still recording after the end")
+				}
 				n := h.audio.recorded()
 				time.Sleep(20 * time.Millisecond)
 				if h.audio.recorded() != n {
-					t.Error("still recording after the end")
+					t.Error("recorded after the capture returned")
 				}
 			}
 		})
