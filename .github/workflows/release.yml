@@ -1,6 +1,6 @@
 # Release (docs/release.md): on a tag v0.x.y, build Auralink for Apple
 # silicon on a macOS runner, sign it with the Developer ID, notarize it
-# with an App Store Connect API key, sign its update with the updater's
+# with the Apple ID's app-specific password, sign its update with the updater's
 # key, and upload the disk image, the update archive, the deltas from the
 # last versions and the update manifest to a draft release, which a person
 # publishes: installed apps update once it is published.
@@ -111,13 +111,12 @@ jobs:
           MACOS_CERTIFICATE: ${{ github.event_name != 'pull_request' && secrets.MACOS_CERTIFICATE || '' }}
           MACOS_CERTIFICATE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.MACOS_CERTIFICATE_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ github.event_name != 'pull_request' && secrets.APPLE_TEAM_ID || '' }}
-          APPLE_API_KEY: ${{ github.event_name != 'pull_request' && secrets.APPLE_API_KEY || '' }}
-          APPLE_API_KEY_ID: ${{ github.event_name != 'pull_request' && secrets.APPLE_API_KEY_ID || '' }}
-          APPLE_API_ISSUER: ${{ github.event_name != 'pull_request' && secrets.APPLE_API_ISSUER || '' }}
+          APPLE_ID: ${{ github.event_name != 'pull_request' && secrets.APPLE_ID || '' }}
+          APPLE_APP_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.APPLE_APP_PASSWORD || '' }}
           MYGO_UPDATER_PRIVATE_KEY: ${{ github.event_name != 'pull_request' && secrets.MYGO_UPDATER_PRIVATE_KEY || '' }}
         run: |
           missing=()
-          for name in MACOS_CERTIFICATE MACOS_CERTIFICATE_PASSWORD APPLE_TEAM_ID APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER MYGO_UPDATER_PRIVATE_KEY; do
+          for name in MACOS_CERTIFICATE MACOS_CERTIFICATE_PASSWORD APPLE_TEAM_ID APPLE_ID APPLE_APP_PASSWORD MYGO_UPDATER_PRIVATE_KEY; do
             [[ -n "${!name}" ]] || missing+=("$name")
           done
           if (( ${#missing[@]} == 0 )); then
@@ -148,11 +147,14 @@ jobs:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
           umask 077
+          # GitHub masks secrets already; these say so for every line below.
+          echo "::add-mask::$APPLE_ID"
+          echo "::add-mask::$APPLE_APP_PASSWORD"
+          echo "::add-mask::$MACOS_CERTIFICATE_PASSWORD"
           keychain="$RUNNER_TEMP/signing.keychain-db"
           password="$(openssl rand -base64 24)"
           echo "::add-mask::$password"
@@ -175,17 +177,11 @@ jobs:
             security find-identity -v -p codesigning "$keychain"
             exit 1
           fi
-          # The App Store Connect API key: its .p8, as is or in base64.
-          key="$RUNNER_TEMP/AuthKey_$APPLE_API_KEY_ID.p8"
-          if grep -q 'BEGIN PRIVATE KEY' <<<"$APPLE_API_KEY"; then
-            printf '%s\n' "$APPLE_API_KEY" >"$key"
-          else
-            base64 --decode <<<"$APPLE_API_KEY" >"$key"
-          fi
-          # store-credentials checks the key with Apple before storing it.
+          # The notary service's credentials: the Apple ID and an
+          # app-specific password of it. store-credentials checks them with
+          # Apple before storing them, and prints neither (masked anyway).
           xcrun notarytool store-credentials notary --keychain "$keychain" \
-            --key "$key" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER"
-          rm -f "$key"
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
           {
             echo "NOTARY_KEYCHAIN=$keychain"
             echo "SIGN_IDENTITY=$identity"
@@ -246,5 +242,5 @@ jobs:
           if [[ -n "${NOTARY_KEYCHAIN:-}" ]]; then
             security delete-keychain "$NOTARY_KEYCHAIN" || true
           fi
-          rm -f "$RUNNER_TEMP"/certificate.p12 "$RUNNER_TEMP"/AuthKey_*.p8
+          rm -f "$RUNNER_TEMP"/certificate.p12
           git checkout -- mygo.json 2>/dev/null || true

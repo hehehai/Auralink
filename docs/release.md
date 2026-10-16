@@ -1,6 +1,6 @@
 # 发布与更新
 
-Auralink 的发布版本在 GitHub Actions 上构建：打一个 `v0.x.y` tag，[release 工作流](../.github/workflows/release.yml) 就在 macOS runner 上编译辅助进程和 app，用 Developer ID 签名，用 App Store Connect API Key 公证，用更新密钥签名更新包，然后把这些文件传到一个**草稿** Release：
+Auralink 的发布版本在 GitHub Actions 上构建：打一个 `v0.x.y` tag，[release 工作流](../.github/workflows/release.yml) 就在 macOS runner 上编译辅助进程和 app，用 Developer ID 签名，用 Apple ID 和 App 专用密码公证，用更新密钥签名更新包，然后把这些文件传到一个**草稿** Release：
 
 | 文件 | 用途 |
 |---|---|
@@ -15,7 +15,7 @@ Auralink 的发布版本在 GitHub Actions 上构建：打一个 `v0.x.y` tag，
 
 ## 1. 一次性准备
 
-需要 Apple Developer Program 账号（Account Holder 或 Admin 才能建证书和团队 API Key）。下面的命令都不含秘密值：要输入的地方由命令提示，或者从文件读。
+需要 Apple Developer Program 账号（Account Holder 或 Admin 才能建 Developer ID 证书）。下面的命令都不含秘密值：要输入的地方由命令提示，或者从文件读。
 
 ### 1.1 Developer ID Application 证书 → .p12
 
@@ -26,15 +26,19 @@ Auralink 的发布版本在 GitHub Actions 上构建：打一个 `v0.x.y` tag，
    ```
 3. 打开“钥匙串访问” → 登录 → 我的证书，右键 `Developer ID Application: … (TEAMID)` → 导出，格式选 .p12，设一个密码，存到 `~/Desktop/auralink-developer-id.p12`。证书和私钥都会导出（展开那一行能看到私钥）。
 
-### 1.2 App Store Connect API Key（公证用）
+### 1.2 App 专用密码（公证用）
 
-1. [App Store Connect → 用户和访问 → 集成 → App Store Connect API](https://appstoreconnect.apple.com/access/integrations/api) → 团队密钥 → 生成 API 密钥，名称写 `Auralink notarization`，**访问权限选 Developer**（公证只需要这个）。
-2. 下载 `AuthKey_<KEYID>.p8`（**只能下载一次**），记下 Key ID 和页面上方的 Issuer ID。
-3. 可选，在本机先验证一次（存进登录钥匙串的 `auralink-notary` 配置，和 CI 无关）：
+公证用开发者账号的 Apple ID 加一个 **App 专用密码**（不是 Apple ID 的登录密码）：
+
+1. 打开 [account.apple.com](https://account.apple.com)，用开发者账号的 Apple ID 登录 → **登录与安全** → **App 专用密码** → 生成，名称写 `Auralink notarization`。
+2. 复制显示的密码（格式 `xxxx-xxxx-xxxx-xxxx`，**只显示一次**），先存进密码管理器，和 Apple ID、Team ID 放在一起。
+3. 可选，在本机先验证一次（存进登录钥匙串的 `auralink-notary` 配置，和 CI 无关）。不加 `--password`，notarytool 会提示输入，密码不进命令行和 shell 历史：
    ```sh
-   xcrun notarytool store-credentials auralink-notary --key ~/Downloads/AuthKey_<KEYID>.p8 --key-id <KEYID> --issuer <ISSUER-ID>
+   xcrun notarytool store-credentials auralink-notary --apple-id "<你的 Apple ID>" --team-id <TEAMID>
    ```
    成功会显示 “Validating your credentials… Success”。
+
+以后改了 Apple ID 的密码，App 专用密码会全部失效，要重新生成并更新 `APPLE_APP_PASSWORD`。
 
 ### 1.3 更新签名密钥
 
@@ -54,16 +58,15 @@ REPO=hehehai/Auralink
 base64 -i ~/Desktop/auralink-developer-id.p12 | gh secret set MACOS_CERTIFICATE -R "$REPO"
 gh secret set MACOS_CERTIFICATE_PASSWORD -R "$REPO"     # 提示时粘贴 .p12 的密码
 gh secret set APPLE_TEAM_ID -R "$REPO"                  # 提示时粘贴 Team ID（10 位）
-gh secret set APPLE_API_KEY -R "$REPO" < ~/Downloads/AuthKey_<KEYID>.p8
-gh secret set APPLE_API_KEY_ID -R "$REPO"               # 提示时粘贴 Key ID
-gh secret set APPLE_API_ISSUER -R "$REPO"               # 提示时粘贴 Issuer ID
+gh secret set APPLE_ID -R "$REPO"                       # 提示时粘贴开发者账号的 Apple ID
+gh secret set APPLE_APP_PASSWORD -R "$REPO"             # 提示时粘贴 App 专用密码
 gh secret set MYGO_UPDATER_PRIVATE_KEY -R "$REPO" < ~/.config/auralink-release/update-keys/mygo-update.key
-gh secret list -R "$REPO"                               # 应该列出这 7 个
+gh secret list -R "$REPO"                               # 应该列出这 6 个
 ```
 
-`APPLE_API_KEY` 可以是 .p8 的原文（如上），也可以是它的 base64，工作流两种都认。设好以后，把 `.p12` 和 `.p8` 存进密码管理器，删掉桌面和下载目录里的副本。
+`gh secret set` 不带 `--body` 时从提示读入，值不会出现在命令行和 shell 历史里。设好以后，把 `.p12` 存进密码管理器，删掉桌面上的副本。工作流里这些值都会被打码（`::add-mask::`），notarytool 也不回显它们。
 
-可选加固：在仓库 Settings → Environments 建一个 `release` 环境，把这 7 个 Secret 设成环境 Secret（`gh secret set … --env release`），部署规则只允许 `v*` tag，并要求你本人批准；再在工作流的 `release` job 加一行 `environment: release`。这样只有经你批准的 tag 构建能拿到证书和密钥。
+可选加固：在仓库 Settings → Environments 建一个 `release` 环境，把这 6 个 Secret 设成环境 Secret（`gh secret set … --env release`），部署规则只允许 `v*` tag，并要求你本人批准；再在工作流的 `release` job 加一行 `environment: release`。这样只有经你批准的 tag 构建能拿到证书和密钥。
 
 ### 1.5 第一次试跑
 
@@ -128,7 +131,7 @@ macOS 按 bundle ID + 代码签名的要求（designated requirement）记住麦
   如果辅助功能列表里还留着一个不起作用的 Auralink，用 − 删掉再加。
 - **之后的更新**（同一个 Team ID、同一个 bundle ID）授权保留。`identifier` 发布后就不能再改。
 - 开发时用 Apple Development 证书签名的构建，要求和 Developer ID 不同，与发布版之间切换也要 reset 一次。
-- 钥匙串里的 API Key 不受影响：条目是 `/usr/bin/security` 建的，信任的是它，不是 Auralink 的签名。
+- 钥匙串里模型服务的 API Key 不受影响：条目是 `/usr/bin/security` 建的，信任的是它，不是 Auralink 的签名。
 
 ## 4. 更新怎么工作，以及“装好但还没重启”
 
@@ -145,7 +148,7 @@ macOS 按 bundle ID + 代码签名的要求（designated requirement）记住麦
 - **发布后发现问题**：已经更新的 app 不会自动降级（只装比自己新的版本）。先把这个 release 改回草稿，阻止还没更新的人继续更新：`gh release edit v0.1.1 -R hehehai/Auralink --draft=true`（latest 回到上一个版本）；修好后发一个**更高**的版本（0.1.2）。不要复用版本号。已经装了坏版本、急需回退的人，可以从旧 release 下载 dmg 拖进“应用程序”覆盖（同一 Developer ID，授权保留），之后照常收到 0.1.2。
 - **更新私钥丢失**：已安装的 app 只认这把私钥，再也收不到自动更新。只能用新密钥发新版本（换 `release/mygo.release.json` 里的公钥），并请所有用户手动下载安装一次。所以一定要在密码管理器里留一份。
 - **更新私钥泄漏**：拿到它、又能往这个仓库的 latest release 上传文件的人，可以给所有用户推送任意代码。立即：用旧私钥签发一个只换了公钥的新版本（之后的更新改用新密钥），撤换 GitHub Secret，检查仓库和 Actions 的访问权限。
-- **ASC API Key 泄漏或不用了**：在 App Store Connect 撤销，重新生成，更新三个 `APPLE_API_*` Secret。
+- **App 专用密码泄漏或不用了**：在 account.apple.com → 登录与安全 → App 专用密码 里撤销它，重新生成一个，更新 `APPLE_APP_PASSWORD`。它只能用于公证这类服务，不能登录 Apple ID。
 - **Developer ID 证书**：有效期 5 年，过期后带时间戳签的旧版本仍能运行，只是不能再签新版本；换新证书（同一 Team）后授权保留。证书被吊销则已签名的版本可能无法启动。
 
 ## 6. 不用证书测试更新
