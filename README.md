@@ -18,16 +18,15 @@
 
 ## Install
 
-Auralink 0.1 needs **macOS 15 or later on Apple silicon**.
+Auralink needs **macOS 15 or later on Apple silicon**. Intel Macs are not supported yet (the helper is built for arm64 only).
 
-1. Download `Auralink 0.1.0 arm64.dmg` from [Releases](https://github.com/hehehai/Auralink/releases) and drag Auralink to Applications.
-2. The 0.1 builds are **ad hoc signed**, not notarised, so macOS refuses to open them the first time. Either right-click Auralink in Applications → Open → Open, or open it once and then System Settings → Privacy & Security → **Open Anyway**. From Terminal, the same:
-   ```sh
-   xattr -dr com.apple.quarantine /Applications/Auralink.app
-   ```
+1. Download `Auralink <version> arm64.dmg` from [Releases](https://github.com/hehehai/Auralink/releases) and drag Auralink to Applications. Releases are signed with a Developer ID and notarised by Apple.
+2. Open it from Applications (not from the disk image: an app run from there cannot update itself).
 3. The setup guide opens: allow the **Microphone** and **Accessibility** (to type results, read the selection and use fn as a shortcut), set up a speech service and a language model, and try each feature. Settings → General opens it again.
 
-**After every update**, macOS sees an ad hoc signed app as a new one: in System Settings → Privacy & Security → Accessibility, remove Auralink with − and add it again (a switch that shows on may no longer work). If recording stops working, `tccutil reset Microphone dev.hehehai.auralink` and allow it again.
+**Updates**: Auralink checks GitHub Releases once a day and shows a new version's notes in a window of its own; it installs only when you say so (a small download of what changed), then offers to restart. Settings → About checks at once and turns the daily check, or installing without asking, on and off. Updates keep the Microphone and Accessibility grants. To update itself Auralink must be able to write where it is: in `/Applications` that takes an administrator account; otherwise put it in `~/Applications`.
+
+**Coming from a build you made yourself** (ad hoc signed): macOS does not carry its grants over to the released app. Once, before opening the release: `tccutil reset Microphone dev.hehehai.auralink && tccutil reset Accessibility dev.hehehai.auralink`, then allow both again (an Accessibility entry that shows on but does nothing: remove it with − and add Auralink again).
 
 ## Services
 
@@ -60,6 +59,8 @@ go tool mygo build                   # build/darwin-arm64/Auralink.app and "Aura
 ```
 
 From Linux, `scripts/mac.sh <command>` mirrors the project to a Mac (`MAC_HOST`, default `mac-air`; `MAC_DIR`, default `code/Auralink`) and runs the command there: `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'`.
+
+Releases are built, signed, notarised and published by GitHub Actions on a tag: [docs/release.md](docs/release.md).
 
 The design is in [docs/architecture.md](docs/architecture.md) (a Go app on [MyGo](https://github.com/egoist/mygo), no cgo, and a small Swift helper for the microphone, the keyboard and Accessibility) and [docs/behavior.md](docs/behavior.md) (what Auralink does differently from Voxt, and why).
 

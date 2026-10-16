@@ -12,6 +12,7 @@
       "LSApplicationCategoryType": "public.app-category.productivity",
       "NSMicrophoneUsageDescription": "Auralink records your voice while you hold its shortcut and sends the audio to the speech service you set up. 录音只在你按下快捷键时进行，并发送给你配置的语音识别服务。"
     },
+    "entitlements": "helper/Support/app.entitlements",
     "helperEntitlements": {
       "helper/auralink-helper": "helper/Support/helper.entitlements"
     }

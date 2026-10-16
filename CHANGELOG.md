@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Auralink. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/).
+All notable changes to Auralink. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). Each version's section is what the update window shows: English first, then the same in Chinese under matching headings (docs/release.md).
 
 ## [0.1.0] - Unreleased
 
@@ -23,10 +23,22 @@ The first version: voice input for macOS on remote models.
 - Sound optimization before recognition (pure DSP, no model): a high-pass filter at 80 Hz takes out hum and rumble, and one gain measured on the speech alone raises a quiet voice (up to +12 dB, never lifting the room's noise over -50 dBFS) or lowers a very loud one a little, with a limiter at -1 dBFS; a stream's gain follows slowly and holds through pauses. The recording kept in the history is the original; the history says what was done and the gain (Settings → Audio → Optimize sound, on by default).
 - A small window (800×520 by default, 680×440 at the least) with no status bar: notifications stack as cards at the foot of the sidebar (a dot on Settings when it shows only icons), and a missing service or a stopped helper becomes a card with the action that fixes it.
 - The menu bar icon: start or stop transcribing, paste the last result, the last three results to copy (one short line each, the whole in the tooltip); it changes while recording. Closing the window keeps Auralink there, and it can open at login.
-- Settings: General (languages, the menu bar, login, the setup guide), Permissions, Audio (the microphones in your order of preference, skipping silence, optimizing the sound, sounds), Overlay style (place, opacity, corners, the recording time, with a live preview over a desktop picture), Shortcuts (every feature's keys and their conflicts), Appearance (the sidebar shrinks to icons in a narrow window), Network (proxy), Privacy, Storage, About (versions, the self-check, reporting a problem); English and Simplified Chinese.
+- Settings: General (languages, the menu bar, login, the setup guide), Permissions, Audio (the microphones in your order of preference, skipping silence, optimizing the sound, sounds), Overlay style (place, opacity, corners, the recording time, with a live preview over a desktop picture), Shortcuts (every feature's keys and their conflicts), Appearance (the sidebar shrinks to icons in a narrow window), Network (proxy), Privacy, Storage, About (versions, updates, the self-check, reporting a problem); English and Simplified Chinese.
+- Signed with a Developer ID and notarised. Updates from GitHub Releases: a daily check, the new version's notes in a window of its own, a download of only what changed, installed when you say so; Check for Updates… in the app menu, the menu bar icon's menu and Settings → About. An update installed while Auralink runs asks for a restart instead of starting the new helper.
 
 ### Known limitations
 
-- Builds are ad hoc signed and not notarised: macOS asks you to confirm the first start, and forgets the Accessibility grant after each update (README, Install).
-- Apple silicon and macOS 15 or later only.
+- Apple silicon and macOS 15 or later only (no Intel build yet).
 - The app icon is a placeholder.
+
+### 中文
+
+第一个版本：只用远程模型的 macOS 语音输入。
+
+- **转录**：按住快捷键说话，语音识别服务转成文字，语言模型整理（去口头禅、改标点和数字，可加结构和你自己的规则），粘贴到光标处。
+- **翻译**：选中的文字或你说的话，翻译成你选的语言；答案卡片里可以阅读、复制、插入或换一种语言。
+- **转写**：说出怎么改选中的文字，或在没有选中时说出要写什么；回答进卡片，可以插入，也可以继续追问。
+- **应用增强**：按 App 和网站分组的场景规则；**词典**：术语和别名，发给语音识别和语言模型。
+- 首页、设置引导、历史、浮窗和答案卡片、菜单栏图标、静音裁剪和声音优化，以及完整的设置；界面有英文和简体中文。
+- 使用 Developer ID 签名并经过公证。通过 GitHub Releases 更新：每天检查一次，在单独的窗口里显示更新说明，只下载有变化的部分，你同意后才安装。
+- 已知限制：只支持 Apple 芯片和 macOS 15 及以上；app 图标还是占位的。

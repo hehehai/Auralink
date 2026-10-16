@@ -18,16 +18,15 @@
 
 ## 安装
 
-Auralink 0.1 需要 **macOS 15 及以上、Apple 芯片的 Mac**。
+Auralink 需要 **macOS 15 及以上、Apple 芯片的 Mac**。暂不支持 Intel Mac（辅助进程只编译了 arm64）。
 
-1. 从 [Releases](https://github.com/hehehai/Auralink/releases) 下载 `Auralink 0.1.0 arm64.dmg`，把 Auralink 拖进“应用程序”。
-2. 0.1 版本是 **ad-hoc 签名**，没有经过公证，第一次打开时 macOS 会拒绝。可以在“应用程序”里右键 Auralink → 打开 → 打开；或者先打开一次，再到 系统设置 → 隐私与安全性 点 **仍要打开**。也可以在终端里执行：
-   ```sh
-   xattr -dr com.apple.quarantine /Applications/Auralink.app
-   ```
+1. 从 [Releases](https://github.com/hehehai/Auralink/releases) 下载 `Auralink <版本> arm64.dmg`，把 Auralink 拖进“应用程序”。发布版本用 Developer ID 签名，并经过 Apple 公证。
+2. 从“应用程序”里打开（不要直接在磁盘映像里运行：那样无法自动更新）。
 3. 首次启动会打开设置引导：允许**麦克风**和**辅助功能**（用于输入结果、读取选中文字、把 fn 当作快捷键），配置一个语音识别服务和一个语言模型，并把每个功能试一遍。之后可以在 设置 → 通用 中重新打开。
 
-**每次更新后**，macOS 会把 ad-hoc 签名的 app 当作一个新 app：请到 系统设置 → 隐私与安全性 → 辅助功能，用 − 删掉 Auralink 再重新添加（开关看着开着，但可能已经不生效）。如果录音不工作，执行 `tccutil reset Microphone dev.hehehai.auralink` 后重新允许。
+**更新**：Auralink 每天检查一次 GitHub Releases，有新版本时在单独的窗口里显示更新说明；你同意后才安装（只下载有变化的部分），装好后提示重启。设置 → 诊断与关于 里可以立即检查，也可以开关每日检查和“自动安装更新”。更新后麦克风和辅助功能授权仍然有效。Auralink 要能写入自己所在的位置才能更新：放在 `/Applications` 需要管理员账户，否则请放到 `~/Applications`。
+
+**以前用过自己编译的版本**（ad-hoc 签名）：macOS 不会把它的授权带到发布版。打开发布版之前执行一次 `tccutil reset Microphone dev.hehehai.auralink && tccutil reset Accessibility dev.hehehai.auralink`，再重新允许这两项（如果辅助功能条目开着却不生效，用 − 删掉后重新添加 Auralink）。
 
 ## 支持的服务
 
@@ -60,6 +59,8 @@ go tool mygo build                   # 生成 build/darwin-arm64/Auralink.app �
 ```
 
 在 Linux 上开发时，`scripts/mac.sh <命令>` 会把项目同步到 Mac（`MAC_HOST` 默认 `mac-air`，`MAC_DIR` 默认 `code/Auralink`）并在那边执行，例如 `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'`。
+
+发布版本由 GitHub Actions 在打 tag 时构建、签名、公证并上传：见 [docs/release.md](docs/release.md)。
 
 设计见 [docs/architecture.md](docs/architecture.md)（基于 [MyGo](https://github.com/egoist/mygo) 的 Go app，不用 cgo；另有一个负责麦克风、键盘和辅助功能的 Swift 辅助进程）和 [docs/behavior.md](docs/behavior.md)（和 Voxt 行为上的差异及原因）。
 
