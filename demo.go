@@ -319,17 +319,29 @@ func (b *recBody) Read(p []byte) (int, error) {
 	if n > 0 {
 		b.rec.Chunks = append(b.rec.Chunks, recChunk{MS: time.Since(b.t0).Milliseconds(), Data: append([]byte(nil), p[:n]...)})
 	}
-	if err == io.EOF && !b.done {
-		b.done = true
-		if data, e := json.Marshal(b.rec); e == nil {
-			os.MkdirAll(filepath.Dir(b.path), 0o755)
-			os.WriteFile(b.path, data, 0o644)
-		}
+	if err == io.EOF {
+		b.save()
 	}
 	return n, err
 }
 
-func (b *recBody) Close() error { return b.rc.Close() }
+// Close saves what was read: a stream's reader stops at its last event,
+// before the end of the body.
+func (b *recBody) Close() error {
+	b.save()
+	return b.rc.Close()
+}
+
+func (b *recBody) save() {
+	if b.done || len(b.rec.Chunks) == 0 {
+		return
+	}
+	b.done = true
+	if data, e := json.Marshal(b.rec); e == nil {
+		os.MkdirAll(filepath.Dir(b.path), 0o755)
+		os.WriteFile(b.path, data, 0o644)
+	}
+}
 
 // ---- commands ----
 

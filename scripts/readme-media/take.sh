@@ -55,8 +55,9 @@ rec=""
 cleanup() {
   [[ -n "$rec" ]] && kill -INT "$rec" 2>/dev/null && wait "$rec" 2>/dev/null
   osascript -e "tell application \"TextEdit\" to close (every document whose name starts with \"$doc\") saving no" >/dev/null 2>&1 || true
+  "$D" ctl "$lang" close-card >/dev/null 2>&1 || true
   kill "$bd" 2>/dev/null || true
-  [[ -n "$front" ]] && open -b "$front" 2>/dev/null || true
+  [[ -n "$front" && "$front" != dev.hehehai.auralink.demo ]] && open -b "$front" 2>/dev/null || true
   [[ "$(pbpaste | shasum)" == "$clip" ]] || echo "WARNING the clipboard changed" >&2
 }
 trap cleanup EXIT
@@ -103,7 +104,8 @@ translate)
   state 'state=(done|failed).*card=true'
   sleep 2.2
   ctl "lang-menu"; sleep 1.6
-  ctl "lang ja"; sleep 0.5
+  ctl "lang ja"
+  state 'state=(reading|composing)' 5 || true
   state 'state=(done|failed)'
   sleep 3 ;;
 rewrite)

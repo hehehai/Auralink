@@ -90,6 +90,42 @@ case "select":
     print("selected \(r.location)+\(r.length) of \(total)")
     if e != .success { fail("select: \(e.rawValue)") }
 
+case "menuextra": // menuextra <pid> <out.png>: opens the app's menu bar item and captures it with its menu
+    guard args.count >= 2, let pid = Int32(args[0]) else { fail("menuextra <pid> <out.png>") }
+    let out = args[1]
+    let app = AXUIElementCreateApplication(pid)
+    var bar: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(app, "AXExtrasMenuBar" as CFString, &bar) == .success else { fail("no menu bar item") }
+    var kids: CFTypeRef?
+    AXUIElementCopyAttributeValue(bar as! AXUIElement, kAXChildrenAttribute as CFString, &kids)
+    guard let item = (kids as? [AXUIElement])?.first else { fail("no menu bar item") }
+    func frame(_ e: AXUIElement) -> CGRect {
+        var p: CFTypeRef?, s: CFTypeRef?
+        AXUIElementCopyAttributeValue(e, kAXPositionAttribute as CFString, &p)
+        AXUIElementCopyAttributeValue(e, kAXSizeAttribute as CFString, &s)
+        var pt = CGPoint.zero, sz = CGSize.zero
+        if let p { AXValueGetValue(p as! AXValue, .cgPoint, &pt) }
+        if let s { AXValueGetValue(s as! AXValue, .cgSize, &sz) }
+        return CGRect(origin: pt, size: sz)
+    }
+    let icon = frame(item)
+    DispatchQueue.global().async { AXUIElementPerformAction(item, kAXPressAction as CFString) }
+    usleep(900_000)
+    var menu = CGRect.zero
+    var mk: CFTypeRef?
+    AXUIElementCopyAttributeValue(item, kAXChildrenAttribute as CFString, &mk)
+    if let m = (mk as? [AXUIElement])?.first { menu = frame(m) }
+    print("icon \(icon) menu \(menu)")
+    let r = icon.union(menu).insetBy(dx: -40, dy: -30)
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
+    p.arguments = ["shot", "--rect", "\(r.minX)", "\(max(0, r.minY))", "\(r.width)", "\(r.height)", "--include", "\(pid)", "--out", out]
+    try? p.run(); p.waitUntilExit()
+    // Escape closes the menu.
+    let src = CGEventSource(stateID: .hidSystemState)
+    CGEvent(keyboardEventSource: src, virtualKey: 53, keyDown: true)?.post(tap: .cghidEventTap)
+    CGEvent(keyboardEventSource: src, virtualKey: 53, keyDown: false)?.post(tap: .cghidEventTap)
+
 case "backdrop":
     guard let path = args.first, let img = NSImage(contentsOfFile: path) else { fail("backdrop <image>") }
     let app = NSApplication.shared
@@ -124,6 +160,8 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     let input: AVAssetWriterInput
     var started = false
     var frames = 0
+    var dropped = 0
+    var statuses: [Int: Int] = [:]
     let q = DispatchQueue(label: "rec")
     init(url: URL, w: Int, h: Int, fps: Int) throws {
         try? FileManager.default.removeItem(at: url)
@@ -141,13 +179,15 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     func stream(_ stream: SCStream, didOutputSampleBuffer sb: CMSampleBuffer, of type: SCStreamOutputType) {
         guard sb.isValid, type == .screen,
               let att = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
-              let raw = att.first?[.status] as? Int, SCFrameStatus(rawValue: raw) == .complete else { return }
+              let raw = att.first?[.status] as? Int else { return }
+        statuses[raw, default: 0] += 1
+        guard SCFrameStatus(rawValue: raw) == .complete else { return }
         if !started {
             writer.startWriting()
             writer.startSession(atSourceTime: sb.presentationTimeStamp)
             started = true
         }
-        if input.isReadyForMoreMediaData { input.append(sb); frames += 1 }
+        if input.isReadyForMoreMediaData { input.append(sb); frames += 1 } else { dropped += 1 }
     }
     func stream(_ stream: SCStream, didStopWithError error: Error) { FileHandle.standardError.write("stream stopped: \(error)\n".data(using: .utf8)!) }
 }
@@ -206,11 +246,28 @@ func runCapture() {
     sem.wait()
     if let e = err { fail("start: \(e)") }
     print("recording \(cfg.width)x\(cfg.height)@\(fps) \(out)")
+    // A window that changes size can drop out of a running stream (the
+    // answer card stopped updating): the filter is made again twice a
+    // second from the windows there are then.
+    let refresh = DispatchSource.makeTimerSource(queue: .global())
+    refresh.schedule(deadline: .now() + 0.5, repeating: 0.5)
+    refresh.setEventHandler {
+        SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: false) { c, _ in
+            guard let c, let d = c.displays.first(where: { $0.displayID == display.displayID }) else { return }
+            let keep = c.applications.filter { a in a.applicationName == "alcap" || include.contains(a.bundleIdentifier) || include.contains(String(a.processID)) }
+            let f = ProcessInfo.processInfo.environment["ALCAP_MODE"] != "include"
+                ? SCContentFilter(display: d, excludingApplications: c.applications.filter { a in !keep.contains { $0.processID == a.processID } }, exceptingWindows: [])
+                : SCContentFilter(display: d, including: keep, exceptingWindows: [])
+            stream.updateContentFilter(f) { _ in }
+        }
+    }
+    refresh.resume()
     let stop = DispatchSemaphore(value: 0)
     signal(SIGINT, SIG_IGN); signal(SIGTERM, SIG_IGN)
     let s1 = DispatchSource.makeSignalSource(signal: SIGINT, queue: .global()); s1.setEventHandler { stop.signal() }; s1.resume()
     let s2 = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .global()); s2.setEventHandler { stop.signal() }; s2.resume()
     stop.wait()
+    refresh.cancel()
     stream.stopCapture { _ in sem.signal() }
     sem.wait()
     rec.q.sync {
@@ -218,5 +275,5 @@ func runCapture() {
         rec.writer.finishWriting { sem.signal() }
     }
     sem.wait()
-    print("done frames=\(rec.frames) status=\(rec.writer.status.rawValue)")
+    print("done frames=\(rec.frames) dropped=\(rec.dropped) statuses=\(rec.statuses) status=\(rec.writer.status.rawValue)")
 }
