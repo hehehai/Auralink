@@ -73,6 +73,7 @@ check() { # check "what" command...: one line, ok or FAIL
 
 server_pid=""
 cleanup() {
+  local rc=$?
   if [[ -n "$server_pid" ]]; then
     kill "$server_pid" 2>/dev/null || true
     wait "$server_pid" 2>/dev/null || true
@@ -84,6 +85,7 @@ cleanup() {
   if [[ "${KEEP:-0}" != 1 ]]; then
     rm -rf "$WORK"
   fi
+  exit "$rc"
 }
 trap cleanup EXIT
 
@@ -198,7 +200,7 @@ expect() {
   esac
   check "installed without an error" test -z "$(jq -r '.checkErr + .installErr' "$r")"
   check "downloaded $how $totals" test "$(jq -c .totals "$r")" = "$totals"
-  check "the notes are $want's, English and Chinese" bash -c "jq -r .notes '$r' | grep -qF 'Test version $want.' && jq -r .notes '$r' | grep -qF '测试版本 $want。'"
+  check "the notes are $want's, English and Chinese" bash -c "jq -r .notes '$r' | grep -qF 'Test version $want.' && jq -r .notes '$r' | grep -qF '测试版本 ${want}。'"
   check "the bundle is $want's, file for file" diff -r "$app" "$WORK/out-$want/darwin-arm64/Auralink.app"
   check "its signature verifies (deep, strict)" codesign --verify --deep --strict "$app"
   check "CFBundleVersion is $want's numbers" test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist")" = "${want%%-*}"

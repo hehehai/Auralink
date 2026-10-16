@@ -113,7 +113,7 @@ MyGo builds the root `main` package (`mygo dev`, `mygo build`, `ui.View`); views
    (wiring code, once)
 ```
 
-main.go wires, in order: the single-instance lock → the updater plugin (`mygo.Use(native.New(…))`, updates.go; release builds only can update, docs/release.md) → `resolveDataDir` (finishes a pending move or erase of the data folder) → `openLibrary` (store migrated, bus, settings) → `newHelperHost` (finds the helper) → `newApp` → `connectShell` (log files, deep links) → `connectHelper` (the supervisor, its status and notifications) → `connectUpdates`. When MyGo is ready: the window, `startHelper`, the menu bar icon, `watchBundle` (an update installed while it runs). On quit: the tray, the helper (`helper.shutdown`), the notifications and logs, then the database.
+main.go wires, in order: the single-instance lock → the updater plugin (`mygo.Use(native.New(…))`, updates.go; release builds only can update, docs/release.md) → `resolveDataDir` (finishes a pending move or erase of the data folder) → `openLibrary` (store migrated, bus, settings) → `newHelperHost` (finds the helper) → `newApp` → `connectShell` (log files, deep links) → `connectHelper` (the supervisor, its status and notifications) → `connectUpdates`. When MyGo is ready: the window, `applyBeta` (Beta updates, before the first check), `startHelper`, the menu bar icon, `watchBundle` (an update installed while it runs). On quit: the tray, the helper (`helper.shutdown`), the notifications and logs, then the database.
 
 There is no job queue (plan §5): a session lives in memory, owned by one state machine (`internal/session`), and writes one history entry when it ends.
 
