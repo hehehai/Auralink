@@ -4,6 +4,8 @@
 
 **在 Mac 上任何地方说话，文字落在光标处。**
 
+![Auralink：主窗口，以及文本编辑上方的翻译卡片](docs/images/zh/hero.png)
+
 Auralink 是一个精简的 macOS 语音输入 app。在任意 App 里按下快捷键说话，文字就输入到光标处：语音识别服务转成文字，语言模型整理，并按你所在的 App 调整。它还能翻译和改写，对象可以是你说的话，也可以是选中的文字。
 
 它不在 Mac 上跑任何模型。语音和语言服务由你来选（阶跃星辰、豆包、阿里云、DeepSeek、OpenAI 等），使用你自己的 API Key；音频和文字只发给这些服务。
@@ -12,7 +14,7 @@ Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重
 
 > **状态：0.1.0-beta.1，第一个 beta 版（GitHub 上的 prerelease）。** 下面的功能都已完成并通过测试；第一批签名版本会先以 beta 形式发布在 [Releases](https://github.com/hehehai/Auralink/releases)。app 图标目前还是占位的。
 
-![首页：今日统计和最近结果](docs/images/zh/home.png)
+<sub>截图和录屏：Auralink 0.1.0-beta.1，macOS 26，演示数据；语音识别用阶跃星辰，语言模型用 DeepSeek。</sub>
 
 ## 功能
 
@@ -28,21 +30,35 @@ Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重
 
 结果通过剪贴板粘贴，粘贴后会恢复原来的剪贴板内容。如果没有地方可以输入（前台没有输入框，或者已经切到别的 App），结果会留在答案卡片里，可以复制或插入。
 
+在文本编辑里**转录**：“嗯，那个设计评审改到周四下午吧，呃，不对，周五上午……”，输入的是去掉口头禅和改口之后的文字（[MP4](docs/media/zh/transcribe.mp4)）。
+
+![转录：胶囊和声波，识别出的文字，然后文字落在光标处](docs/media/zh/transcribe.webp)
+
+**翻译**选中的文字，再在卡片里换成日语（[MP4](docs/media/zh/translate.mp4)）。
+
+![翻译：选中一段英文，卡片里是中文译文，再从卡片的语言菜单换成日语](docs/media/zh/translate.webp)
+
+把随手写的一句话**转写**成邮件，再追问一次，最后**插入**替换选中的文字（[MP4](docs/media/zh/rewrite.mp4)）。
+
+![转写：“改成发给经理的正式邮件”，回答；“再短一点，建议改到周二上午十点”，回答插入原处](docs/media/zh/rewrite.webp)
+
 ### 应用增强和词典
 
 - **应用增强**：按 App 和网站分组设置规则。每个分组有一段场景 prompt，叠加在基础整理之上（比如“团队聊天：简短、口语化”），可以指定适用于哪些功能，以及插入后要不要按一个键（比如在聊天软件里按回车）。网站规则匹配浏览器当前标签页的网址，网址通过辅助功能读取。页面上会实时显示当前前台 App 命中哪个分组，浮窗和历史里也会标出用到的分组。
 - **词典**：人名和术语，可以设置别名（识别时常被写成的样子）。词条会作为提示发给支持的语音识别服务，并作为术语表发给语言模型。支持 CSV 和文本格式的导入导出。
 
-![应用增强：分组、实时匹配预览、场景 prompt](docs/images/zh/app-enhancement.png)
+| 应用增强 | 词典 |
+|---|---|
+| ![应用增强：分组、前台 App 命中的分组、场景 prompt](docs/images/zh/app-enhancement.png) | ![词典：词条和识别时常被写成的别名](docs/images/zh/dictionary.png) |
 
 ### 浮窗
 
 屏幕底部附近的小胶囊显示当前功能和声波；使用流式语音识别服务时，还会随着你说话实时显示文字。它不会抢走你正在输入的 App 的焦点，没有按钮，鼠标可以直接穿过。需要阅读的结果（翻译、转写）显示在答案卡片里，带插入、复制、目标语言，转写还有继续追问。位置、不透明度和圆角在 **设置 → 浮窗样式** 中调整。
 
-| 录音中，显示命中的应用增强分组 | 说话时实时显示文字 |
+| 录音中，显示命中的应用增强分组 | 识别出的文字，语言模型正在整理 |
 |---|---|
-| ![带应用增强标签的录音胶囊](docs/images/zh/overlay-recording.png) | ![显示实时文字的胶囊](docs/images/zh/overlay-live.png) |
-| **翻译** | **转写，带一次追问** |
+| ![带应用增强标签的录音胶囊](docs/images/zh/overlay-recording.png) | ![显示识别文字的胶囊](docs/images/zh/overlay-live.png) |
+| **翻译，以及卡片的语言菜单** | **转写，带一次追问** |
 | ![显示译文的答案卡片](docs/images/zh/overlay-card.png) | ![显示转写对话的答案卡片](docs/images/zh/overlay-rewrite.png) |
 
 ### 声音和静音
@@ -63,11 +79,17 @@ Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重
 - **设置引导**：首次启动时打开，依次完成授权、配置服务，再把每个功能实际试一遍。
 - 命令面板（`⌘K`）、设置（`⌘,`）、浅色和深色主题，界面有英文和简体中文。
 
+| 首页 | 历史 | 菜单栏 |
+|---|---|---|
+| ![首页：今日统计和最近结果](docs/images/zh/home.png) | ![历史：按功能分类的结果和一条记录的详情](docs/images/zh/history.png) | ![菜单栏图标的菜单](docs/images/zh/menu.png) |
+
 ### 更新
 
 签名的发布版会从 GitHub Releases 自动更新：每天检查一次，有新版本时在单独的窗口里显示更新说明，只下载有变化的部分，你同意后才安装（也可以打开自动安装）。**检查更新…** 在应用菜单、菜单栏图标的菜单和 **设置 → 诊断与关于 → 更新** 里。更新后麦克风和辅助功能授权仍然有效。
 
 **Beta 更新**：**设置 → 诊断与关于 → 更新** 里的一个开关，决定要不要接收 beta。正在用 beta 时默认打开，正式版默认关闭。打开时 beta 和正式版哪个新就更新到哪个；关闭后只接收正式版，而且不会降级，当前的 beta 会保留到比它新的正式版发布。
+
+![设置 → 诊断与关于：版本，以及更新和 Beta 更新开关](docs/images/zh/settings-about.png)
 
 ## 支持的服务
 
@@ -155,7 +177,7 @@ AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .   # 每个页面的�
 cd helper && swift test              # Swift 辅助进程的测试（在 Mac 上），和 Go 用同一份协议 fixtures
 ```
 
-存储层的测试用 MyGo 的 SQLite 插件，第一次会下载它的库（校验 SHA-256），也可以用 `MYGO_SQLITE_LIBRARY` 指定。在 Linux 上，浮窗中文文字的像素检查需要 CJK 字体（Ubuntu 装 `fonts-noto-cjk`）。`scripts/readme-images.sh` 生成本 README 的截图。
+存储层的测试用 MyGo 的 SQLite 插件，第一次会下载它的库（校验 SHA-256），也可以用 `MYGO_SQLITE_LIBRARY` 指定。在 Linux 上，浮窗中文文字的像素检查需要 CJK 字体（Ubuntu 装 `fonts-noto-cjk`）。本 README 的截图和录屏来自 Mac 上的演示构建：[scripts/readme-media](scripts/readme-media/README.md)。
 
 CI 在 Linux 上跑 gofmt、Go 测试（含 race 检测）和 MyGo vet，在 macOS 上跑辅助进程的测试。需要权限、屏幕和真实服务的部分，按 [docs/manual-test.md](docs/manual-test.md) 手动验证。发布版本由 GitHub Actions 在打 tag 时构建、签名、公证并上传，见 [docs/release.md](docs/release.md)。
 

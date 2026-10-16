@@ -4,6 +4,8 @@
 
 **Speak anywhere on your Mac; the text lands where your cursor is.**
 
+![Auralink: the main window, and a translation card over TextEdit](docs/images/hero.png)
+
 Auralink is a small voice input app for macOS. Press a shortcut in any app, speak, and the text is typed at the cursor: recognised by a speech service, cleaned up by a language model, adjusted to the app you are in. It also translates and rewrites, by voice or on the text you select.
 
 It runs no models on your Mac. You choose the speech and language services (StepFun, Doubao, Alibaba Cloud, DeepSeek, OpenAI and others) and bring your own API keys; your audio and text go to them and nowhere else.
@@ -12,7 +14,7 @@ Auralink is a pared-down rewrite of [Voxt](https://github.com/hehehai/voxt), by 
 
 > **Status: 0.1.0-beta.1, the first beta (a GitHub prerelease).** Everything below is built and tested; the first signed builds come out on [Releases](https://github.com/hehehai/Auralink/releases) as betas. The app icon is still a placeholder.
 
-![Home: today's results and the latest ones](docs/images/home.png)
+<sub>Screenshots and recordings: Auralink 0.1.0-beta.1 on macOS 26, with sample data, StepFun for speech and DeepSeek for the language model.</sub>
 
 ## Features
 
@@ -28,21 +30,35 @@ Tap the shortcut to start, tap again to stop; `Esc` cancels. Each feature can ha
 
 Results are pasted through the clipboard, which is put back afterwards. When there is nowhere to type (no text field in front, or the app changed), the result waits in the answer card instead, to copy or insert.
 
+**Transcribe** in TextEdit: "Um, so let's move the design review to Thursday afternoon, uh, no wait, Friday morning…" comes out without the fillers and the false start ([MP4](docs/media/transcribe.mp4)).
+
+![Transcribe: the pill and its waveform, the words recognised, then the text at the cursor](docs/media/transcribe.webp)
+
+**Translate** the selection, then the card into Japanese ([MP4](docs/media/translate.mp4)).
+
+![Translate: a Chinese paragraph selected, the English translation in the card, then Japanese from the card's language menu](docs/media/translate.webp)
+
+**Rewrite** a hasty note as an email, then a follow-up, then **Insert** over the selection ([MP4](docs/media/rewrite.mp4)).
+
+![Rewrite: "make this a polite email to my manager", the answer, "shorter, and suggest Tuesday at ten", the answer inserted](docs/media/rewrite.webp)
+
 ### App enhancement and the dictionary
 
 - **App enhancement**: groups of rules by app and by website. Each group has a scene prompt layered on top of the clean-up ("a team chat: short and casual"), the features it applies to, and an optional key to press after inserting (Return in a messenger). Website rules match the browser tab's address, read through Accessibility. The page previews which group matches the app in front, and the overlay and the history show the group that applied.
 - **Dictionary**: names and jargon, with aliases (what recognition tends to write instead). They are sent as hints to speech services that take them and as a glossary to the language model. Import and export as CSV or text.
 
-![App enhancement: groups, the live match preview, a scene prompt](docs/images/app-enhancement.png)
+| App enhancement | Dictionary |
+|---|---|
+| ![App enhancement: groups, the match for the app in front, a scene prompt](docs/images/app-enhancement.png) | ![Dictionary: terms and the aliases recognition writes instead](docs/images/dictionary.png) |
 
 ### The overlay
 
 A small pill near the bottom of the screen shows the feature, a waveform and, with a streaming speech service, the words as you say them. It never takes the focus from the app you type into, has no buttons, and lets the pointer through. Results to read (a translation, a rewrite) come in an answer card with Insert, Copy, the target language and, for Rewrite, Continue. Position, opacity and corners are in **Settings → Overlay style**.
 
-| Recording, with the app enhancement group | Live text while you speak |
+| Recording, with the app enhancement group | The words recognised, while the model tidies them |
 |---|---|
-| ![The recording pill with an app enhancement label](docs/images/overlay-recording.png) | ![The pill with live text](docs/images/overlay-live.png) |
-| **Translation** | **Rewrite, with a follow-up** |
+| ![The recording pill with an app enhancement label](docs/images/overlay-recording.png) | ![The pill with the recognised text](docs/images/overlay-live.png) |
+| **Translation, and the card's language menu** | **Rewrite, with a follow-up** |
 | ![The answer card with a translation](docs/images/overlay-card.png) | ![The answer card with a rewrite conversation](docs/images/overlay-rewrite.png) |
 
 ### Sound and silence
@@ -63,11 +79,17 @@ The recording kept in the history is always the original. Both switches are in *
 - **Setup guide** on the first start: permissions, services, then a real try of each feature.
 - Command palette (`⌘K`), settings (`⌘,`), a light and a dark theme, English and Simplified Chinese.
 
+| Home | History | Menu bar |
+|---|---|---|
+| ![Home: today's numbers and the latest results](docs/images/home.png) | ![History: results by feature, and one's details](docs/images/history.png) | ![The menu bar icon's menu](docs/images/menu.png) |
+
 ### Updates
 
 Signed releases update themselves from GitHub Releases: a daily check, the new version's notes in a window of their own, a download of only what changed, and installation when you say so (or automatically, if you turn that on). **Check for Updates…** is in the app menu, the menu bar icon's menu and **Settings → About → Updates**. Updates keep the Microphone and Accessibility grants.
 
 **Beta updates**: a switch in **Settings → About → Updates** that chooses whether to get betas. It is on by default while you run a beta and off in a release. On, you get whichever is newer, beta or release; off, releases only, and Auralink never goes back: a beta stays until a newer release.
+
+![Settings → About: the version, and the updates with the Beta updates switch](docs/images/settings-about.png)
 
 ## Services
 
@@ -155,7 +177,7 @@ AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .   # every page as PNG
 cd helper && swift test              # the Swift helper (on a Mac), against the same protocol fixtures
 ```
 
-The store's tests use MyGo's SQLite plugin, which downloads its library once (checked against its SHA-256) or uses `MYGO_SQLITE_LIBRARY`. On Linux the overlay's pixel checks of Chinese text need a CJK font (Ubuntu: `fonts-noto-cjk`). `scripts/readme-images.sh` renders this README's images.
+The store's tests use MyGo's SQLite plugin, which downloads its library once (checked against its SHA-256) or uses `MYGO_SQLITE_LIBRARY`. On Linux the overlay's pixel checks of Chinese text need a CJK font (Ubuntu: `fonts-noto-cjk`). This README's screenshots and recordings come from a demo build on a Mac: [scripts/readme-media](scripts/readme-media/README.md).
 
 CI runs gofmt, the Go tests (also under the race detector) and MyGo vet on Linux, and the helper's tests on macOS. What needs permissions, a screen and real services is checked by hand with [docs/manual-test.md](docs/manual-test.md) (in Chinese). Releases are built, signed, notarised and published by GitHub Actions from a tag: [docs/release.md](docs/release.md).
 
