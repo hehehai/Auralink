@@ -105,18 +105,22 @@ jobs:
             exit 1
           fi
 
+      # -count=1 everywhere: setup-go's cache holds the last run's test
+      # results too, and a test's result does not change with what it
+      # does not see (the fonts, a flake): without it, a run after a green
+      # one only said "(cached)".
       - name: Test
-        run: CGO_ENABLED=0 go test ./...
+        run: CGO_ENABLED=0 go test -count=1 ./...
 
       - name: Race
-        run: CGO_ENABLED=1 go test -race ./...
+        run: CGO_ENABLED=1 go test -count=1 -race ./...
 
       - name: MyGo vet
         run: go tool mygo vet .
 
       - name: Snapshots
         run: |
-          AURALINK_SNAPSHOTS="$RUNNER_TEMP/shots" go test -run TestSnapshots .
+          AURALINK_SNAPSHOTS="$RUNNER_TEMP/shots" go test -count=1 -run TestSnapshots .
           find "$RUNNER_TEMP/shots" -name '*.png' | wc -l
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -149,4 +153,4 @@ jobs:
           cache: true
 
       - name: Go protocol fixtures and supervisor
-        run: CGO_ENABLED=0 go test ./internal/helper/...
+        run: CGO_ENABLED=0 go test -count=1 ./internal/helper/...
