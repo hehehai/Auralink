@@ -58,6 +58,8 @@ github.com/hehehai/Auralink
 │   │                     there or missing; the PNGs on disk (a week fresh); fetching a batch
 │   ├── appbundle/        the version of the app bundle on disk (Info.plist), to tell an update      (leaf)
 │   │                     installed while the app runs (updates.go, helper.Config.Stale)
+│   ├── datadir/          where the data folder is: location.json, a move or an erase finished at the
+│   │                     start (Resolve, before the library opens), copying and checking a tree
 │   ├── dict/             the dictionary's rules: cleaning a term, hints for speech services,
 │   │                     CSV and text import and export, merging an import
 │   ├── archtest/         tests of the code's structure only: file sizes, import layering ("Code structure rules")
@@ -75,7 +77,7 @@ Arrows point to what a package may import. No cycles. Leaves import nothing inte
 
 ```
 main ──▶ every internal package
-store ──▶ core                 store/sqlitestore ──▶ core, store
+store ──▶ core                 store/sqlitestore ──▶ core, store      datadir ──▶ store/sqlitestore
 helper ──▶ core, helper/proto  helper/helpertest ──▶ helper/proto
 notify, logs ──▶ core
 asr ──▶ core, netx            asr/openai, doubao, aliyun ──▶ asr, netx     asr/asrtest ──▶ (nothing internal)
@@ -125,7 +127,7 @@ MyGo builds the root `main` package (`mygo dev`, `mygo build`, `ui.View`); views
    (wiring code, once)
 ```
 
-main.go wires, in order: the single-instance lock → the updater plugin (`mygo.Use(native.New(…))`, updates.go; release builds only can update, docs/release.md) → `resolveDataDir` (finishes a pending move or erase of the data folder) → `openLibrary` (store migrated, bus, settings) → `newHelperHost` (finds the helper) → `newApp` → `connectShell` (log files, deep links) → `connectHelper` (the supervisor, its status and notifications) → `connectUpdates`. When MyGo is ready: the window, `applyBeta` (Beta updates, before the first check), `startHelper`, the menu bar icon, `watchBundle` (an update installed while it runs). On quit: the tray, the helper (`helper.shutdown`), the notifications and logs, then the database.
+main.go wires, in order: the single-instance lock → the updater plugin (`mygo.Use(native.New(…))`, updates.go; release builds only can update, docs/release.md) → `datadir.Resolve` (finishes a pending move or erase of the data folder) → `openLibrary` (store migrated, bus, settings) → `newHelperHost` (finds the helper) → `newApp` → `connectShell` (log files, deep links) → `connectHelper` (the supervisor, its status and notifications) → `connectUpdates`. When MyGo is ready: the window, `applyBeta` (Beta updates, before the first check), `startHelper`, the menu bar icon, `watchBundle` (an update installed while it runs). On quit: the tray, the helper (`helper.shutdown`), the notifications and logs, then the database.
 
 There is no job queue (plan §5): a session lives in memory, owned by one state machine (`internal/session`), and writes one history entry when it ends.
 
@@ -222,7 +224,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 |---|---|---|
 | `ui_kit.go` (split as AudioSmith's: `ui_buttons.go`, `ui_marks.go`, `ui_layout.go`, `ui_panels.go`, `ui_forms.go`), `ui_tokens.go` | same files | comments; `setAccent` (accent review shots) dropped |
 | `shell*.go` | same files | Auralink's sidebar groups and pages (a first group without a title); a smaller window (800×520, at least 680×440; AudioSmith 1100×720 and 820×520); no status bar: the version beside Settings, notifications as stacked cards over it (the rail: a dot, then a popover), the services and the helper as cards while something is wrong, instead of the bell, engine, jobs and downloads; no ⌘E quick switch; ? sheet lists the global shortcuts from the settings |
-| `shell_settings.go`, `settings_*.go`, `storage_move.go`, `sysinfo.go` | same files | ten sections: General (app, main and other languages, menu bar, open at login), Permissions (permissions.go), Audio (the microphones' order, sounds), Overlay style (with a preview), Shortcuts (the table of every shortcut), Appearance (the sidebar: automatic, names and icons, icons only), Network (proxy only, provider hosts), Privacy (history, recordings, text in logs), Storage (Auralink's folders; erase removes provider keys), About, 诊断与关于 in Chinese (helper instead of engine) |
+| `shell_settings.go`, `settings_*.go`, `internal/datadir` (`storage_move.go`), `sysinfo.go` | same files | ten sections: General (app, main and other languages, menu bar, open at login), Permissions (permissions.go), Audio (the microphones' order, sounds), Overlay style (with a preview), Shortcuts (the table of every shortcut), Appearance (the sidebar: automatic, names and icons, icons only), Network (proxy only, provider hosts), Privacy (history, recordings, text in logs), Storage (Auralink's folders; erase removes provider keys), About, 诊断与关于 in Chinese (helper instead of engine) |
 | `permissions.go` | same file | a section of the settings dialog (after General): the Microphone and Accessibility only, through the helper; no browser Automation (addresses are read with AX) |
 | `tray.go` | `dictation_tray.go` | Auralink's menu (the last three results, a click copies one); a sound-wave icon, with a dot while recording |
 | `internal/core` | `core` | bus, ids, errors, notifications, log lines only; `Stream` dropped |
