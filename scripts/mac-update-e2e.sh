@@ -62,6 +62,7 @@ check() { # check "what" command...: one line, ok or FAIL
 
 server_pid=""
 cleanup() {
+  local rc=$?
   if [[ -n "$server_pid" ]]; then
     kill "$server_pid" 2>/dev/null || true
     wait "$server_pid" 2>/dev/null || true
@@ -73,6 +74,7 @@ cleanup() {
   if [[ "${KEEP:-0}" != 1 ]]; then
     rm -rf "$WORK"
   fi
+  exit "$rc"
 }
 trap cleanup EXIT
 
