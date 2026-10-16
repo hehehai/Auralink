@@ -121,6 +121,13 @@ case "menuextra": // menuextra <pid> <out.png>: opens the app's menu bar item an
     p.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
     p.arguments = ["shot", "--rect", "\(r.minX)", "\(max(0, r.minY))", "\(r.width)", "\(r.height)", "--include", "\(pid)", "--out", out]
     try? p.run(); p.waitUntilExit()
+    // The item itself is drawn by the system, not the app: from the screen
+    // (the menu bar is clear over the backdrop).
+    let sc = Process()
+    sc.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+    sc.arguments = ["-x", "-R", "\(icon.minX - 4),0,\(icon.width + 8),34", out.replacingOccurrences(of: ".png", with: "-item.png")]
+    try? sc.run(); sc.waitUntilExit()
+    print("item at \(icon.minX - 4),0 in a shot from \(r.minX),\(max(0, r.minY))")
     // Escape closes the menu.
     let src = CGEventSource(stateID: .hidSystemState)
     CGEvent(keyboardEventSource: src, virtualKey: 53, keyDown: true)?.post(tap: .cghidEventTap)

@@ -4,6 +4,8 @@
 # windows are in the picture.
 #
 #   take.sh en|zh transcribe|translate|rewrite <take>   # $RUN/takes/<take>.mov
+#   take.sh en|zh hero <take>      # a still, $RUN/takes/<lang>-hero.png: the main
+#                                  # window behind TextEdit, the translation card
 #
 # It waits until the Mac's user has been idle for IDLE seconds (90) and no
 # other capture runs, puts TextEdit in front with a document of $RUN/docs,
@@ -40,8 +42,8 @@ dur() { afinfo "$RUN/speech/$1.wav" | awk '/estimated duration/ {print $3}'; }
 case "$lang/$kind" in
   en/transcribe) doc="Design review" sel="-1 0" ;;
   zh/transcribe) doc="设计评审" sel="-1 0" ;;
-  en/translate) doc="Release plan" sel="14 -1" ;;
-  zh/translate) doc="发布计划" sel="6 -1" ;;
+  en/translate|en/hero) doc="Release plan" sel="14 -1" ;;
+  zh/translate|zh/hero) doc="发布计划" sel="6 -1" ;;
   en/rewrite) doc="Reply to Dana" sel="10 -1" ;;
   zh/rewrite) doc="回复王芃" sel="6 -1" ;;
   *) echo "unknown take $lang/$kind" >&2; exit 2 ;;
@@ -79,8 +81,13 @@ else
 fi
 sleep 1.5
 te="$(pgrep -x TextEdit)"
-"$A" place "$te" 475 470 760 380
-ctl "window hide"
+if [[ "$kind" == hero ]]; then "$A" place "$te" 690 300 760 380; else "$A" place "$te" 475 470 760 380; fi
+if [[ "$kind" == hero ]]; then
+  ctl "window show"; ctl "nav /home"
+  "$A" place "$pid" 150 170 800 520
+else
+  ctl "window hide"
+fi
 ctl "close-card"
 osascript -e 'tell application "TextEdit" to activate'
 sleep 0.8
@@ -88,6 +95,15 @@ sleep 0.8
 frontnow() { lsappinfo info -only bundleid "$(lsappinfo front)" | sed 's/.*="\(.*\)"/\1/'; }
 [[ "$(frontnow)" == com.apple.TextEdit ]] || { echo "TextEdit is not in front: $(frontnow)" >&2; exit 4; }
 "$D" ctl "$lang" state | grep -q 'front=com.apple.TextEdit' || { echo "the demo does not see TextEdit in front" >&2; exit 4; }
+if [[ "$kind" == hero ]]; then
+  ctl "take $take"
+  ctl "fire translate"
+  state 'state=(done|failed).*card=true'
+  sleep 1.5
+  "$A" shot --rect 110 130 1420 920 --include "com.apple.TextEdit,dev.hehehai.auralink.demo,$pid" --out "$RUN/takes/$lang-hero.png"
+  ctl "window hide"
+  exit 0
+fi
 "$A" record --rect 435 440 840 600 --include "com.apple.TextEdit,dev.hehehai.auralink.demo,$pid" --out "$out" & rec=$!
 sleep 1.5
 ctl "take $take"

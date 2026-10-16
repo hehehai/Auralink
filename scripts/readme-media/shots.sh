@@ -25,8 +25,11 @@ for p in "${pages[@]}"; do
     /history*) demo ctl "$lang" "nav /history" >/dev/null; demo ctl "$lang" "hist 0 ${path#/history}" >/dev/null ;;
     *) demo ctl "$lang" "nav $path" >/dev/null ;;
   esac
+  # About: a taller window, for the update switches under the version.
+  [[ "$name" == settings-about ]] && "$ROOT/build/alcap" place "$pid" 455 100 800 760
   sleep 1.2
   screencapture -x -l"$(wid)" "$out/$name.png"
+  [[ "$name" == settings-about ]] && "$ROOT/build/alcap" place "$pid" 455 173 800 520
   echo "$name $(sips -g pixelWidth -g pixelHeight "$out/$name.png" | awk '/pixel/ {printf "%s ", $2}')"
 done
 demo ctl "$lang" "nav /home" >/dev/null

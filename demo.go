@@ -447,6 +447,21 @@ func demoCommand(a *app, line string) string {
 				a.win.Show()
 			}
 		}
+	case "prune": // the takes' older entries: one of each kept
+		go func() {
+			ctx := context.Background()
+			hs := a.lib.store.History()
+			list, _ := hs.List(ctx, store.HistoryQuery{})
+			seen := map[string]bool{}
+			for _, e := range list { // newest first
+				k := strings.Join([]string{string(e.Kind), e.SourceText, e.RawText, e.PromptText, e.TargetLang}, "\x00")
+				if seen[k] {
+					hs.Delete(ctx, e.ID)
+				}
+				seen[k] = true
+			}
+			a.post(a.historyChanged)
+		}()
 	case "state":
 		return fmt.Sprintf("state=%s card=%v open=%v lang=%v front=%s", a.sess.State, a.sess.Card, a.answer.open, a.answer.langOpen, a.front.BundleID)
 	case "quit":

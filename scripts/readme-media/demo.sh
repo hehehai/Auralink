@@ -38,8 +38,10 @@ start)
 stop)
   p="$(pid_of "$2")"; [[ -n "$p" ]] || { echo "not running"; exit 0; }
   kill -TERM $p
-  for _ in $(seq 40); do kill -0 $p 2>/dev/null || { echo stopped; exit 0; }; sleep 0.25; done
-  echo "still running" >&2; exit 1 ;;
+  for _ in $(seq 80); do kill -0 $p 2>/dev/null || { echo stopped; exit 0; }; sleep 0.25; done
+  kill -KILL $p 2>/dev/null; sleep 1
+  pgrep -qf "$BIN" && pgrep -f "$APP/Contents/Resources/helper" >/dev/null && echo "a helper may be left" >&2
+  echo "killed" ;;
 pid) pid_of "$2" ;;
 speech) cp "$RUN/speech/$2.wav" "$RUN/speech/current.wav" ;;
 ctl)
