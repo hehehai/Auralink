@@ -10,7 +10,7 @@ It runs no models on your Mac. You choose the speech and language services (Step
 
 Auralink is a pared-down rewrite of [Voxt](https://github.com/hehehai/voxt), by the same author: Voxt's dictation, translation and rewriting, with remote models only, and without meetings, file transcription, notes or local models. Its interface and engineering come from [AudioSmith](https://github.com/hehehai/AudioSmith).
 
-> **Status: 0.1.0, before the first release.** Everything below is built and tested; the first signed builds come out on [Releases](https://github.com/hehehai/Auralink/releases) as betas. The app icon is still a placeholder.
+> **Status: 0.1.0-beta.1, the first beta (a GitHub prerelease).** Everything below is built and tested; the first signed builds come out on [Releases](https://github.com/hehehai/Auralink/releases) as betas. The app icon is still a placeholder.
 
 ![Home: today's results and the latest ones](docs/images/home.png)
 
@@ -67,7 +67,7 @@ The recording kept in the history is always the original. Both switches are in *
 
 Signed releases update themselves from GitHub Releases: a daily check, the new version's notes in a window of their own, a download of only what changed, and installation when you say so (or automatically, if you turn that on). **Check for Updates…** is in the app menu, the menu bar icon's menu and **Settings → About → Updates**. Updates keep the Microphone and Accessibility grants.
 
-**Beta updates** (coming with the first beta): a switch in **Settings → About → Updates** that also offers pre-release versions. Off, Auralink installs stable versions only.
+**Beta updates**: a switch in **Settings → About → Updates** that chooses whether to get betas. It is on by default while you run a beta and off in a release. On, you get whichever is newer, beta or release; off, releases only, and Auralink never goes back: a beta stays until a newer release.
 
 ## Services
 

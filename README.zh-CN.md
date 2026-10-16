@@ -10,7 +10,7 @@ Auralink 是一个精简的 macOS 语音输入 app。在任意 App 里按下快�
 
 Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重写：保留 Voxt 的听写、翻译和改写，只用远程模型，去掉了会议、文件转录、笔记和本地模型。界面和工程沿用 [AudioSmith](https://github.com/hehehai/AudioSmith)。
 
-> **状态：0.1.0，尚未正式发布。** 下面的功能都已完成并通过测试；第一批签名版本会先以 beta 形式发布在 [Releases](https://github.com/hehehai/Auralink/releases)。app 图标目前还是占位的。
+> **状态：0.1.0-beta.1，第一个 beta 版（GitHub 上的 prerelease）。** 下面的功能都已完成并通过测试；第一批签名版本会先以 beta 形式发布在 [Releases](https://github.com/hehehai/Auralink/releases)。app 图标目前还是占位的。
 
 ![首页：今日统计和最近结果](docs/images/zh/home.png)
 
@@ -67,7 +67,7 @@ Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重
 
 签名的发布版会从 GitHub Releases 自动更新：每天检查一次，有新版本时在单独的窗口里显示更新说明，只下载有变化的部分，你同意后才安装（也可以打开自动安装）。**检查更新…** 在应用菜单、菜单栏图标的菜单和 **设置 → 诊断与关于 → 更新** 里。更新后麦克风和辅助功能授权仍然有效。
 
-**Beta 更新**（首个 beta 版起提供）：**设置 → 诊断与关于 → 更新** 里的一个开关，打开后也会收到预发布版本；关闭时只安装稳定版。
+**Beta 更新**：**设置 → 诊断与关于 → 更新** 里的一个开关，决定要不要接收 beta。正在用 beta 时默认打开，正式版默认关闭。打开时 beta 和正式版哪个新就更新到哪个；关闭后只接收正式版，而且不会降级，当前的 beta 会保留到比它新的正式版发布。
 
 ## 支持的服务
 
