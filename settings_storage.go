@@ -1,7 +1,7 @@
 package main
 
 // Settings → Storage (AudioSmith's, for Auralink's files): what takes
-// room, opening the folders, moving the data folder (storage_move.go) and
+// room, opening the folders, moving the data folder (internal/datadir) and
 // the reset tiers: the look, all settings, everything.
 
 import (
@@ -14,6 +14,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/datadir"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/secrets"
 	"github.com/hehehai/Auralink/internal/settings"
@@ -27,7 +28,7 @@ type storageState struct {
 
 	stReport  *storageReport
 	stLoading bool
-	stLoc     dataLocation
+	stLoc     datadir.Location
 
 	moving     bool
 	moveDone   int64
@@ -102,11 +103,11 @@ func (a *app) loadStorage() {
 	}
 	a.stLoading = true
 	data, logs, audio := a.dataDir(), a.logDir, a.lib.store.History().AudioDir()
-	a.stLoc = readLocation(a.home())
+	a.stLoc = datadir.ReadLocation(a.home())
 	a.async(func() {
 		ctx := context.Background()
 		r := &storageReport{}
-		rec, _ := treeSize(ctx, audio, nil)
+		rec, _ := datadir.TreeSize(ctx, audio, nil)
 		r.cats = append(r.cats, storageCat{id: "audio", title: i18n.T("Recordings kept with the history"), bytes: rec, dir: audio})
 		var db int64
 		if ents, err := os.ReadDir(data); err == nil {
@@ -119,10 +120,10 @@ func (a *app) loadStorage() {
 			}
 		}
 		r.cats = append(r.cats, storageCat{id: "database", title: i18n.T("Library database"), bytes: db})
-		r.data, _ = treeSize(ctx, data, nil)
+		r.data, _ = datadir.TreeSize(ctx, data, nil)
 		r.cats = append(r.cats, storageCat{id: "other", title: i18n.T("Other"), bytes: max(r.data-rec-db, 0), dir: data})
 		if logs != "" {
-			lb, _ := treeSize(ctx, logs, nil)
+			lb, _ := datadir.TreeSize(ctx, logs, nil)
 			r.cats = append(r.cats, storageCat{id: "logs", title: i18n.T("Logs"), bytes: lb, dir: logs})
 		}
 		r.free = diskFree(data)
@@ -131,7 +132,7 @@ func (a *app) loadStorage() {
 }
 
 // startMove copies the data folder to dir/Auralink (or dir, when it is
-// called Auralink or empty), then restarts to finish (storage_move.go).
+// called Auralink or empty), then restarts to finish (internal/datadir).
 func (a *app) startMove(dir string) {
 	from := a.dataDir()
 	to := dir
@@ -142,11 +143,11 @@ func (a *app) startMove(dir string) {
 	}
 	if filepath.Clean(to) == filepath.Clean(a.home()) && from != a.home() {
 		// Back to the default folder: it keeps location.json.
-	} else if err := checkMoveTarget(from, to); err != nil {
+	} else if err := datadir.CheckMoveTarget(from, to); err != nil {
 		a.toast(i18n.T("Cannot move there: %v", err))
 		return
 	}
-	need, _ := treeSize(context.Background(), from, nil)
+	need, _ := datadir.TreeSize(context.Background(), from, nil)
 	if free := diskFree(filepath.Dir(to)); free > 0 && free < need+need/20+(256<<20) {
 		a.toast(i18n.T("Not enough space there: %s needed, %s free.", humanBytes(need), humanBytes(free)))
 		return
@@ -156,12 +157,12 @@ func (a *app) startMove(dir string) {
 	a.moving, a.moveTo, a.moveErr, a.moveDone, a.moveTotal, a.moveCancel = true, to, "", 0, need, cancel
 	home := a.home()
 	a.async(func() {
-		skip := func(rel string) bool { return skipData(rel, true) }
-		err := copyTree(ctx, from, to, skip, func(done, total int64) {
+		skip := func(rel string) bool { return datadir.SkipData(rel, true) }
+		err := datadir.CopyTree(ctx, from, to, skip, func(done, total int64) {
 			a.post(func() { a.moveDone, a.moveTotal = done, total })
 		})
 		if err == nil {
-			err = writeJSON(filepath.Join(home, moveFile), pendingMove{From: from, To: to})
+			err = datadir.WriteJSON(filepath.Join(home, datadir.MoveFile), datadir.PendingMove{From: from, To: to})
 		}
 		a.post(func() {
 			a.moveCancel = nil
@@ -170,14 +171,14 @@ func (a *app) startMove(dir string) {
 				if existed != nil && to != home { // created by the move: roll back
 					os.RemoveAll(to)
 				} else {
-					removeDataExcept(to)
+					datadir.RemoveExcept(to)
 				}
 				if ctx.Err() == nil {
 					a.moveErr = i18n.T("The data was not moved: %v", err)
 				}
 				return
 			}
-			appRelaunch() // the start finishes the move (resolveDataDir)
+			appRelaunch() // the start finishes the move (datadir.Resolve)
 		})
 	})
 }
@@ -191,13 +192,13 @@ func (a *app) removePrevious() {
 	a.async(func() {
 		var err error
 		if filepath.Clean(loc.Previous) == filepath.Clean(home) {
-			err = removeDataExcept(home)
+			err = datadir.RemoveExcept(home)
 		} else {
 			err = os.RemoveAll(loc.Previous)
 		}
 		loc.Previous = ""
 		if err == nil {
-			err = writeJSON(filepath.Join(home, locationFile), loc)
+			err = datadir.WriteJSON(filepath.Join(home, datadir.LocationFile), loc)
 		}
 		a.post(func() {
 			if err != nil {
@@ -215,7 +216,7 @@ func (a *app) dismissMoveFailure() {
 	loc.Failed = ""
 	a.stLoc = loc
 	home := a.home()
-	a.async(func() { writeJSON(filepath.Join(home, locationFile), loc) })
+	a.async(func() { datadir.WriteJSON(filepath.Join(home, datadir.LocationFile), loc) })
 }
 
 // resetLook restores the appearance and the language.
@@ -251,7 +252,7 @@ func (a *app) keychainItems() []secrets.Item {
 }
 
 // eraseAll removes the Keychain items (when asked) now, then restarts: the
-// start erases the data and the logs (storage_move.go).
+// start erases the data and the logs (internal/datadir).
 func (a *app) eraseAll() {
 	keys, home, logs := a.resetKeys, a.home(), a.logDir
 	items := a.keychainItems()
@@ -262,7 +263,7 @@ func (a *app) eraseAll() {
 				it.Delete()
 			}
 		}
-		err := writeJSON(filepath.Join(home, resetFile), pendingReset{Everything: true, Also: []string{logs}})
+		err := datadir.WriteJSON(filepath.Join(home, datadir.ResetFile), datadir.PendingReset{Everything: true, Also: []string{logs}})
 		a.post(func() {
 			if err != nil {
 				a.toast(i18n.T("Could not erase: %v", err))

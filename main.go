@@ -16,9 +16,11 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/plugins/updater/native"
+
 	// MyGo's own strings (a text field's menu, a dialog's buttons) in
 	// Chinese, when the app shows it (showLanguage).
 	_ "github.com/egoist/mygo/locales/zh-Hans"
+	"github.com/hehehai/Auralink/internal/datadir"
 	"github.com/hehehai/Auralink/internal/i18n"
 )
 
@@ -60,7 +62,7 @@ func main() {
 	}
 	// The data folder may have moved (Settings → Storage); a move or an
 	// erase asked for finishes here, before the library opens.
-	dataDir, err := resolveDataDir(home) // storage_move.go
+	dataDir, err := datadir.Resolve(home) // internal/datadir
 	if err != nil {
 		showFatal(err)
 		return
