@@ -2,9 +2,9 @@
 
 All notable changes to Auralink. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). Each version's section is what the update window shows: English first, then the same in Chinese under matching headings (docs/release.md).
 
-## [0.1.0] - Unreleased
+## [0.1.0-beta.1] - Unreleased
 
-The first version: voice input for macOS on remote models.
+The first version, a beta: voice input for macOS on remote models. It updates to the next beta and to the release that follows (Settings → About → Beta updates).
 
 ### Added
 
@@ -25,6 +25,7 @@ The first version: voice input for macOS on remote models.
 - The menu bar icon: start or stop transcribing, paste the last result, the last three results to copy (one short line each, the whole in the tooltip); it changes while recording. Closing the window keeps Auralink there, and it can open at login.
 - Settings: General (languages, the menu bar, login, the setup guide), Permissions, Audio (the microphones in your order of preference, skipping silence, optimizing the sound, sounds), Overlay style (place, opacity, corners, the recording time, with a live preview over a desktop picture), Shortcuts (every feature's keys and their conflicts), Appearance (the sidebar shrinks to icons in a narrow window), Network (proxy), Privacy, Storage, About (versions, updates, the self-check, reporting a problem); English and Simplified Chinese.
 - Signed with a Developer ID and notarised. Updates from GitHub Releases: a daily check, the new version's notes in a window of its own, a download of only what changed, installed when you say so; Check for Updates… in the app menu, the menu bar icon's menu and Settings → About. An update installed while Auralink runs asks for a restart instead of starting the new helper.
+- Beta updates (Settings → About): betas too, or releases only; on by default in a beta. Turning it off never goes back to an older version: a beta stays until a release newer than it.
 
 ### Known limitations
 
@@ -33,7 +34,7 @@ The first version: voice input for macOS on remote models.
 
 ### 中文
 
-第一个版本：只用远程模型的 macOS 语音输入。
+第一个版本，是 beta 版：只用远程模型的 macOS 语音输入。它会更新到下一个 beta 和之后的正式版（设置 → 诊断与关于 → Beta 更新）。
 
 - **转录**：按住快捷键说话，语音识别服务转成文字，语言模型整理（去口头禅、改标点和数字，可加结构和你自己的规则），粘贴到光标处。
 - **翻译**：选中的文字或你说的话，翻译成你选的语言；答案卡片里可以阅读、复制、插入或换一种语言。
@@ -41,4 +42,5 @@ The first version: voice input for macOS on remote models.
 - **应用增强**：按 App 和网站分组的场景规则；**词典**：术语和别名，发给语音识别和语言模型。
 - 首页、设置引导、历史、浮窗和答案卡片、菜单栏图标、静音裁剪和声音优化，以及完整的设置；界面有英文和简体中文。
 - 使用 Developer ID 签名并经过公证。通过 GitHub Releases 更新：每天检查一次，在单独的窗口里显示更新说明，只下载有变化的部分，你同意后才安装。
+- Beta 更新（设置 → 诊断与关于）：同时接收 beta 版，或只接收正式版；正在用 beta 时默认打开。关闭后不会降级：已装的 beta 会保留到比它新的正式版发布。
 - 已知限制：只支持 Apple 芯片和 macOS 15 及以上；app 图标还是占位的。
