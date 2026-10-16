@@ -4,7 +4,8 @@ package main
 // order of preference (settings.Audio.Devices: the first one connected
 // records, else the system's default input), whether the silence of a
 // recording is left out before a speech service gets it (Audio.VAD.Off,
-// internal/vad), and the sounds a recording makes when it starts and
+// internal/vad) and whether its sound is cleaned up (Audio.Clean.Off,
+// internal/dsp), and the sounds a recording makes when it starts and
 // stops. The helper lists the inputs
 // (capture.devices) when the section opens, when the helper becomes
 // ready while it shows, and with Refresh. Muting the system's output
@@ -255,6 +256,12 @@ func (a *app) audioSettings(c *ui.Context) {
 		if ui.Switch(c.Key("audio-silence-switch"), &a.settingsForm.skipSilence).Label(i18n.T("Skip silence")).Changed() {
 			off := !a.settingsForm.skipSilence
 			a.updateSettings(func(s *settings.Settings) { s.Audio.VAD.Off = off })
+		}
+	})
+	settingRow(c, "audio-clean", i18n.T("Optimize sound"), i18n.T("Filters out low hum (air conditioning, fans, mains) and evens out the volume before the speech service gets the recording: a quiet voice is raised, a very loud one lowered a little, and nothing clips. The history keeps the original recording."), func() {
+		if ui.Switch(c.Key("audio-clean-switch"), &a.settingsForm.cleanSound).Label(i18n.T("Optimize sound")).Changed() {
+			off := !a.settingsForm.cleanSound
+			a.updateSettings(func(s *settings.Settings) { s.Audio.Clean.Off = off })
 		}
 	})
 

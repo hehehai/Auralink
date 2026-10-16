@@ -12,9 +12,10 @@ package vad
 // concurrent use.
 type Gate struct {
 	d       *Detector
-	preRoll int // bytes
-	maxHold int // bytes
-	keep    int // bytes held at most while closed
+	aux     *Detector // Hear's, nil until it is called
+	preRoll int       // bytes
+	maxHold int       // bytes
+	keep    int       // bytes held at most while closed
 	buf     []byte
 	start   int // the stream offset of buf[0], in bytes (even)
 	total   int // bytes pushed
@@ -47,16 +48,17 @@ func (g *Gate) Push(pcm []byte) []byte {
 		return pcm
 	}
 	g.buf = append(g.buf, pcm...)
+	first := g.first()
 	from := -1
-	if g.d.first >= 0 {
-		from = g.d.first*2 - g.preRoll
+	if first >= 0 {
+		from = first*2 - g.preRoll
 	}
 	if g.total >= g.maxHold {
 		if m := g.maxHold - g.preRoll; from < 0 || m < from {
 			from = m
 		}
 	}
-	if from >= 0 || g.d.first >= 0 {
+	if from >= 0 || first >= 0 {
 		from = max(from, g.start)
 		out := g.buf[from-g.start:]
 		g.dropped += from - g.start
@@ -71,12 +73,34 @@ func (g *Gate) Push(pcm []byte) []byte {
 	return nil
 }
 
+// Hear lets a second detector listen to another version of the stream
+// (the recording before a filter, when Push gets it filtered): call it
+// with each chunk just before Push gets that chunk's other version, of
+// the same length. The gate opens when either detector hears speech, and
+// Heard is either's: a filter can only make it open earlier.
+func (g *Gate) Hear(pcm []byte) {
+	if g.aux == nil {
+		g.aux = NewDetector(g.d.rate, g.d.p)
+	}
+	g.aux.Write(pcm)
+}
+
+// first is the start of the first speech either detector heard; -1
+// before any.
+func (g *Gate) first() int {
+	f := g.d.first
+	if g.aux != nil && g.aux.first >= 0 && (f < 0 || g.aux.first < f) {
+		f = g.aux.first
+	}
+	return f
+}
+
 // Open reports whether the gate has opened.
 func (g *Gate) Open() bool { return g.open }
 
 // Heard reports whether speech was detected; false when the gate opened by
 // MaxHoldMS only and no speech came since.
-func (g *Gate) Heard() bool { return g.d.Heard() }
+func (g *Gate) Heard() bool { return g.first() >= 0 }
 
 // Dropped is the number of bytes never sent: the leading silence (while the
 // gate holds, those it already let go).

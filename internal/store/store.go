@@ -104,6 +104,14 @@ type Entry struct {
 	AudioMS, ASRMS, LLMMS, TotalMS int64
 	SentMS                         int64
 
+	// DSP is the sound processing the speech service's copy of the
+	// recording went through (internal/dsp): "highpass", "level" or
+	// "highpass+level"; "" for none (off, older entries, nothing sent).
+	// GainDB is the gain the level stage gave the speech (a stream: at
+	// its end). The recording kept (Audio) is the original either way.
+	DSP    string
+	GainDB float64
+
 	// Audio is the recording kept with the entry, a file name in
 	// History.AudioDir(); "" when none was kept.
 	Audio string

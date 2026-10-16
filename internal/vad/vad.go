@@ -295,3 +295,29 @@ func (d *Detector) Segments() []Segment {
 
 // FloorDB is the noise floor estimate now.
 func (d *Detector) FloorDB() float64 { return d.floor }
+
+// LevelDB is the level of PCM16 (an even number of bytes) in dBFS, as the
+// detector measures a frame: 10·log10(mean(x²)) with x in [-1, 1], at
+// least -120.
+func LevelDB(pcm []byte) float64 { return frameDB(pcm) }
+
+// Merge is the speech either analysis found (of the same recording, say
+// before and after a filter): their segments' union, in order. Its noise
+// floor is a's; its peak the louder.
+func Merge(a, b Analysis) Analysis {
+	m := Analysis{FloorDB: a.FloorDB, PeakDB: max(a.PeakDB, b.PeakDB), Samples: max(a.Samples, b.Samples)}
+	all := append(slices.Clone(a.Segments), b.Segments...)
+	slices.SortFunc(all, func(x, y Segment) int { return x.Start - y.Start })
+	for _, s := range all {
+		if s.End <= s.Start {
+			continue
+		}
+		if n := len(m.Segments); n > 0 && s.Start <= m.Segments[n-1].End {
+			m.Segments[n-1].End = max(m.Segments[n-1].End, s.End)
+			continue
+		}
+		m.Segments = append(m.Segments, s)
+	}
+	m.Speech = len(m.Segments) > 0
+	return m
+}

@@ -198,3 +198,28 @@ func TestMigrateOverlayOpacity(t *testing.T) {
 		t.Errorf("vad written: %s", data)
 	}
 }
+
+// TestCleanOnByDefault: the sound processing is on in a fresh install and
+// in every older document (it has no field there: zero is on), stays out
+// of the document while it is on, and a choice to turn it off stays.
+func TestCleanOnByDefault(t *testing.T) {
+	if Defaults().Audio.Clean != (Clean{}) {
+		t.Errorf("defaults %+v", Defaults().Audio.Clean)
+	}
+	for _, doc := range []string{`{"version":1}`, `{"version":3,"audio":{"sounds":true,"vad":{"off":true}}}`} {
+		s, err := Migrate([]byte(doc))
+		if err != nil || s.Audio.Clean.Off || !s.Audio.VAD.Off == strings.Contains(doc, "vad") {
+			t.Errorf("%s: %+v %v", doc, s.Audio, err)
+		}
+	}
+	data, _ := json.Marshal(Defaults())
+	if strings.Contains(string(data), `"clean"`) {
+		t.Errorf("clean written: %s", data)
+	}
+	s := Defaults()
+	s.Audio.Clean.Off = true
+	data, _ = json.Marshal(s)
+	if m, err := Migrate(data); err != nil || !m.Audio.Clean.Off {
+		t.Errorf("off lost: %s", data)
+	}
+}

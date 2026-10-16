@@ -193,7 +193,12 @@ type Snapshot struct {
 	Profile  string
 	ASR, LLM Model
 	Timings  Timings
-	Problem  *Problem
+	// DSP is the sound processing the speech service's copy went through
+	// ("highpass+level"; "" for none), GainDB the gain it gave the speech
+	// (a stream: at its end), to 0.1 dB.
+	DSP     string
+	GainDB  float64
+	Problem *Problem
 }
 
 // Elapsed is how long the recording has run (from the first audio), at

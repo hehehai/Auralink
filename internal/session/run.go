@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/hehehai/Auralink/internal/core"
 	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/dict"
+	"github.com/hehehai/Auralink/internal/dsp"
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/llm"
 	"github.com/hehehai/Auralink/internal/settings"
@@ -426,7 +428,7 @@ func (r *run) listen() (string, bool) {
 			return "", false
 		}
 	} else if ft, ok := r.svc.ASR.(asr.FileTranscriber); ok {
-		upload, speech := r.trim(pcm)
+		upload, speech := r.prepare(pcm)
 		if !speech {
 			r.logf("info", "no speech in %v: not sent to %s", audioLen.Round(time.Millisecond), r.svc.ASRInfo.ID)
 			r.m.update(r, func(s *Snapshot) { s.Timings.Sent = 0 })
@@ -550,6 +552,7 @@ func (r *run) feed(st asr.Stream) chan streamEnd {
 	end := make(chan streamEnd, 2)
 	sendErr := make(chan error, 1)
 	gate := r.gate()
+	hp, lev := r.streamDSP()
 	go func() {
 		off, sent := 0, 0
 		for {
@@ -559,11 +562,22 @@ func (r *run) feed(st asr.Stream) chan streamEnd {
 			}
 			if len(chunk) > 0 {
 				off += len(chunk)
+				// The recording is kept as it came; the stages make copies.
+				raw := chunk
+				if hp != nil {
+					chunk = hp.Process(chunk)
+				}
 				if gate != nil {
+					if hp != nil {
+						gate.Hear(raw) // the filter never holds back more
+					}
 					chunk = gate.Push(chunk)
 				}
 				if len(chunk) == 0 {
 					continue
+				}
+				if lev != nil {
+					chunk = lev.Process(chunk)
 				}
 				if err := st.Send(chunk); err != nil {
 					sendErr <- err
@@ -575,6 +589,16 @@ func (r *run) feed(st asr.Stream) chan streamEnd {
 			if closed {
 				d := pcmDuration(sent)
 				r.m.update(r, func(s *Snapshot) { s.Timings.Sent = d })
+				if sent > 0 && (hp != nil || lev != nil) {
+					rep := dsp.Report{SpeechDB: -120, FloorDB: -120}
+					if lev != nil {
+						rep = lev.Report()
+					}
+					if hp != nil {
+						rep.HighPass, rep.Clipped = true, hp.Clipped
+					}
+					r.noteDSP(rep)
+				}
 				if gate != nil {
 					if !gate.Open() {
 						end <- streamEnd{silent: true}
@@ -644,25 +668,97 @@ func (r *run) vadParams() (vad.Params, bool) {
 	}.Resolved(), true
 }
 
-// trim is what a file service gets of the recording pcm: without its
-// leading and trailing silence, long pauses shortened (internal/vad), or
-// whole when the detection is off or would save little; false when there
-// is no speech in it at all (nothing is sent).
-func (r *run) trim(pcm []byte) ([]byte, bool) {
-	p, ok := r.vadParams()
-	if !ok {
-		return pcm, true
+// dspParams are the sound processing's parameters (settings.Clean), and
+// false when the settings turn it off.
+func (r *run) dspParams() (dsp.Params, bool) {
+	c := r.settings.Audio.Clean
+	if c.Off || c.HighPassOff && c.LevelOff {
+		return dsp.Params{}, false
 	}
-	an := vad.Analyze(pcm, asr.SampleRate, p)
+	return dsp.Params{
+		HighPassOff: c.HighPassOff, LevelOff: c.LevelOff, HighPassHz: c.HighPassHz,
+		TargetDB: c.TargetDB, MaxGainDB: c.MaxGainDB, LoudDB: c.LoudDB, MaxCutDB: c.MaxCutDB,
+		NoiseCeilDB: c.NoiseCeilDB, CeilingDB: c.CeilingDB,
+	}.Resolved(), true
+}
+
+// prepare is what a file service gets of the recording pcm: processed
+// (internal/dsp: the high-pass filter, one gain from the speech, the
+// limiter) and without its leading and trailing silence, long pauses
+// shortened (internal/vad), each when the settings have it on; false when
+// the detection finds no speech at all (nothing is sent). The detection
+// runs on the filtered recording and on the original, and keeps the
+// speech either finds. pcm itself is not changed: the history keeps it.
+func (r *run) prepare(pcm []byte) ([]byte, bool) {
+	p, vadOn := r.vadParams()
+	dp, dspOn := r.dspParams()
+	upload := pcm
+	var an vad.Analysis
+	switch {
+	case dspOn:
+		f := dsp.ProcessFile(pcm, asr.SampleRate, dp, p)
+		upload, an = f.PCM, f.Analysis
+		r.noteDSP(f.Report)
+	case vadOn:
+		an = vad.Analyze(pcm, asr.SampleRate, p)
+	}
+	if !vadOn {
+		return upload, true
+	}
 	if !an.Speech {
 		r.logf("info", "voice activity: no speech (noise floor %.0f dBFS, loudest %.0f dBFS)", an.FloorDB, an.PeakDB)
 		return nil, false
 	}
-	c := vad.Compact(pcm, asr.SampleRate, an, p)
+	c := vad.Compact(upload, asr.SampleRate, an, p)
 	if c.Changed {
 		r.logf("info", "voice activity: %d segments, sending %v of %v", len(an.Segments), c.Kept.Round(10*time.Millisecond), c.Original.Round(10*time.Millisecond))
 	}
 	return c.PCM, true
+}
+
+// noteDSP logs what the sound processing did and puts it in the snapshot
+// (and so in the history entry).
+func (r *run) noteDSP(rep dsp.Report) {
+	var stages []string
+	if rep.HighPass {
+		stages = append(stages, "highpass")
+	}
+	if rep.Level {
+		stages = append(stages, "level")
+	}
+	desc := strings.Join(stages, "+")
+	speech := "no speech"
+	if rep.SpeechDB > -120 {
+		speech = fmt.Sprintf("speech %.1f dBFS", rep.SpeechDB)
+	}
+	extra := ""
+	if rep.MinGainDB != rep.MaxGainDB {
+		extra = fmt.Sprintf(" (%+.1f…%+.1f)", rep.MinGainDB, rep.MaxGainDB)
+	}
+	r.logf("info", "sound: %s, %s over a floor of %.0f dBFS, gain %+.1f dB%s, %d samples limited, %d clipped by the filter",
+		desc, speech, rep.FloorDB, rep.GainDB, extra, rep.Limited, rep.Clipped)
+	gain := math.Round(rep.GainDB*10) / 10
+	r.m.update(r, func(s *Snapshot) { s.DSP, s.GainDB = desc, gain })
+}
+
+// streamDSP are the stages a streaming service's audio goes through: the
+// high-pass filter before the gate, the level stage after it; nil when
+// the settings turn them off.
+func (r *run) streamDSP() (*dsp.HighPass, *dsp.Leveler) {
+	dp, ok := r.dspParams()
+	if !ok {
+		return nil, nil
+	}
+	var hp *dsp.HighPass
+	var lev *dsp.Leveler
+	if !dp.HighPassOff {
+		hp = dsp.NewHighPass(asr.SampleRate, dp.HighPassHz)
+	}
+	if !dp.LevelOff {
+		vp, _ := r.vadParams()
+		lev = dsp.NewLeveler(asr.SampleRate, dp, vp)
+	}
+	return hp, lev
 }
 
 // pcmDuration is how long n bytes of the recording's PCM play.
@@ -836,7 +932,7 @@ func (r *run) keep(s Snapshot, status store.Status) {
 		RawText: s.Raw, Result: s.Result, SourceText: s.Selection, TargetLang: s.TargetLanguage,
 		ASRProvider: s.ASR.ID, ASRModel: s.ASR.Model, LLMProvider: s.LLM.ID, LLMModel: s.LLM.Model,
 		AudioMS: s.Timings.Audio.Milliseconds(), SentMS: s.Timings.Sent.Milliseconds(), ASRMS: s.Timings.ASR.Milliseconds(), LLMMS: s.Timings.LLM.Milliseconds(),
-		TotalMS: s.Timings.Total.Milliseconds(),
+		TotalMS: s.Timings.Total.Milliseconds(), DSP: s.DSP, GainDB: s.GainDB,
 	}
 	if r.req.Kind == store.KindRewrite {
 		e.PromptText, e.RawText = s.Raw, "" // the spoken instruction

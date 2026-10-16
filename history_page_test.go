@@ -35,6 +35,7 @@ func seedHistory(t *testing.T, a *app) {
 			Delivery:    "insert",
 			ASRProvider: "doubao", ASRModel: "bigmodel", LLMProvider: "deepseek", LLMModel: "deepseek-chat",
 			AudioMS: 7400, ASRMS: 620, LLMMS: 1180, TotalMS: 9350, Audio: histInserted + ".wav",
+			DSP: "highpass+level", GainDB: 7.5,
 		},
 		{
 			ID: histCard, Kind: store.KindTranscribe, CreatedAt: now.Add(-42 * time.Minute), Status: store.StatusDone,
@@ -296,6 +297,7 @@ func TestHistoryDetail(t *testing.T) {
 	for _, s := range []string{
 		"Entry details", "Result", "Recognised text", "Inserted", "Notes",
 		"Doubao (Volcengine) · bigmodel", "deepseek-chat", "7.4 s", "620 ms", "1.2 s", "9.3 s",
+		"Sound optimization", "Hum filtered, volume +7.5 dB",
 	} {
 		if !has(tt, s) {
 			t.Errorf("the details do not show %q (texts: %q)", s, tt.Texts())
@@ -408,6 +410,26 @@ func TestHistoryFormat(t *testing.T) {
 	} {
 		if title, failed := entryTitle(c.e); title != c.title || failed != c.failed {
 			t.Errorf("entryTitle(%+v) = %q, %v", c.e, title, failed)
+		}
+	}
+}
+
+func TestSoundText(t *testing.T) {
+	for _, c := range []struct {
+		dsp  string
+		gain float64
+		want string
+	}{
+		{"", 0, ""},
+		{"highpass+level", 12, "Hum filtered, volume +12.0 dB"},
+		{"highpass+level", -2.5, "Hum filtered, volume -2.5 dB"},
+		{"highpass+level", 0, "Hum filtered, volume unchanged"},
+		{"highpass", 0, "Hum filtered"},
+		{"level", 3, "Volume +3.0 dB"},
+		{"level", 0, "Volume unchanged"},
+	} {
+		if got := soundText(store.Entry{DSP: c.dsp, GainDB: c.gain}); got != c.want {
+			t.Errorf("%q %v: %q, want %q", c.dsp, c.gain, got, c.want)
 		}
 	}
 }

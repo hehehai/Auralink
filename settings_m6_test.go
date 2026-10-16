@@ -32,6 +32,9 @@ func TestAudioSettingsDevices(t *testing.T) {
 	if !has(tt, "No microphone chosen: Auralink records from the system's default input.") || !has(tt, "MacBook Air Microphone") {
 		t.Fatalf("empty list: %q", firstTexts(tt))
 	}
+	if !has(tt, "Skip silence") || !has(tt, "Optimize sound") {
+		t.Errorf("no recognition switches: %q", firstTexts(tt))
+	}
 	click(t, tt, "Add AirPods Pro")
 	click(t, tt, "Add MacBook Air Microphone")
 	got := a.settings.Get().Audio

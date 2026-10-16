@@ -409,6 +409,30 @@ func recordingTime(e store.Entry) string {
 	return i18n.T("%s, %s sent", rec, stageTime(e.SentMS))
 }
 
+// soundText is what the sound processing did to the speech service's
+// copy of the recording (store.Entry.DSP): "Hum filtered, volume
+// +7.5 dB"; "" for none.
+func soundText(e store.Entry) string {
+	hp, level := false, false
+	for _, st := range strings.Split(e.DSP, "+") {
+		hp, level = hp || st == "highpass", level || st == "level"
+	}
+	gain := fmt.Sprintf("%+.1f dB", e.GainDB)
+	switch {
+	case hp && level && e.GainDB != 0:
+		return i18n.T("Hum filtered, volume %s", gain)
+	case hp && level:
+		return i18n.T("Hum filtered, volume unchanged")
+	case hp:
+		return i18n.T("Hum filtered")
+	case level && e.GainDB != 0:
+		return i18n.T("Volume %s", gain)
+	case level:
+		return i18n.T("Volume unchanged")
+	}
+	return ""
+}
+
 // entryService is a service and its model as the details show them: the
 // service's name today, and the model it used then; "" for none.
 func (a *app) entryService(kind providers.Kind, id, model string) string {
@@ -493,6 +517,7 @@ func (a *app) historyDetail(c *ui.Context, e store.Entry) {
 		details = append(details,
 			[2]string{i18n.T("Delivery"), deliveryLabel(e)},
 			[2]string{i18n.T("Speech recognition"), a.entryService(providers.ASR, e.ASRProvider, e.ASRModel)},
+			[2]string{i18n.T("Sound optimization"), soundText(e)},
 			[2]string{i18n.T("Language model"), a.entryService(providers.LLM, e.LLMProvider, e.LLMModel)},
 			[2]string{i18n.T("App rule"), ruleText(e)})
 		sections := []struct {

@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -507,5 +508,41 @@ func BenchmarkAnalyzeCompact10Min(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		Compact(pcm, rate, Analyze(pcm, rate, Params{}), Params{})
+	}
+}
+
+func TestMerge(t *testing.T) {
+	a := Analysis{Segments: []Segment{{100, 200}, {500, 600}}, Speech: true, FloorDB: -60, PeakDB: -20, Samples: 1000}
+	b := Analysis{Segments: []Segment{{150, 300}, {700, 800}, {900, 900}}, Speech: true, FloorDB: -40, PeakDB: -10, Samples: 1000}
+	m := Merge(a, b)
+	want := []Segment{{100, 300}, {500, 600}, {700, 800}}
+	if !slices.Equal(m.Segments, want) || !m.Speech || m.FloorDB != -60 || m.PeakDB != -10 || m.Samples != 1000 {
+		t.Errorf("merged %+v", m)
+	}
+	if m := Merge(Analysis{}, Analysis{}); m.Speech || len(m.Segments) != 0 {
+		t.Errorf("nothing: %+v", m)
+	}
+	if m := Merge(Analysis{}, b); !m.Speech || len(m.Segments) != 2 {
+		t.Errorf("one side: %+v", m)
+	}
+}
+
+// TestGateHear: a gate that gets one version of a stream and hears
+// another opens when either has speech (here the heard one: the pushed
+// one is quiet).
+func TestGateHear(t *testing.T) {
+	s := loadSample(t)
+	v := makeVariant(s, white, 40)
+	silent := toPCM(white.noise(len(v.pcm)/2, 41))
+	g := NewGate(rate, Params{})
+	var sent []byte
+	for off := 0; off < len(silent); off += 3200 {
+		end := min(off+3200, len(silent))
+		g.Hear(v.pcm[off:end])
+		sent = append(sent, g.Push(silent[off:end])...)
+	}
+	onset := padSec + 0.3 - float64(Defaults().PreRollMS)/1000
+	if !g.Open() || !g.Heard() || math.Abs(dur(g.Dropped()/2).Seconds()-onset) > 0.1 || !bytes.Equal(sent, silent[g.Dropped():]) {
+		t.Errorf("open %v heard %v dropped %v", g.Open(), g.Heard(), dur(g.Dropped()/2))
 	}
 }

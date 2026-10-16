@@ -258,6 +258,19 @@ func asInt(v any) int64 {
 	return 0
 }
 
+func asFloat(v any) float64 {
+	switch x := v.(type) {
+	case float64:
+		return x
+	case int64:
+		return float64(x)
+	case string:
+		f, _ := strconv.ParseFloat(x, 64)
+		return f
+	}
+	return 0
+}
+
 func asString(v any) string {
 	switch x := v.(type) {
 	case string:

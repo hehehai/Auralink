@@ -120,6 +120,37 @@ type Audio struct {
 	// VAD is the local voice activity detection a recording goes
 	// through before a speech service hears it (10-15).
 	VAD VAD `json:"vad,omitzero"`
+	// Clean is the light sound processing of the speech service's copy
+	// of a recording (10-16).
+	Clean Clean `json:"clean,omitzero"`
+}
+
+// Clean tunes the sound processing of what a speech service gets of a
+// recording (internal/dsp, pure DSP, no model): a high-pass filter (80
+// Hz) takes out hum and rumble, and the level stage raises a quiet voice
+// (measured on the speech only), lowers a very loud one a little, and
+// limits the peaks so nothing clips. The recording kept in the history is
+// the original. On unless Off, so older documents read as on without a
+// migration. Zero fields take dsp.Defaults; there is no UI for them but
+// Off (Settings → Audio → Optimize sound).
+type Clean struct {
+	// Off sends the recording as it was captured.
+	Off bool `json:"off,omitempty"`
+	// HighPassOff and LevelOff turn one stage off (troubleshooting).
+	HighPassOff bool `json:"highPassOff,omitempty"`
+	LevelOff    bool `json:"levelOff,omitempty"`
+	// HighPassHz is the filter's corner.
+	HighPassHz float64 `json:"highPassHz,omitempty"`
+	// TargetDB is the speech level (dBFS) a quiet voice is raised to, by
+	// at most MaxGainDB; speech over LoudDB is lowered to it, by at most
+	// MaxCutDB; the noise floor is never raised over NoiseCeilDB; the
+	// limiter keeps every sample under CeilingDB.
+	TargetDB    float64 `json:"targetDB,omitempty"`
+	MaxGainDB   float64 `json:"maxGainDB,omitempty"`
+	LoudDB      float64 `json:"loudDB,omitempty"`
+	MaxCutDB    float64 `json:"maxCutDB,omitempty"`
+	NoiseCeilDB float64 `json:"noiseCeilDB,omitempty"`
+	CeilingDB   float64 `json:"ceilingDB,omitempty"`
 }
 
 // VAD tunes the local voice activity detection (internal/vad, energy

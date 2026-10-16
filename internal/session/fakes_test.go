@@ -49,6 +49,8 @@ type fakeAudio struct {
 	// speaks says whether the user speaks in the 100 ms frame n (nil:
 	// always, unless quiet).
 	speaks func(n int) bool
+	// voice is the frame of speech (nil: frame).
+	voice []byte
 
 	mu      sync.Mutex
 	stops   map[string]chan struct{}
@@ -87,6 +89,9 @@ func (f *fakeAudio) Record(ctx context.Context, id string, p proto.CaptureParams
 		case <-t.C:
 			fn(AudioEvent{Level: &proto.LevelParams{Job: id, RMS: -20}})
 			data := frame
+			if f.voice != nil {
+				data = f.voice
+			}
 			if f.quiet || f.speaks != nil && !f.speaks(n) {
 				data = quietFrame
 			}
@@ -178,6 +183,7 @@ type fakeStream struct {
 	ctx    context.Context
 	mu     sync.Mutex
 	bytes  int
+	data   []byte // what was sent
 	sends  int
 	closed bool
 	done   bool
@@ -202,6 +208,7 @@ func (s *fakeStream) emit(ev asr.Event) {
 func (s *fakeStream) Send(pcm []byte) error {
 	s.mu.Lock()
 	s.bytes += len(pcm)
+	s.data = append(s.data, pcm...)
 	s.sends++
 	n := s.sends
 	s.mu.Unlock()
@@ -246,6 +253,7 @@ type fakeFile struct {
 	mu    sync.Mutex
 	calls int
 	bytes int
+	audio []byte // the last upload
 }
 
 func (f *fakeFile) Caps() asr.Caps { return asr.Caps{File: true, Prompt: true} }
@@ -254,6 +262,7 @@ func (f *fakeFile) Transcribe(ctx context.Context, req asr.FileRequest) (asr.Res
 	f.mu.Lock()
 	f.calls++
 	f.bytes = len(req.Audio)
+	f.audio = req.Audio
 	f.mu.Unlock()
 	if f.hang {
 		<-ctx.Done()

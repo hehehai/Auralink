@@ -44,6 +44,7 @@ type settingsForm struct {
 	logText      bool
 	sounds       bool
 	skipSilence  bool        // !Audio.VAD.Off
+	cleanSound   bool        // !Audio.Clean.Off
 	sidebar      int         // automatic, names and icons, icons only (settings_appearance.go)
 	ovStyle      overlayForm // settings_overlay.go
 
@@ -265,6 +266,7 @@ func (a *app) loadSettingsForm() {
 	f.keepHistory, f.keepAudio, f.logText = s.Privacy.KeepHistory, s.Privacy.KeepAudio, s.Privacy.LogText
 	f.sounds = s.Audio.Sounds
 	f.skipSilence = !s.Audio.VAD.Off
+	f.cleanSound = !s.Audio.Clean.Off
 	f.sidebar = sidebarChoice(s.Appearance)
 	a.loadOverlayForm() // settings_overlay.go
 }

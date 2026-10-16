@@ -170,6 +170,7 @@ func TestHistory(t *testing.T) {
 	}
 	es[2].SourceText, es[2].PromptText = "release friday", "改正式一点"
 	es[0].Audio = "a.wav"
+	es[0].SentMS, es[0].DSP, es[0].GainDB = 3100, "highpass+level", 7.5
 	if err := os.WriteFile(filepath.Join(h.AudioDir(), "a.wav"), []byte("RIFF"), 0o644); err != nil {
 		t.Fatal(err)
 	}
