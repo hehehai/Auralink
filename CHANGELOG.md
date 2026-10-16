@@ -2,7 +2,7 @@
 
 All notable changes to Auralink. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). Each version's section is what the update window shows: English first, then the same in Chinese under matching headings (docs/release.md).
 
-## [0.1.0-beta.1] - Unreleased
+## [0.1.0-beta.1] - 2026-10-16
 
 The first version, a beta: voice input for macOS on remote models. It updates to the next beta and to the release that follows (Settings → About → Beta updates).
 
