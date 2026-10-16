@@ -1,56 +1,125 @@
 # Auralink
 
-**Speak anywhere on your Mac, get text where your cursor is.** Auralink is a voice input app for macOS that uses remote models only: you choose the speech and language services and bring their keys.
+**English** · [简体中文](README.zh-CN.md)
 
-![Home: what is ready, a try, today's numbers](docs/images/home.png)
+**Speak anywhere on your Mac; the text lands where your cursor is.**
 
-- **Transcribe**: press a shortcut (fn by default), speak, and the cleaned-up text is typed into the app in front: fillers and false starts go, punctuation and numbers are fixed, your own rules are applied.
-- **Translate**: the text you select, or what you say, into the language you choose (fn ⇧). Results can go to an answer card instead, to read, copy or insert.
-- **Rewrite**: select text and say how to change it ("shorter", "more formal"), or say what to write with nothing selected (fn ⌃). Follow-ups refine the answer.
-- **App enhancement**: rules by app or by website (a casual tone in chats, a formal one in mail, Return after inserting in a messenger), layered on top of the clean-up. The overlay shows which group applies.
-- **Dictionary**: the names and jargon you use, sent as hints to speech recognition and as a glossary to the language model.
+Auralink is a small voice input app for macOS. Press a shortcut in any app, speak, and the text is typed at the cursor: recognised by a speech service, cleaned up by a language model, adjusted to the app you are in. It also translates and rewrites, by voice or on the text you select.
 
-[中文说明](README.zh-CN.md)
+It runs no models on your Mac. You choose the speech and language services (StepFun, Doubao, Alibaba Cloud, DeepSeek, OpenAI and others) and bring your own API keys; your audio and text go to them and nowhere else.
 
-| The overlay while you speak, and the answer card | App enhancement |
+Auralink is a pared-down rewrite of [Voxt](https://github.com/hehehai/voxt), by the same author: Voxt's dictation, translation and rewriting, with remote models only, and without meetings, file transcription, notes or local models. Its interface and engineering come from [AudioSmith](https://github.com/hehehai/AudioSmith).
+
+> **Status: 0.1.0, before the first release.** Everything below is built and tested; the first signed builds come out on [Releases](https://github.com/hehehai/Auralink/releases) as betas. The app icon is still a placeholder.
+
+![Home: today's results and the latest ones](docs/images/home.png)
+
+## Features
+
+### Transcribe, Translate, Rewrite
+
+| Feature | Shortcut | What it does |
+|---|---|---|
+| **Transcribe** | `fn` | Speak, and the text is typed into the app in front. The language model removes fillers and false starts, fixes punctuation and numbers, and applies your rules; without a language model the text goes in as recognised. |
+| **Translate** | `fn` `⇧` | Select text and press it to translate the selection; with nothing selected, translates what you say. Into the language you choose; the answer card switches to another language in place. |
+| **Rewrite** | `fn` `⌃` | Select text and say how to change it ("shorter", "more formal"); with nothing selected, say what to write. The answer opens in a card where **Insert** puts it in place (over the selection) and **Continue** records a follow-up, kept as a conversation. |
+
+Tap the shortcut to start, tap again to stop; `Esc` cancels. Each feature can have several shortcuts, each a tap, a double tap or a long press (hold to talk), set in **Settings → Shortcuts**, which also shows conflicts. `⌃⌘V` pastes the latest result again.
+
+Results are pasted through the clipboard, which is put back afterwards. When there is nowhere to type (no text field in front, or the app changed), the result waits in the answer card instead, to copy or insert.
+
+### App enhancement and the dictionary
+
+- **App enhancement**: groups of rules by app and by website. Each group has a scene prompt layered on top of the clean-up ("a team chat: short and casual"), the features it applies to, and an optional key to press after inserting (Return in a messenger). Website rules match the browser tab's address, read through Accessibility. The page previews which group matches the app in front, and the overlay and the history show the group that applied.
+- **Dictionary**: names and jargon, with aliases (what recognition tends to write instead). They are sent as hints to speech services that take them and as a glossary to the language model. Import and export as CSV or text.
+
+![App enhancement: groups, the live match preview, a scene prompt](docs/images/app-enhancement.png)
+
+### The overlay
+
+A small pill near the bottom of the screen shows the feature, a waveform and, with a streaming speech service, the words as you say them. It never takes the focus from the app you type into, has no buttons, and lets the pointer through. Results to read (a translation, a rewrite) come in an answer card with Insert, Copy, the target language and, for Rewrite, Continue. Position, opacity and corners are in **Settings → Overlay style**.
+
+| Recording, with the app enhancement group | Live text while you speak |
 |---|---|
-| ![The recording overlay with an app enhancement label](docs/images/overlay-recording.png) ![The answer card with a translation](docs/images/overlay-card.png) | ![App enhancement: groups, the live match preview, a scene prompt](docs/images/app-enhancement.png) |
+| ![The recording pill with an app enhancement label](docs/images/overlay-recording.png) | ![The pill with live text](docs/images/overlay-live.png) |
+| **Translation** | **Rewrite, with a follow-up** |
+| ![The answer card with a translation](docs/images/overlay-card.png) | ![The answer card with a rewrite conversation](docs/images/overlay-rewrite.png) |
 
-## Install
+### Sound and silence
 
-Auralink needs **macOS 15 or later on Apple silicon**. Intel Macs are not supported yet (the helper is built for arm64 only).
+Before audio goes to a speech service, Auralink can prepare it (plain signal processing, no model):
 
-1. Download `Auralink <version> arm64.dmg` from [Releases](https://github.com/hehehai/Auralink/releases) and drag Auralink to Applications. Releases are signed with a Developer ID and notarised by Apple.
-2. Open it from Applications (not from the disk image: an app run from there cannot update itself).
-3. The setup guide opens: allow the **Microphone** and **Accessibility** (to type results, read the selection and use fn as a shortcut), set up a speech service and a language model, and try each feature. Settings → General opens it again.
+- **Optimize sound** (on by default): a high-pass filter at 80 Hz removes hum and rumble, and one gain measured on the speech alone raises a quiet voice (up to +12 dB, without lifting background noise above −50 dBFS), with a limiter so nothing clips.
+- **Skip silence** (on by default): leading and trailing silence is cut and long pauses shortened before upload, which saves upload time and, with services billed by duration, money. A recording with no speech is not sent at all.
 
-**Updates**: Auralink checks GitHub Releases once a day and shows a new version's notes in a window of its own; it installs only when you say so (a small download of what changed), then offers to restart. Settings → About checks at once and turns the daily check, or installing without asking, on and off. Updates keep the Microphone and Accessibility grants. To update itself Auralink must be able to write where it is: in `/Applications` that takes an administrator account; otherwise put it in `~/Applications`.
+The recording kept in the history is always the original. Both switches are in **Settings → Audio**, with the microphones in your order of preference.
 
-**Coming from a build you made yourself** (ad hoc signed): macOS does not carry its grants over to the released app. Once, before opening the release: `tccutil reset Microphone dev.hehehai.auralink && tccutil reset Accessibility dev.hehehai.auralink`, then allow both again (an Accessibility entry that shows on but does nothing: remove it with − and add Auralink again).
+![Settings → Audio: microphones, skip silence, optimize sound](docs/images/settings-audio.png)
+
+### History, menu bar and the rest
+
+- **History**: every result by feature, searchable, with the source text, where it went, the services, the app enhancement group and each stage's time. Recordings are kept only if you turn that on.
+- **Menu bar**: start or stop transcribing, paste the latest result, copy one of the last three. Closing the window keeps Auralink running there; it can open at login.
+- **Setup guide** on the first start: permissions, services, then a real try of each feature.
+- Command palette (`⌘K`), settings (`⌘,`), a light and a dark theme, English and Simplified Chinese.
+
+### Updates
+
+Signed releases update themselves from GitHub Releases: a daily check, the new version's notes in a window of their own, a download of only what changed, and installation when you say so (or automatically, if you turn that on). **Check for Updates…** is in the app menu, the menu bar icon's menu and **Settings → About → Updates**. Updates keep the Microphone and Accessibility grants.
+
+**Beta updates** (coming with the first beta): a switch in **Settings → About → Updates** that also offers pre-release versions. Off, Auralink installs stable versions only.
 
 ## Services
 
-Bring a key for at least one speech service; a language model is needed for the clean-up, Translate and Rewrite (without one, Transcribe types the text as recognised).
+At least one speech service is required. A language model is needed for the clean-up, Translate and Rewrite.
 
-| Speech recognition | Language models |
-|---|---|
-| Doubao (Volcengine big-model streaming ASR) | DeepSeek · Qwen (Alibaba Cloud Model Studio, China and international) · Volcengine Ark (Doubao) · Moonshot (Kimi) · Zhipu GLM · MiniMax · StepFun · Xiaomi MiMo · SiliconFlow |
-| Alibaba Cloud Model Studio (Fun-ASR, Paraformer, Qwen3-ASR realtime) | OpenAI · Anthropic · Gemini · OpenRouter · Groq · xAI · Mistral · Together · Fireworks · Cerebras · NVIDIA |
-| StepFun (step-asr) | |
-| Any OpenAI-compatible transcription API (OpenAI, Groq, SiliconFlow…) | Any OpenAI-compatible endpoint |
+**Speech recognition**
 
-Keys live in the macOS Keychain. Model services shows which service each feature uses, and tests each connection.
+| Service | How | Models offered |
+|---|---|---|
+| Doubao (Volcengine) | streaming, live text | streaming ASR 2.0 and 1.0 |
+| Alibaba Cloud Model Studio | streaming, live text | Fun-ASR, Paraformer, Qwen3-ASR realtime, Qwen-Audio ASR |
+| StepFun | upload after recording | step-asr, step-asr-1.1 |
+| OpenAI-compatible | upload after recording | gpt-4o-mini-transcribe, gpt-4o-transcribe, whisper-1, or any model on any compatible endpoint (Groq, SiliconFlow, a server of your own…) |
+
+**Language models**: DeepSeek, Qwen (Alibaba Cloud Model Studio, China and international), Volcengine Ark (Doubao), Moonshot Kimi (China and international), Zhipu GLM, MiniMax, StepFun, Xiaomi MiMo, SiliconFlow (China and international), OpenAI, Anthropic, Google Gemini, OpenRouter, Groq, xAI, Mistral, Together AI, Fireworks AI, Cerebras, NVIDIA NIM, and any OpenAI-compatible endpoint.
+
+Every preset has a default model and lets you type another. **Model services** shows which service each feature uses (the first ready one, or one you pick) and tests each connection. API keys are stored in the macOS Keychain, never in the settings, history or logs.
+
+![Model services: services per feature, connection tests](docs/images/model-services.png)
 
 ## Privacy
 
-- Your audio and text go only to the services you set up. Auralink has no server of its own, no account and no analytics; each service's own terms apply to what it receives.
-- API keys are kept in this Mac's Keychain, never in the settings, history or logs.
-- History (and, if you turn it on, the recordings) stays on this Mac, in `~/Library/Application Support/Auralink`; Settings → Privacy turns it off. Logs hold lengths and timings, not your text, unless you allow it.
-- Browser addresses are read through Accessibility only to pick an app enhancement group; they are never sent to a model.
+- **No local inference, no server of our own.** Your audio and the text to clean up, translate or rewrite go only to the services you set up; each service's own terms apply to what it receives. Auralink has no account and collects no usage data, crash reports or identifiers.
+- **Keys** stay in this Mac's Keychain.
+- **History** stays on this Mac, in `~/Library/Application Support/Auralink` (movable in **Settings → Storage**). **Settings → Privacy** turns the history off, turns keeping recordings on (off by default) and clears everything. Logs hold lengths and timings, not your text, unless you allow it.
+- **Browser addresses** are read through Accessibility only to choose an app enhancement group. They are never sent to a model; only the app's name is.
+- Besides your services, Auralink contacts GitHub to check for updates, and the hosts you test yourself in Settings (Network, the self-check).
 
-## Build
+## Install
 
-Needs Go 1.27.1 (`GOTOOLCHAIN=auto` fetches it) and, to package, a Mac with macOS 15 or later on Apple silicon and Xcode (the Swift helper, [helper/](helper/README.md)).
+Auralink needs **macOS 15 or later on Apple silicon**. Intel Macs are not supported yet.
+
+1. Download `Auralink <version> arm64.dmg` from [Releases](https://github.com/hehehai/Auralink/releases) and drag Auralink to Applications. Releases are signed with a Developer ID and notarised by Apple, so they open without warnings.
+2. Open it from Applications (an app run from the disk image cannot update itself). To update itself it must be able to write where it is: in `/Applications` that takes an administrator account; otherwise use `~/Applications`.
+3. The setup guide asks for two permissions:
+   - **Microphone**: to record while a shortcut is active, and only then.
+   - **Accessibility**: to type the result into other apps, read the selected text for Translate and Rewrite, use `fn` as a shortcut, and read the app and browser tab in front for app enhancement. Without it, results are copied instead of typed.
+
+**Coming from a build you made yourself** (ad hoc signed): macOS does not carry its grants over. Once, before opening the release: `tccutil reset Microphone dev.hehehai.auralink && tccutil reset Accessibility dev.hehehai.auralink`, then allow both again.
+
+## Getting started
+
+1. In the setup guide (or later in **Model services**), add a speech service and a language model with their keys and test them. For example StepFun for speech and DeepSeek for the language model.
+2. Click into any text field, tap `fn`, speak, tap `fn` again. The text appears at the cursor.
+3. Select a sentence and tap `fn` `⇧` to translate it, or `fn` `⌃` and say how to rewrite it.
+4. In **App enhancement**, make a group for your chat apps or a website with a scene prompt; in **Dictionary**, add the names recognition gets wrong.
+
+The setup guide opens again from Home (**Setup guide**) or **Settings → General**.
+
+## Build from source
+
+Needs Go 1.27.1 (`GOTOOLCHAIN=auto` fetches it) and, to package, a Mac with macOS 15 or later on Apple silicon and Xcode for the Swift helper.
 
 ```sh
 scripts/build-helper.sh              # the Swift helper, into resources/darwin-arm64/helper/
@@ -60,11 +129,8 @@ go tool mygo build                   # build/darwin-arm64/Auralink.app and "Aura
 
 From Linux, `scripts/mac.sh <command>` mirrors the project to a Mac (`MAC_HOST`, default `mac-air`; `MAC_DIR`, default `code/Auralink`) and runs the command there: `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'`.
 
-Releases are built, signed, notarised and published by GitHub Actions on a tag: [docs/release.md](docs/release.md).
-
-The design is in [docs/architecture.md](docs/architecture.md) (a Go app on [MyGo](https://github.com/egoist/mygo), no cgo, and a small Swift helper for the microphone, the keyboard and Accessibility) and [docs/behavior.md](docs/behavior.md) (what Auralink does differently from Voxt, and why).
-
-### Signing during development
+<details>
+<summary>Signing during development (keeping the permissions across rebuilds)</summary>
 
 macOS keeps the Microphone and Accessibility grants for a signature. An ad hoc signed build (the default) has a new one each time the app is rebuilt, so after a rebuild macOS forgets them: the microphone turns **denied without asking again**, and Accessibility still shows on in System Settings but does not work. The helper's grants are the app's (macOS checks the helper against Auralink.app, its responsible process), so the same happens to it. Ways around it:
 
@@ -76,24 +142,36 @@ macOS keeps the Microphone and Accessibility grants for a signature. An ad hoc s
 - **Start over:** `tccutil reset Microphone dev.hehehai.auralink` (likewise `Accessibility`), then open the app and grant again. If a stale Accessibility entry stays on but does nothing, remove it with − in System Settings and grant again.
 - **Sign with a fixed identity:** an Apple Development certificate keeps the grants across rebuilds: `go tool mygo build -sign "Apple Development: …"` (or `macos.signingIdentity` in a local mygo.json; `AURALINK_SIGN_IDENTITY` for `scripts/build-helper.sh`). Over ssh, `codesign` fails with `errSecInternalComponent` until the key may be used without the GUI: once, in Terminal on the Mac, `security set-key-partition-list -S apple-tool:,apple: -s ~/Library/Keychains/login.keychain-db`.
 
-### Tests
+</details>
+
+## Development
+
+Auralink is a Go app on [MyGo](https://github.com/egoist/mygo) (native macOS UI from Go, no cgo) and a small Swift helper for what needs Apple's frameworks: the microphone, global shortcuts, Accessibility, pasting and app icons. Go decides; the helper does what it is told over JSON lines on stdin and stdout. Everything but the helper is plain Go and is tested on Linux.
 
 ```sh
 CGO_ENABLED=0 go test ./...          # everything; runs on Linux
 go tool mygo vet .                   # go vet and MyGo's UI-lifetime checks
 AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .   # every page as PNG, light/dark, en/zh-Hans
-cd helper && swift test              # the Swift helper (on a Mac): its wire types against the same fixtures, the hotkey recognizer
+cd helper && swift test              # the Swift helper (on a Mac), against the same protocol fixtures
 ```
 
-The store's tests use MyGo's SQLite plugin, which downloads its library once (checked against its SHA-256) or uses `MYGO_SQLITE_LIBRARY`. On Linux the overlay's pixel checks of Chinese text need a CJK font (Ubuntu: `fonts-noto-cjk`, as CI installs). More in [docs/architecture.md](docs/architecture.md) §6. CI runs the Go side on Linux and the Swift helper's tests on macOS; what needs permissions, a GUI and real services is checked by hand with [docs/manual-test.md](docs/manual-test.md) (in Chinese). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+The store's tests use MyGo's SQLite plugin, which downloads its library once (checked against its SHA-256) or uses `MYGO_SQLITE_LIBRARY`. On Linux the overlay's pixel checks of Chinese text need a CJK font (Ubuntu: `fonts-noto-cjk`). `scripts/readme-images.sh` renders this README's images.
+
+CI runs gofmt, the Go tests (also under the race detector) and MyGo vet on Linux, and the helper's tests on macOS. What needs permissions, a screen and real services is checked by hand with [docs/manual-test.md](docs/manual-test.md) (in Chinese). Releases are built, signed, notarised and published by GitHub Actions from a tag: [docs/release.md](docs/release.md).
+
+- [docs/architecture.md](docs/architecture.md): packages, threading, the session, the prompt composer, data on disk.
+- [docs/behavior.md](docs/behavior.md): what Auralink does differently from Voxt, and why.
+- [docs/helper-protocol.md](docs/helper-protocol.md): the helper's protocol.
+- [AGENTS.md](AGENTS.md): the rules for changes (strings, threading, the helper protocol).
+- [CHANGELOG.md](CHANGELOG.md): changes by version.
 
 ## Acknowledgements
 
-- [Voxt](https://github.com/hehehai/voxt): Auralink rewrites what it does (with remote models only), feature by feature; [docs/behavior.md](docs/behavior.md) compares the two.
-- [AudioSmith](https://github.com/hehehai/AudioSmith): the window, the UI kit, the settings, the store and the engine supervisor Auralink's helper grew from.
-- [MyGo](https://github.com/egoist/mygo): native macOS UI from Go, without cgo.
+- [Voxt](https://github.com/hehehai/voxt): Auralink rewrites its behaviour feature by feature, with remote models only. The overlay's icons, the menu bar microphone and the overlay preview's background are Voxt's.
+- [AudioSmith](https://github.com/hehehai/AudioSmith): the window shell, the UI kit, the settings, the store and the supervisor Auralink's helper grew from.
+- [MyGo](https://github.com/egoist/mygo): native macOS UI from Go, without cgo (MIT).
 - [Solar](https://www.figma.com/community/file/1166831539721848736) icons by 480 Design, under CC BY 4.0.
 
 ## Licence
 
-Apache License 2.0 ([LICENSE](LICENSE)). Parts come from AudioSmith; icons are Solar by 480 Design under CC BY 4.0 ([NOTICE](NOTICE)).
+Apache License 2.0 ([LICENSE](LICENSE)). Third-party material and its licences are listed in [NOTICE](NOTICE).
