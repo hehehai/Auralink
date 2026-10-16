@@ -20,6 +20,7 @@ import (
 	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/i18n"
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
@@ -164,19 +165,19 @@ const (
 func (a *app) overlayPreview(c *ui.Context) {
 	t := c.Theme()
 	o := a.prefs.Overlay
-	w := rowWidth(o.ShowTime, 0) + 2*ovPillPadX
+	w := layout.RowWidth(o.ShowTime, 0) + 2*layout.PillPadX
 	cardH := px(t, ovPreviewH)
 	// The distance from the edge, from none to ovMaxMargin, across the
 	// card's room.
-	room := max(cardH-ovPillH-2*px(t, ovPreviewInset), 0)
+	room := max(cardH-layout.PillH-2*px(t, ovPreviewInset), 0)
 	off := px(t, ovPreviewInset) + room*float32(min(max(o.Margin, 0), ovMaxMargin)/ovMaxMargin)
-	radius := faceRadius(o, ovRecording, ovPillH)
+	radius := faceRadius(o, ovRecording, layout.PillH)
 	ui.Box(c.Key("ov-preview")).FillWidth().MinWidth(0).Height(cardH).Shrink(0).Radius(px(t, ovPreviewRadius)).Clip().
 		Background(ui.RGB(40, 90, 170)).Label(i18n.T("Preview of the overlay")).Children(func() {
 		if bg := ovPreviewBackground(); bg != nil {
 			ui.Image(c, bg).Absolute().Left(0).Top(0).Right(0).Bottom(0).Fit(ui.Cover)
 		}
-		place := ui.Row(c).Absolute().Left(0).Right(0).Height(ovPillH).Justify(ui.Center)
+		place := ui.Row(c).Absolute().Left(0).Right(0).Height(layout.PillH).Justify(ui.Center)
 		if o.Position == "top" {
 			place.Top(off)
 		} else {
@@ -184,12 +185,12 @@ func (a *app) overlayPreview(c *ui.Context) {
 		}
 		place.Children(func() {
 			c.SetTheme(overlayTheme())
-			ui.Box(c.Key("ov-preview-pill")).Size(float32(w), ovPillH).Shrink(0).Children(func() {
+			ui.Box(c.Key("ov-preview-pill")).Size(float32(w), layout.PillH).Shrink(0).Children(func() {
 				// The blur of what is under it, then the face, positioned
 				// too to paint over the blur.
 				ui.Box(c).Absolute().Fill().Radius(radius).Material(glass.Blur{Radius: 8})
 				face := ui.Column(c.Key("ov-preview-face")).Absolute().Left(0).Top(0).Right(0).Bottom(0)
-				faceStyle(face, o, ovRecording, ovPillH).Children(func() {
+				faceStyle(face, o, ovRecording, layout.PillH).Children(func() {
 					overlayPill(c, previewSession(), ovRecording, pillLook{time: o.ShowTime, w: w})
 				})
 			})

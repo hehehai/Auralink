@@ -34,64 +34,10 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/hotkey"
 	"github.com/hehehai/Auralink/internal/i18n"
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/store"
 	"github.com/hehehai/Auralink/internal/uitext"
-)
-
-// Sizes of the answer card, in DIPs: Voxt's (WaveformAnswerCard.swift,
-// WaveformView.swift).
-const (
-	// ovAnswerW is the card's width, every card's: 440, the least that
-	// holds the widest header (Translation, the language's name at its
-	// widest, Insert, Copy, Close). Voxt's card fills its 560 window
-	// (measured on the Mac, 10-15); the user found it too wide, then 480
-	// too (10-15, third round).
-	ovAnswerW  = 440
-	ovCardPadX = 18
-	ovCardPadY = 16 // under the text (Voxt's)
-	// The header: ovCardPadTop over it, ovCardRuleTop under it to the
-	// rule, the same (10-15: Voxt's 16 and 8 left twice as much room over
-	// the header as under it, which the user saw as off); the rule stays
-	// at Voxt's 48.
-	ovCardPadTop  = 12
-	ovCardHeadH   = 24
-	ovCardHeadGap = 12 // between the header's items
-	ovCardRuleTop = 12 // the header to the rule
-	ovCardRuleGap = 10 // the rule to the text
-	// Where the rule is.
-	ovCardRuleY   = ovCardPadTop + ovCardHeadH + ovCardRuleTop
-	ovCardBodyMax = 220
-	ovCardInset   = 10 // the text's right inset: the scroller's room
-	ovCardBodyW   = ovAnswerW - 2*ovCardPadX - ovCardInset
-	// ovCardChrome is the card's height without its text.
-	ovCardChrome = ovCardPadTop + ovCardHeadH + ovCardRuleTop + 1 + ovCardRuleGap + ovCardPadY
-	ovCardMsgGap = 8
-	ovCardMsgH   = 16
-	// ovCardMaxH is the highest card: the text at its most, and a line.
-	ovCardMaxH = ovCardChrome + ovCardBodyMax + ovCardMsgGap + ovCardMsgH
-
-	ovCardIcon       = 20
-	ovCardTitleSize  = 15
-	ovCardTextSize   = 14
-	ovCardTextWeight = 500
-	ovCardBtn        = 24
-	ovCardBtnIcon    = 15
-	ovCardLangMaxW   = 128 // the language's name in its capsule, at most (Voxt 92: "Simplified Chinese" did not fit)
-	ovCardWaveW      = 96  // a conversation's waveform
-
-	// A conversation's bubbles.
-	ovBubbleW         = 340
-	ovBubblePadX      = 12
-	ovBubblePadY      = 10
-	ovBubbleGap       = 14
-	ovBubbleTitleGap  = 7
-	ovBubbleTextSize  = 13
-	ovBubbleTitleSize = 11
-	ovBubbleRadius    = 14
-
-	ovProblemIcon = 16
-	ovProblemGap  = 8
 )
 
 // Colours of the card: Voxt's.
@@ -235,19 +181,19 @@ func cardBlocks(v cardView) []cardBlock {
 	switch {
 	case v.conversation:
 		var out []cardBlock
-		inner := float32(ovBubbleW - 2*ovBubblePadX)
+		inner := float32(layout.BubbleW - 2*layout.BubblePadX)
 		for i, b := range v.bubbles {
 			text := strings.TrimSpace(b.text)
 			if text == "" {
 				text = "…"
 			}
-			blk := cardBlock{bubble: true, user: b.user, live: b.live, text: ovSized{text, ovBubbleTextSize, 500, inner}}
+			blk := cardBlock{bubble: true, user: b.user, live: b.live, text: ovSized{text, layout.BubbleTextSize, 500, inner}}
 			// An answer without a title has no heading (Voxt's).
 			if title := strings.TrimSpace(b.title); title != "" {
-				blk.title = ovSized{title, ovBubbleTitleSize, 600, 0}
+				blk.title = ovSized{title, layout.BubbleTitleSize, 600, 0}
 			}
 			if i > 0 {
-				blk.gap = ovBubbleGap
+				blk.gap = layout.BubbleGap
 			}
 			out = append(out, blk)
 		}
@@ -255,17 +201,17 @@ func cardBlocks(v cardView) []cardBlock {
 	case v.failed != nil:
 		text, more, _ := sessionProblemText(v.failed)
 		out := []cardBlock{{problem: true, color: ovCardText,
-			text: ovSized{text, ovCardTextSize, ovCardTextWeight, ovCardBodyW - ovProblemIcon - ovProblemGap}}}
+			text: ovSized{text, layout.CardTextSize, layout.CardTextWeight, layout.CardBodyW - layout.ProblemIcon - layout.ProblemGap}}}
 		if more != "" {
-			out = append(out, cardBlock{text: ovSized{more, 12, 0, ovCardBodyW}, color: ovText2, gap: 4, selectable: true})
+			out = append(out, cardBlock{text: ovSized{more, 12, 0, layout.CardBodyW}, color: ovText2, gap: 4, selectable: true})
 		}
 		for _, src := range v.source {
-			out = append(out, cardBlock{text: ovSized{strings.TrimSpace(src), 13, 0, ovCardBodyW}, color: ovText2, gap: 10, selectable: true})
+			out = append(out, cardBlock{text: ovSized{strings.TrimSpace(src), 13, 0, layout.CardBodyW}, color: ovText2, gap: 10, selectable: true})
 		}
 		return out
 	}
 	text := strings.TrimSpace(v.text)
-	return []cardBlock{{text: ovSized{text, ovCardTextSize, ovCardTextWeight, ovCardBodyW}, color: ovCardText, selectable: text != ""}}
+	return []cardBlock{{text: ovSized{text, layout.CardTextSize, layout.CardTextWeight, layout.CardBodyW}, color: ovCardText, selectable: text != ""}}
 }
 
 // cardTexts are the texts the card's height depends on.
@@ -284,20 +230,20 @@ func cardTexts(v cardView) []ovSized {
 func (a *app) blockHeight(b cardBlock) (float32, bool) {
 	h, exact := a.ovTextHeight(b.text)
 	if b.problem {
-		h = max(h, ovProblemIcon)
+		h = max(h, layout.ProblemIcon)
 	}
 	if b.bubble {
-		h += 2 * ovBubblePadY
+		h += 2 * layout.BubblePadY
 		if b.title.text != "" {
 			th, ok := a.ovTextHeight(b.title)
-			h, exact = h+th+ovBubbleTitleGap, exact && ok
+			h, exact = h+th+layout.BubbleTitleGap, exact && ok
 		}
 	}
 	return h, exact
 }
 
 // cardBodyHeight is the height of v's text in the card: all of it up to
-// ovCardBodyMax (then it scrolls), and whether it was measured.
+// layout.CardBodyMax (then it scrolls), and whether it was measured.
 func (a *app) cardBodyHeight(v cardView) (int, bool) {
 	var h float32
 	exact := true
@@ -306,17 +252,17 @@ func (a *app) cardBodyHeight(v cardView) (int, bool) {
 		h += b.gap + bh
 		exact = exact && ok
 	}
-	return min(int(math.Ceil(float64(h))), ovCardBodyMax), exact
+	return min(int(math.Ceil(float64(h))), layout.CardBodyMax), exact
 }
 
-// cardHeight is the card's height (its width is ovAnswerW), and whether
+// cardHeight is the card's height (its width is layout.AnswerW), and whether
 // its texts were measured.
 func (a *app) cardHeight() (int, bool) {
 	v := a.cardNow()
 	body, exact := a.cardBodyHeight(v)
-	h := ovCardChrome + body
+	h := layout.CardChrome + body
 	if v.msg != "" {
-		h += ovCardMsgGap + ovCardMsgH
+		h += layout.CardMsgGap + layout.CardMsgH
 	}
 	return h, exact
 }

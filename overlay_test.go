@@ -9,12 +9,10 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/appctx"
@@ -22,6 +20,8 @@ import (
 	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/helper/proto"
+	"github.com/hehehai/Auralink/internal/overlay/ink"
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
@@ -58,11 +58,11 @@ func TestOverlayModes(t *testing.T) {
 	}
 	now := time.Now()
 	snap(a, session.Snapshot{State: session.Recording, StartedAt: now})
-	if a.ov.mode != ovRecording || a.ov.w != ovPillW || a.ov.h != ovPillH {
+	if a.ov.mode != ovRecording || a.ov.w != layout.PillW || a.ov.h != layout.PillH {
 		t.Errorf("recording %s %d×%d", a.ov.mode, a.ov.w, a.ov.h)
 	}
 	snap(a, session.Snapshot{State: session.Recording, StartedAt: now, HeardAt: now, Partial: "hello"})
-	if a.ov.w != ovRowW+2*ovLivePadX || a.ov.h != ovLiveH {
+	if a.ov.w != layout.RowW+2*layout.LivePadX || a.ov.h != layout.LiveH {
 		t.Errorf("live text %d×%d", a.ov.w, a.ov.h)
 	}
 	snap(a, session.Snapshot{State: session.Composing, Partial: "hello"})
@@ -82,7 +82,7 @@ func TestOverlayModes(t *testing.T) {
 	// Not inserted: the answer card, until closed (Escape closes it).
 	snap(a, session.Snapshot{ID: "s3", State: session.Recording})
 	snap(a, session.Snapshot{ID: "s3", State: session.Done, Result: "Card text", Card: true, Delivery: deliver.ReasonNotEditable})
-	if a.ov.mode != ovAnswer || !a.answer.open || a.answer.text != "Card text" || a.ov.w != ovAnswerW {
+	if a.ov.mode != ovAnswer || !a.answer.open || a.answer.text != "Card text" || a.ov.w != layout.AnswerW {
 		t.Fatalf("card %s %+v", a.ov.mode, a.answer)
 	}
 	a.hotkeyFired(proto.HotkeyEventParams{Binding: proto.HotkeyEscape, Phase: proto.PhaseTrigger})
@@ -173,7 +173,7 @@ func TestAnswerCardButtons(t *testing.T) {
 		t.Errorf("elsewhere: %s %+v", a.ov.mode, a.answer)
 	}
 	h := a.ov.h
-	if h != ovCardChrome+a.mustBody(t)+ovCardMsgGap+ovCardMsgH {
+	if h != layout.CardChrome+a.mustBody(t)+layout.CardMsgGap+layout.CardMsgH {
 		t.Errorf("the line under the text: %d high", h)
 	}
 	fs.handlers[proto.MethodTextFocus] = func(json.RawMessage) (any, error) {
@@ -230,31 +230,31 @@ func TestClockAndTail(t *testing.T) {
 		}
 	}
 	// The face's width with live text: the row's or the text's, the text
-	// at most ovLiveTextW, and Voxt's padding.
+	// at most layout.LiveTextW, and Voxt's padding.
 	for _, c := range []struct {
 		row  int
 		text float32
 		want int
 	}{
-		{ovRowW, 30, ovRowW + 2*ovLivePadX},
-		{ovRowW, 156.2, 157 + 2*ovLivePadX},
-		{ovRowW, 1200, ovLiveMaxW},
-		{ovRowW + ovGap + 60, 100, ovRowW + ovGap + 60 + 2*ovLivePadX},
+		{layout.RowW, 30, layout.RowW + 2*layout.LivePadX},
+		{layout.RowW, 156.2, 157 + 2*layout.LivePadX},
+		{layout.RowW, 1200, layout.LiveMaxW},
+		{layout.RowW + layout.Gap + 60, 100, layout.RowW + layout.Gap + 60 + 2*layout.LivePadX},
 	} {
-		if got := liveWidth(c.row, c.text); got != c.want {
+		if got := layout.LiveWidth(c.row, c.text); got != c.want {
 			t.Errorf("liveWidth(%d, %v) = %d, want %d", c.row, c.text, got, c.want)
 		}
 	}
-	if ovPillW != 148 || ovPillH != 48 || ovLiveH != 76 || ovLiveMaxW != 300 || math.Abs(waveW-88.7) > 1e-3 {
-		t.Errorf("Voxt's sizes: pill %d×%d, live %d high, at most %d wide, the bars %v wide", ovPillW, ovPillH, ovLiveH, ovLiveMaxW, waveW)
+	if layout.PillW != 148 || layout.PillH != 48 || layout.LiveH != 76 || layout.LiveMaxW != 300 || math.Abs(layout.WaveW-88.7) > 1e-3 {
+		t.Errorf("Voxt's sizes: pill %d×%d, live %d high, at most %d wide, the bars %v wide", layout.PillW, layout.PillH, layout.LiveH, layout.LiveMaxW, layout.WaveW)
 	}
-	if rowWidth(true, 0) != ovRowW+ovGap+ovTimeW || rowWidth(false, 200) != ovRowW+ovGap+ovSceneMaxW || rowWidth(false, 40.2) != ovRowW+ovGap+41 {
+	if layout.RowWidth(true, 0) != layout.RowW+layout.Gap+layout.TimeW || layout.RowWidth(false, 200) != layout.RowW+layout.Gap+layout.SceneMaxW || layout.RowWidth(false, 40.2) != layout.RowW+layout.Gap+41 {
 		t.Error("rowWidth")
 	}
 }
 
 // TestFadeSpans: scrolled, the line shows from the letter at the left
-// edge, the first ovFadeW of it fading in, the rest whole.
+// edge, the first layout.FadeW of it fading in, the rest whole.
 func TestFadeSpans(t *testing.T) {
 	measure := func(s string) float32 { return float32(len([]rune(s))) * 10 } // 10 a letter
 	shown, at, spans := fadeSpans("abcdefghij", 25, measure)
@@ -275,39 +275,6 @@ func TestFadeSpans(t *testing.T) {
 	}
 	if shown, at, _ := fadeSpans("abc", 0, measure); shown != "abc" || at != 0 {
 		t.Errorf("not scrolled: %q %v", shown, at)
-	}
-}
-
-// TestWaveBars: the bars follow a word up quickly and down slowly, and
-// a quiet room stays flat.
-func TestWaveBars(t *testing.T) {
-	quiet := make([]float64, session.Bars)
-	for i := range quiet {
-		quiet[i] = session.Level(-55)
-	}
-	for i, v := range waveBars(quiet) {
-		if v != 0 {
-			t.Fatalf("quiet bar %d = %v", i, v)
-		}
-	}
-	word := slices.Clone(quiet)
-	word[8] = session.Level(-15) // one loud level, then quiet again
-	b := waveBars(word)
-	if b[7] != 0 || b[8] < 0.7 || !(b[9] < b[8] && b[9] > 0.4*b[8]) || !(b[15] > 0 && b[15] < b[9]) {
-		t.Errorf("word %v", b)
-	}
-	if got := waveBars(nil); got[0] != 0 || got[15] != 0 {
-		t.Errorf("none %v", got)
-	}
-	long := append(slices.Clone(quiet), word...)
-	if waveBars(long) != waveBars(word) {
-		t.Error("more levels than bars: the newest count")
-	}
-	for _, p := range []float64{0, 0.3, 0.6, 0.9, 1.15} {
-		sc, al := loaderDot(p)
-		if sc < 0.6 || sc > 1.3 || al < 0.15 || al > 1 {
-			t.Errorf("loader at %v: %v %v", p, sc, al)
-		}
 	}
 }
 
@@ -435,7 +402,7 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 			t.Fatalf("%s: nothing shows", st.name)
 		}
 		renderOverlay(t, a) // its texts measured, the face fitted to them
-		w, h := a.ov.w+2*ovPad, a.ov.h+2*ovPad
+		w, h := a.ov.w+2*layout.Pad, a.ov.h+2*layout.Pad
 		radius := faceRadius(a.prefs.Overlay, a.ov.mode, a.ov.h)
 		// With the language menu open: its window over the card's, where
 		// it shows on the screen (the picture is as tall as both).
@@ -453,7 +420,7 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 				}
 			})
 			// The window's material: what is under the face, blurred.
-			ui.Box(c).Absolute().Left(ovPad).Top(float32(ovPad + menuDY)).Right(ovPad).Bottom(ovPad).Radius(radius).Material(glass.Blur{Radius: 8})
+			ui.Box(c).Absolute().Left(layout.Pad).Top(float32(layout.Pad + menuDY)).Right(layout.Pad).Bottom(layout.Pad).Radius(radius).Material(glass.Blur{Radius: 8})
 			// Positioned too, to paint over the blur.
 			ui.Box(c).Absolute().Left(0).Top(float32(menuDY)).Right(0).Bottom(0).Children(func() { a.overlayView(c) })
 			if menuDY > 0 {
@@ -498,23 +465,11 @@ func TestOverlaySceneLabel(t *testing.T) {
 	}
 	a, _, _ := newTestApp(t)
 	snap(a, session.Snapshot{ID: "s1", State: session.Recording, Target: proto.App{Name: "Slack"}, Scene: sceneMatch("Team chat", appctx.SourceApp, "")})
-	if want := ovPillW + ovGap + int(math.Ceil(float64(guessWidth(sceneText("Team chat"))))); a.ov.w != want || a.ov.h != ovPillH {
+	if want := layout.PillW + layout.Gap + int(math.Ceil(float64(guessWidth(sceneText("Team chat"))))); a.ov.w != want || a.ov.h != layout.PillH {
 		t.Errorf("size %dx%d", a.ov.w, a.ov.h)
 	}
 	if uitext.SceneShort(a.sess) != "Team chat" {
 		t.Errorf("short %q", uitext.SceneShort(a.sess))
-	}
-}
-
-func TestOverlayPlace(t *testing.T) {
-	wa := mygo.Rectangle{X: 0, Y: 25, Width: 1440, Height: 875}
-	x, y := overlayPlace(wa, settings.Overlay{Position: "bottom", Margin: 96}, 272, 84)
-	if x != (1440-272)/2 || y != 25+875-84-(96-ovPad) {
-		t.Errorf("bottom %d,%d", x, y)
-	}
-	_, y = overlayPlace(wa, settings.Overlay{Position: "top", Margin: 40}, 272, 84)
-	if y != 25+40-ovPad {
-		t.Errorf("top %d", y)
 	}
 }
 
@@ -618,11 +573,11 @@ func renderOverlay(t *testing.T, a *app) *image.RGBA {
 	t.Helper()
 	a.measureHook = nil
 	for range 2 {
-		w, h := a.ov.w+2*ovPad, a.ov.h+2*ovPad
+		w, h := a.ov.w+2*layout.Pad, a.ov.h+2*layout.Pad
 		tt := hudTester(a.overlayView, w, h)
 		tt.SetScale(2)
 		frames(tt)
-		if a.ov.w+2*ovPad == w && a.ov.h+2*ovPad == h {
+		if a.ov.w+2*layout.Pad == w && a.ov.h+2*layout.Pad == h {
 			return tt.Image()
 		}
 	}
@@ -631,7 +586,7 @@ func renderOverlay(t *testing.T, a *app) *image.RGBA {
 }
 
 // TestOverlayInk: the face as it draws, measured from its pixels as the
-// Mac's overlay check measures its captures (overlay_ink.go): Voxt's
+// Mac's overlay check measures its captures (internal/overlay/ink): Voxt's
 // pill, 148×48, its row's ink as far from both edges, the icon's and the
 // waveform's middles one; with live text the face as wide as the text
 // (centred under the row) or as the row, at most 300 with the text
@@ -648,21 +603,21 @@ func TestOverlayInk(t *testing.T) {
 		name  string
 		s     session.Snapshot
 		time  bool
-		want  ovInkWant
+		want  ink.Want
 		width int // the face's, when known
 	}{
-		{"pill", rec(store.KindTranscribe, ""), false, ovInkWant{w: 148, h: 48, row: true, even: true}, 148},
+		{"pill", rec(store.KindTranscribe, ""), false, ink.Want{W: 148, H: 48, Row: true, Even: true}, 148},
 		// Before the first audio the bars are dim: not ink.
-		{"pill-quiet", session.Snapshot{State: session.Recording, StartedAt: now}, false, ovInkWant{w: 148, h: 48}, 148},
-		{"pill-translate", rec(store.KindTranslate, ""), false, ovInkWant{w: 148, h: 48, row: true, even: true}, 148},
-		{"pill-rewrite", rec(store.KindRewrite, ""), false, ovInkWant{w: 148, h: 48, row: true, even: true}, 148},
-		{"pill-time", rec(store.KindTranscribe, ""), true, ovInkWant{w: 188, h: 48, row: true}, 188},
-		{"live-short", rec(store.KindTranscribe, short), false, ovInkWant{h: 76, row: true, even: true, text: true}, 0},
-		{"live-short-zh", rec(store.KindTranscribe, shortZh), false, ovInkWant{w: 160, h: 76, row: true, even: true, text: true}, 160},
-		{"live-long", rec(store.KindTranscribe, long), false, ovInkWant{w: 300, h: 76, row: true, even: true, text: true, scrolled: true}, 300},
-		{"live-long-zh", rec(store.KindTranscribe, longZh), false, ovInkWant{w: 300, h: 76, row: true, even: true, text: true, scrolled: true}, 300},
-		{"working", session.Snapshot{State: session.Recognizing}, false, ovInkWant{w: 148, h: 48, row: true}, 148},
-		{"notice", session.Snapshot{State: session.Failed, Problem: &session.Problem{Code: session.ProblemASR, Err: &asr.Error{Kind: asr.KindAuth}}}, false, ovInkWant{h: 48, row: true}, 0},
+		{"pill-quiet", session.Snapshot{State: session.Recording, StartedAt: now}, false, ink.Want{W: 148, H: 48}, 148},
+		{"pill-translate", rec(store.KindTranslate, ""), false, ink.Want{W: 148, H: 48, Row: true, Even: true}, 148},
+		{"pill-rewrite", rec(store.KindRewrite, ""), false, ink.Want{W: 148, H: 48, Row: true, Even: true}, 148},
+		{"pill-time", rec(store.KindTranscribe, ""), true, ink.Want{W: 188, H: 48, Row: true}, 188},
+		{"live-short", rec(store.KindTranscribe, short), false, ink.Want{H: 76, Row: true, Even: true, Text: true}, 0},
+		{"live-short-zh", rec(store.KindTranscribe, shortZh), false, ink.Want{W: 160, H: 76, Row: true, Even: true, Text: true}, 160},
+		{"live-long", rec(store.KindTranscribe, long), false, ink.Want{W: 300, H: 76, Row: true, Even: true, Text: true, Scrolled: true}, 300},
+		{"live-long-zh", rec(store.KindTranscribe, longZh), false, ink.Want{W: 300, H: 76, Row: true, Even: true, Text: true, Scrolled: true}, 300},
+		{"working", session.Snapshot{State: session.Recognizing}, false, ink.Want{W: 148, H: 48, Row: true}, 148},
+		{"notice", session.Snapshot{State: session.Failed, Problem: &session.Problem{Code: session.ProblemASR, Err: &asr.Error{Kind: asr.KindAuth}}}, false, ink.Want{H: 48, Row: true}, 0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			if strings.HasSuffix(c.name, "-zh") {
@@ -682,9 +637,9 @@ func TestOverlayInk(t *testing.T) {
 				t.Errorf("the face is %d wide, want %d", a.ov.w, c.width)
 			}
 			want := c.want
-			want.w = a.ov.w
+			want.W = a.ov.w
 			anchored(t, c.name, a.prefs.Overlay, a.ov.frame)
-			k, bad := checkOverlayInk(img, 2, want)
+			k, bad := ink.Check(img, 2, want)
 			for _, b := range bad {
 				t.Error(b)
 			}
@@ -697,7 +652,7 @@ func TestOverlayInk(t *testing.T) {
 			if c.name == "live-short" {
 				// The text's measured width and the padding: no guess.
 				tw := a.ov.textW[liveTextKey(short)].w
-				if tw <= ovRowW || a.ov.w != int(math.Ceil(float64(tw)))+2*ovLivePadX {
+				if tw <= layout.RowW || a.ov.w != int(math.Ceil(float64(tw)))+2*layout.LivePadX {
 					t.Errorf("the face is %d wide for a text %v wide", a.ov.w, tw)
 				}
 			}

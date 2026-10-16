@@ -17,6 +17,7 @@ import (
 	"github.com/hehehai/Auralink/internal/appctx"
 	"github.com/hehehai/Auralink/internal/asr"
 	"github.com/hehehai/Auralink/internal/helper/proto"
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 )
@@ -42,7 +43,7 @@ func (a *app) ovNow() ovStep {
 
 // pillFrame is the window's frame for the pill at its anchor.
 func pillFrame(o settings.Overlay) mygo.Rectangle {
-	return overlayFrame(ovTestArea, o, ovPillW, ovPillH)
+	return layout.Frame(ovTestArea, o, layout.PillW, layout.PillH)
 }
 
 // anchored checks that frame f sits at o's anchor: centred, its anchor
@@ -93,16 +94,16 @@ func TestOverlaySessionsStartSmall(t *testing.T) {
 			// A: the shortcut shows the pill.
 			snap(a, session.Snapshot{ID: "A", State: session.Recording, StartedAt: now})
 			check("A starts", ovStep{ovRecording, pill, true, true, ""})
-			if pill.Width != ovPillW+2*ovPad || pill.Height != ovPillH+2*ovPad {
+			if pill.Width != layout.PillW+2*layout.Pad || pill.Height != layout.PillH+2*layout.Pad {
 				t.Fatalf("the pill's frame %+v", pill)
 			}
 			// A streaming service's partial: one line under the row.
 			snap(a, session.Snapshot{ID: "A", State: session.Recording, StartedAt: now, HeardAt: now, Partial: "hello"})
-			grown := overlayFrame(ovTestArea, o, ovRowW+2*ovLivePadX, ovLiveH) // "hello" is narrower than the row
+			grown := layout.Frame(ovTestArea, o, layout.RowW+2*layout.LivePadX, layout.LiveH) // "hello" is narrower than the row
 			check("A hears", ovStep{ovRecording, grown, true, true, "hello"})
 			long := "So the plan for the release is to finish the onboarding first, then the history page"
 			snap(a, session.Snapshot{ID: "A", State: session.Recording, StartedAt: now, HeardAt: now, Partial: long})
-			widest := overlayFrame(ovTestArea, o, ovLiveMaxW, ovLiveH)
+			widest := layout.Frame(ovTestArea, o, layout.LiveMaxW, layout.LiveH)
 			check("A hears more", ovStep{ovRecording, widest, true, true, long})
 			// Recognising, then cleaning up: the text stays, the face does
 			// not shrink though the model's draft is shorter.
@@ -119,7 +120,7 @@ func TestOverlaySessionsStartSmall(t *testing.T) {
 			// B: the pill again, no text.
 			snap(a, session.Snapshot{ID: "B", State: session.Recording, StartedAt: now})
 			check("B starts", ovStep{ovRecording, pill, true, true, ""})
-			if a.ov.w != ovPillW || a.ov.h != ovPillH {
+			if a.ov.w != layout.PillW || a.ov.h != layout.PillH {
 				t.Errorf("B's face %d×%d", a.ov.w, a.ov.h)
 			}
 			snap(a, session.Snapshot{ID: "B", State: session.Recording, StartedAt: now, HeardAt: now, Partial: "hi"})
@@ -134,7 +135,7 @@ func TestOverlaySessionsStartSmall(t *testing.T) {
 			snap(a, session.Snapshot{ID: "C", State: session.Recording, StartedAt: now})
 			check("C starts", ovStep{ovRecording, pill, true, true, ""})
 			snap(a, session.Snapshot{ID: "C", State: session.Failed, Problem: &session.Problem{Code: session.ProblemASR, Err: &asr.Error{Kind: asr.KindAuth}}})
-			nf := overlayFrame(ovTestArea, o, noticeWidth(guessWidth(noticeText(a.notice.text)), true), ovPillH)
+			nf := layout.Frame(ovTestArea, o, layout.NoticeWidth(guessWidth(noticeText(a.notice.text)), true), layout.PillH)
 			check("C's notice", ovStep{ovNotice, nf, true, false, ""})
 			// D starts while the notice shows: the pill, the notice gone.
 			snap(a, session.Snapshot{ID: "D", State: session.Recording, StartedAt: now})
@@ -179,7 +180,7 @@ func TestOverlayAnchorAndRestyle(t *testing.T) {
 	a.prefs.Overlay.Position, a.prefs.Overlay.Margin = "top", 40
 	a.overlayRestyle()
 	anchored(t, "restyled", a.prefs.Overlay, a.ov.frame)
-	if a.ov.frame.Y != ovTestArea.Y+40-ovPad {
+	if a.ov.frame.Y != ovTestArea.Y+40-layout.Pad {
 		t.Errorf("top frame %+v", a.ov.frame)
 	}
 }
@@ -210,7 +211,7 @@ func TestOverlayTwoSessionsEndToEnd(t *testing.T) {
 		t.Fatalf("first starts: %+v", s)
 	}
 	a.pump("the first's end", func() bool {
-		if a.sess.ID == first && a.ov.h == ovLiveH {
+		if a.sess.ID == first && a.ov.h == layout.LiveH {
 			grew = true
 			anchored(t, "first grown", o, a.ov.frame)
 		}
@@ -224,7 +225,7 @@ func TestOverlayTwoSessionsEndToEnd(t *testing.T) {
 		t.Fatal("the first stays on screen")
 	}
 	a.pump("the second recording", func() bool { return a.sess.ID != first && a.sess.State == session.Recording })
-	if s := a.ovNow(); s.frame != pill || s.text != "" || !s.visible || a.ov.w != ovPillW || a.ov.h != ovPillH {
+	if s := a.ovNow(); s.frame != pill || s.text != "" || !s.visible || a.ov.w != layout.PillW || a.ov.h != layout.PillH {
 		t.Fatalf("second starts: %+v, face %d×%d", s, a.ov.w, a.ov.h)
 	}
 	a.pump("the second's end", func() bool { return a.sess.ID != first && a.sess.State.Ended() })
@@ -264,15 +265,15 @@ func TestOverlayCheckSteps(t *testing.T) {
 					t.Errorf("%s/%s: %+v", lang, st.name, a.ov.frame)
 				}
 			case "live-long":
-				if a.ov.w != ovLiveMaxW || a.ov.h != ovLiveH {
+				if a.ov.w != layout.LiveMaxW || a.ov.h != layout.LiveH {
 					t.Errorf("%s/%s: %d×%d", lang, st.name, a.ov.w, a.ov.h)
 				}
 			case "card-short", "card-rewrite":
-				if a.ov.w != ovAnswerW || a.ov.h >= ovCardChrome+3*ovCardTextSize*2 {
+				if a.ov.w != layout.AnswerW || a.ov.h >= layout.CardChrome+3*layout.CardTextSize*2 {
 					t.Errorf("%s/%s: %d×%d", lang, st.name, a.ov.w, a.ov.h)
 				}
 			case "card-long":
-				if a.ov.h != ovCardChrome+ovCardBodyMax {
+				if a.ov.h != layout.CardChrome+layout.CardBodyMax {
 					t.Errorf("%s/%s: %d×%d", lang, st.name, a.ov.w, a.ov.h)
 				}
 			}

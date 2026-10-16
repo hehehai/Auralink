@@ -14,6 +14,7 @@ import (
 
 	"github.com/hehehai/Auralink/internal/helper/helpertest"
 	"github.com/hehehai/Auralink/internal/helper/proto"
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 )
@@ -44,7 +45,7 @@ func (f *ovFlow) sample() {
 	a := f.a
 	st := ovFlowStep{state: a.sess.State, mode: a.ov.mode, w: a.ov.w, h: a.ov.h}
 	if a.ov.shown {
-		st.bottom = a.ov.frame.Y + a.ov.frame.Height - ovPad
+		st.bottom = a.ov.frame.Y + a.ov.frame.Height - layout.Pad
 		st.centre = 2*a.ov.frame.X + a.ov.frame.Width
 	} else {
 		st.mode, st.w, st.h = ovHidden, 0, 0
@@ -86,7 +87,7 @@ func (f *ovFlow) picture() []byte {
 	a := f.a
 	w, h := 120, 60
 	if a.ov.shown {
-		w, h = a.ov.w+2*ovPad, a.ov.h+2*ovPad
+		w, h = a.ov.w+2*layout.Pad, a.ov.h+2*layout.Pad
 	}
 	tt := hudTester(func(c *ui.Context) {
 		ui.Box(c).Absolute().Fill().Background(ui.RGB(30, 31, 36))
@@ -263,8 +264,8 @@ func TestOverlayFlows(t *testing.T) {
 				switch s.mode {
 				case ovAnswer:
 					card = true
-					if s.w != ovAnswerW {
-						t.Errorf("step %v: the card is %d wide, not %d", s, s.w, ovAnswerW)
+					if s.w != layout.AnswerW {
+						t.Errorf("step %v: the card is %d wide, not %d", s, s.w, layout.AnswerW)
 					}
 					if fl.name != "follow-up" && s.state.Live() {
 						t.Errorf("step %v: a card before the result", s)
@@ -274,10 +275,10 @@ func TestOverlayFlows(t *testing.T) {
 						t.Errorf("step %v: back to the pill after the card", s)
 					}
 					switch {
-					case s.text == "" && (s.w != ovPillW || s.h != ovPillH):
+					case s.text == "" && (s.w != layout.PillW || s.h != layout.PillH):
 						t.Errorf("step %v: the mini pill is %d×%d", s, s.w, s.h)
-					case s.text != "" && (s.h != ovLiveH || s.w < ovPillW || s.w > ovLiveMaxW):
-						t.Errorf("step %v: the line of text is %d×%d (the pill's rule: %d to %d wide, %d high)", s, s.w, s.h, ovPillW, ovLiveMaxW, ovLiveH)
+					case s.text != "" && (s.h != layout.LiveH || s.w < layout.PillW || s.w > layout.LiveMaxW):
+						t.Errorf("step %v: the line of text is %d×%d (the pill's rule: %d to %d wide, %d high)", s, s.w, s.h, layout.PillW, layout.LiveMaxW, layout.LiveH)
 					}
 				}
 			}

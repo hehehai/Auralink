@@ -22,6 +22,7 @@ import (
 	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/uitext"
 )
 
@@ -62,15 +63,15 @@ func langMenuHeight() int {
 // the capsule's right edge (the card's header ends with Insert, Copy and
 // Close, then the capsule), above the card or under the capsule.
 func langMenuFrame(card mygo.Rectangle, top bool) mygo.Rectangle {
-	faceX, faceY := card.X+ovPad, card.Y+ovPad
-	capRight := faceX + ovAnswerW - ovCardPadX - 3*ovCardBtn - 3*ovCardHeadGap
+	faceX, faceY := card.X+layout.Pad, card.Y+layout.Pad
+	capRight := faceX + layout.AnswerW - layout.CardPadX - 3*layout.CardBtn - 3*layout.CardHeadGap
 	h := langMenuHeight()
 	x := capRight - ovLangW
 	y := faceY - ovLangGap - h // above the card's top edge, over the capsule
 	if top {
-		y = faceY + ovCardPadTop + ovCardHeadH + ovLangGap
+		y = faceY + layout.CardPadTop + layout.CardHeadH + ovLangGap
 	}
-	return mygo.Rectangle{X: x - ovPad, Y: y - ovPad, Width: ovLangW + 2*ovPad, Height: h + 2*ovPad}
+	return mygo.Rectangle{X: x - layout.Pad, Y: y - layout.Pad, Width: ovLangW + 2*layout.Pad, Height: h + 2*layout.Pad}
 }
 
 // toggleLangMenu opens or closes the language menu (the capsule).
@@ -151,12 +152,12 @@ func (a *app) langMenuView(c *ui.Context) {
 	c.SetTheme(overlayTheme())
 	defer c.Root().Background(ui.Transparent)
 	cur := a.cardNow().lang
-	ui.Column(c).Fill().Padding(ovPad).Children(func() {
+	ui.Column(c).Fill().Padding(layout.Pad).Children(func() {
 		ui.Column(c.Key("ov-lang-face")).Fill().Radius(ovLangRadius).Background(ui.RGBA(30, 30, 34, 0.98)).
-			Border(1, ui.RGBA(255, 255, 255, 0.12)).Shadow(0, ovShadowY, ovShadowBlur, 0, ui.RGBA(0, 0, 0, ovShadowA)).
+			Border(1, ui.RGBA(255, 255, 255, 0.12)).Shadow(0, layout.ShadowY, layout.ShadowBlur, 0, ui.RGBA(0, 0, 0, layout.ShadowA)).
 			Label(i18n.T("Translate into")).Children(func() {
 			ui.Scroll(c.Key("ov-lang-scroll")).Fill().TrackScroll(&a.ov.lang.scroll).Children(func() {
-				ui.Column(c).Padding(ovLangPad - ovBorder).Children(func() {
+				ui.Column(c).Padding(ovLangPad - layout.Border).Children(func() {
 					for _, code := range compose.TargetLanguages {
 						a.langMenuRow(c, code, code == cur)
 					}

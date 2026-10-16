@@ -40,6 +40,9 @@ var textPackages = []string{"uitext"}
 // packages, and which.
 var mygoOther = map[string]string{
 	"store/sqlitestore": "github.com/egoist/mygo/plugins/sqlite",
+	// mygo.Rectangle only: the display's work area and the overlay
+	// window's frame, which its geometry computes.
+	"overlay/layout": "github.com/egoist/mygo",
 }
 
 // forbidden are imports that break the layering, and why.

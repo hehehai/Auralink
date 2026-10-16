@@ -12,6 +12,8 @@ import (
 	"os"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/overlay/ink"
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/uitext"
 )
 
@@ -19,8 +21,8 @@ import (
 // waveform's row even on both sides; the text under it, scrolled when it
 // is wider than its line. A notice's icon is coloured, not ink: only its
 // size is checked.
-func (a *app) overlayInkWant() ovInkWant {
-	w := ovInkWant{w: a.ov.w, h: a.ov.h}
+func (a *app) overlayInkWant() ink.Want {
+	w := ink.Want{W: a.ov.w, H: a.ov.h}
 	if a.ov.mode == ovAnswer {
 		return cardInkWant(w, a.cardNow())
 	}
@@ -31,11 +33,11 @@ func (a *app) overlayInkWant() ovInkWant {
 	// 40 % of a turn): caught there, the row is the icon alone. On the Mac
 	// (it moves) a working pill's size is checked; TestOverlayInk checks
 	// its row still.
-	w.row = a.ov.mode == ovRecording
-	w.even = a.ov.mode == ovRecording && !a.prefs.Overlay.ShowTime && uitext.SceneShort(a.sess) == ""
+	w.Row = a.ov.mode == ovRecording
+	w.Even = a.ov.mode == ovRecording && !a.prefs.Overlay.ShowTime && uitext.SceneShort(a.sess) == ""
 	if text := liveLineText(a.sess); text != "" {
 		tw, _ := a.ovTextWidth(liveTextKey(text))
-		w.text, w.scrolled = true, tw > ovLiveTextW
+		w.Text, w.Scrolled = true, tw > layout.LiveTextW
 	}
 	return w
 }
@@ -44,18 +46,18 @@ func (a *app) overlayInkWant() ovInkWant {
 // left padding down to its text's last line (a text's line, 14 at most
 // 22 high, and the small line under it when there is one, whose ink may
 // be too dim to count), or to its bottom padding when it scrolls.
-func cardInkWant(w ovInkWant, v cardView) ovInkWant {
-	w.card, w.gap = true, 8
+func cardInkWant(w ink.Want, v cardView) ink.Want {
+	w.Card, w.Gap = true, 8
 	if !v.conversation {
-		w.gap = 22
+		w.Gap = 22
 	} else {
 		// A bubble's fill is not ink: its padding, and the room under its
 		// last line's glyphs (more with Core Text's lines: 35.5 on the
 		// Mac, 10-15, for Latin text without descenders).
-		w.gap = ovBubblePadY + 12
+		w.Gap = layout.BubblePadY + 12
 	}
 	if v.msg != "" {
-		w.gap += ovCardMsgGap + ovCardMsgH
+		w.Gap += layout.CardMsgGap + layout.CardMsgH
 	}
 	return w
 }
@@ -128,7 +130,7 @@ func ovCheckSheet(path string, columns [][]ovCheckShot) error {
 							ui.Text(c, p.shot.name).FontSize(12).Height(labelH).TextColor(ui.RGB(60, 60, 67))
 							ui.Box(c).Size(float32(r.Width), float32(r.Height)).Children(func() {
 								ui.Image(c, p.bmp).Absolute().Fill().Fit(ui.FillBox)
-								bottom := float32(an.Y + an.Height - ovPad - r.Y)
+								bottom := float32(an.Y + an.Height - layout.Pad - r.Y)
 								centre := float32(an.X + an.Width/2 - r.X)
 								ui.Box(c).Absolute().Left(0).Right(0).Top(bottom).Height(1).Background(guide)
 								ui.Box(c).Absolute().Top(0).Bottom(0).Left(centre).Width(1).Background(guide)

@@ -18,7 +18,7 @@ package main
 // backdrop with the overlay on it). frames.txt records each step: the
 // frame the overlay asked for, the window's own, whether it shows, the app
 // in front, and what the window's capture shows of the face (its ink,
-// overlay_ink.go); a line starting FAIL when the anchor moved (the bottom
+// internal/overlay/ink); a line starting FAIL when the anchor moved (the bottom
 // edge or the centre, from the first pill), the window is not where it was
 // asked to be, the check came to the front, or the face's ink is not
 // where it should be: the pill not 148×48, its icon's side and its
@@ -42,6 +42,8 @@ import (
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/macx"
+	"github.com/hehehai/Auralink/internal/overlay/ink"
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
@@ -215,9 +217,9 @@ func (a *app) overlayCheck(dir string) {
 			// The backdrop: under the largest face (the answer card) and
 			// the language menu over it, 20 below the face's bottom edge
 			// (or above its top).
-			wide := overlayFrame(area, a.prefs.Overlay, max(ovNoticeW2, ovAnswerW), ovCardMaxH+langMenuHeight()+ovLangGap)
+			wide := layout.Frame(area, a.prefs.Overlay, max(layout.NoticeW2, layout.AnswerW), layout.CardMaxH+langMenuHeight()+ovLangGap)
 			bw, bh := wide.Width+60, wide.Height+40
-			region = mygo.Rectangle{X: wide.X - 30, Y: wide.Y + wide.Height - ovPad + 20 - bh, Width: bw, Height: bh}
+			region = mygo.Rectangle{X: wide.X - 30, Y: wide.Y + wide.Height - layout.Pad + 20 - bh, Width: bw, Height: bh}
 			opts := floatingWindowOptions("Auralink overlay check", bw, bh, ui.View(func(c *ui.Context) { ovCheckBackdrop(c, bd.dark) }))
 			opts.Transparent = false
 			back = mygo.NewWindow(opts)
@@ -234,10 +236,10 @@ func (a *app) overlayCheck(dir string) {
 			var visible, shown bool
 			var asked mygo.Rectangle
 			var mode overlayMode
-			var ink ovInkWant
+			var want ink.Want
 			onMain(func() {
 				shown, asked, mode = a.ov.shown, a.ov.frame, a.ov.mode
-				ink = a.overlayInkWant()
+				want = a.overlayInkWant()
 				if a.ov.win != nil {
 					got, visible = a.ov.win.Bounds(), a.ov.win.IsVisible()
 					wid = macx.WindowNumber(a.ov.win.NativeHandle())
@@ -277,7 +279,7 @@ func (a *app) overlayCheck(dir string) {
 				logf("FAIL %s: the menu is at %+v, not by the capsule", name, menu)
 			case wantMenu:
 				logf("  menu %d,%d,%d,%d: its bottom %d over the card's top %d", menu.X, menu.Y, menu.Width, menu.Height,
-					got.Y+ovPad-(menu.Y+menu.Height-ovPad), got.Y+ovPad)
+					got.Y+layout.Pad-(menu.Y+menu.Height-layout.Pad), got.Y+layout.Pad)
 			}
 			if shown {
 				if anchor.Width == 0 {
@@ -301,7 +303,7 @@ func (a *app) overlayCheck(dir string) {
 				if img, err := ovCheckImage(filepath.Join(dir, fmt.Sprintf("step-%d-window.png", n))); err != nil {
 					logf("FAIL %s: the capture: %v", name, err)
 				} else {
-					k, bad := checkOverlayInk(img, float64(img.Bounds().Dx())/float64(got.Width), ink)
+					k, bad := ink.Check(img, float64(img.Bounds().Dx())/float64(got.Width), want)
 					logf("  ink %s", k)
 					for _, b := range bad {
 						logf("FAIL %s: %s", name, b)
