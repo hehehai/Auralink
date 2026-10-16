@@ -14,6 +14,7 @@ import (
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // command is something the user can do from anywhere.
@@ -243,7 +244,7 @@ func (a *app) shortcutSheet(c *ui.Context) {
 			if len(hs) == 0 {
 				return "—"
 			}
-			return hotkeyGlyphs(hs[0].Keys)
+			return uitext.HotkeyGlyphs(hs[0].Keys)
 		}
 		groups := []struct {
 			title string
@@ -253,7 +254,7 @@ func (a *app) shortcutSheet(c *ui.Context) {
 				{first(f.Transcribe.Hotkeys), i18n.T("Transcribe")},
 				{first(f.Translate.Hotkeys), i18n.T("Translate")},
 				{first(f.Rewrite.Hotkeys), i18n.T("Rewrite")},
-				{hotkeyGlyphs(f.PasteLast.Keys), i18n.T("Paste the last result")},
+				{uitext.HotkeyGlyphs(f.PasteLast.Keys), i18n.T("Paste the last result")},
 			}},
 			{i18n.T("Navigation"), [][2]string{
 				{"⌘K", i18n.T("Command palette")},
@@ -388,14 +389,4 @@ func (a *app) openURL(raw string) {
 	default:
 		a.toast(i18n.T("Unknown link: %s", raw))
 	}
-}
-
-// hotkeyGlyphs shows a settings.Hotkey's keys as macOS writes them:
-// "Fn+Shift" → "fn ⇧", "Control+Command+V" → "⌃⌘V", "RightCommand" →
-// "Right ⌘" (hotkeyText, feature_keys_text.go); "—" for none.
-func hotkeyGlyphs(keys string) string {
-	if strings.TrimSpace(keys) == "" {
-		return "—"
-	}
-	return hotkeyText(keys)
 }

@@ -107,26 +107,6 @@ func TestRewritePage(t *testing.T) {
 	}
 }
 
-func TestWorkingTexts(t *testing.T) {
-	for _, tc := range []struct {
-		s    session.Snapshot
-		want string
-	}{
-		{session.Snapshot{Kind: store.KindTranscribe, State: session.Composing}, "Cleaning up…"},
-		{session.Snapshot{Kind: store.KindTranslate, State: session.Composing}, "Translating…"},
-		{session.Snapshot{Kind: store.KindTranslate, State: session.Composing, Selection: "x"}, "Translating the selection…"},
-		{session.Snapshot{Kind: store.KindRewrite, State: session.Composing}, "Writing…"},
-		{session.Snapshot{Kind: store.KindRewrite, State: session.Composing, Selection: "x"}, "Rewriting the selection…"},
-		{session.Snapshot{Kind: store.KindTranslate, State: session.Reading}, "Reading the selection…"},
-		{session.Snapshot{Kind: store.KindRewrite, State: session.Recognizing}, "Recognizing…"},
-		{session.Snapshot{Kind: store.KindRewrite, State: session.Delivering}, "Inserting…"},
-	} {
-		if got := workingText(tc.s); got != tc.want {
-			t.Errorf("%s %s: %q", tc.s.Kind, tc.s.State, got)
-		}
-	}
-}
-
 // TestOverlayWriting: the overlay through Translate and Rewrite: reading
 // shows the working pill, a draft shows under it, the card streams, a failure
 // waits in the card with Try again, a follow-up records over the card.

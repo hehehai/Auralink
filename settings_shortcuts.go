@@ -14,18 +14,8 @@ import (
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
-
-// triggerText names a trigger.
-func triggerText(trigger string) string {
-	switch trigger {
-	case settings.TriggerDouble:
-		return i18n.T("Double tap")
-	case settings.TriggerLong:
-		return i18n.T("Long press")
-	}
-	return i18n.T("Tap")
-}
 
 // featurePath is the page a shortcut changes on.
 func featurePath(feature string) string {
@@ -66,7 +56,7 @@ func (a *app) shortcutsSettings(c *ui.Context) {
 		})
 		for _, feat := range append(append([]string{}, hotkey.Features...), hotkey.PasteLast) {
 			hs := hotkey.HotkeysOf(f, feat)
-			problems := hotkeyProblems(f, feat) // feature_keys_text.go
+			problems := uitext.HotkeyProblems(f, feat) // feature_keys_text.go
 			if len(hs) == 0 {
 				a.shortcutRow(c, feat, 0, nil, nil, keysW)
 				continue
@@ -87,10 +77,10 @@ const shortcutMarksW = 16 + sp2 + 16
 func (a *app) shortcutRow(c *ui.Context, feature string, i int, h *settings.Hotkey, problems []string, keysW float32) {
 	t := c.Theme()
 	k := tok(t)
-	title := featureTitle(feature)
+	title := uitext.FeatureTitle(feature)
 	keys := i18n.T("None")
 	if h != nil {
-		keys = hotkeyText(h.Keys)
+		keys = uitext.HotkeyText(h.Keys)
 	}
 	b := ui.ButtonBase(c.Key("sc-"+feature+"-"+itoa(i))).Padding(px(t, 6), px(t, sp2)).Radius(px(t, radiusControl)).
 		AlignItems(ui.Stretch).Label(title + " " + keys).Tooltip(i18n.T("Change on the %s page", pageTitle(featurePath(feature))))
@@ -116,9 +106,9 @@ func (a *app) shortcutRow(c *ui.Context, feature string, i int, h *settings.Hotk
 						return
 					}
 					kbd(c, keys).MinWidth(0).Ellipsis("…") // shell_commands.go
-					trig := triggerText(h.Trigger)
+					trig := uitext.TriggerText(h.Trigger)
 					if feature == hotkey.PasteLast {
-						trig = triggerText(settings.TriggerTap) // always a tap
+						trig = uitext.TriggerText(settings.TriggerTap) // always a tap
 					}
 					ui.Text(c, trig).FontSize(px(t, fsMicro)).TextColor(k.Text2).SingleLine().Ellipsis("…").MinWidth(0)
 				})

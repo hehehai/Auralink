@@ -19,6 +19,7 @@ import (
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/permission"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // System Settings panes.
@@ -103,20 +104,6 @@ func (a *app) openPrivacy(c *ui.Context, url string) {
 	go mygo.Shell.OpenExternal(url)
 }
 
-func permissionText(p permission.State) (string, bool) {
-	switch p {
-	case permission.Granted:
-		return i18n.T("Allowed"), true
-	case permission.Denied:
-		return i18n.T("Not allowed"), false
-	case permission.Restricted:
-		return i18n.T("Restricted by your organisation"), false
-	case permission.NotDetermined:
-		return i18n.T("Not asked yet"), false
-	}
-	return i18n.T("Unknown"), false
-}
-
 // permissionsSettings is the Permissions section of the settings dialog.
 func (a *app) permissionsSettings(c *ui.Context) {
 	t := c.Theme()
@@ -132,7 +119,7 @@ func (a *app) permissionsSettings(c *ui.Context) {
 	}
 	caption(c, i18n.T("macOS asks you before Auralink may record or work with other apps. Each row says what needs it; you can change them any time in System Settings."))
 
-	micText, micOK := permissionText(a.perms.mic)
+	micText, micOK := uitext.PermissionText(a.perms.mic)
 	settingRow(c, "perm-mic", i18n.T("Microphone"), i18n.T("Transcribe, translate and rewrite by voice record while you hold or tap their shortcut."), func() {
 		badge(micText, micOK)
 		if a.perms.mic == permission.NotDetermined {

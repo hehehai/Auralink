@@ -15,6 +15,7 @@ import (
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // homeTester is the test app on Home, in a window tall enough to show all
@@ -318,11 +319,11 @@ func TestHomeRecent(t *testing.T) {
 		t.Errorf("%d recent", len(a.hm.recent))
 	}
 	e := a.hm.recent[0]
-	click(t, tt, "Copy: "+firstLine(e.Result))
+	click(t, tt, "Copy: "+uitext.FirstLine(e.Result))
 	if tt.Clipboard() != e.Result {
 		t.Errorf("clipboard %q", tt.Clipboard())
 	}
-	title, _ := entryTitle(e)
+	title, _ := uitext.EntryTitle(e)
 	click(t, tt, title)
 	if a.router.Path() != "/history" || a.hist.sel != e.ID || a.hist.kind() != e.Kind {
 		t.Errorf("opened %s sel %q tab %s", a.router.Path(), a.hist.sel, a.hist.kind())

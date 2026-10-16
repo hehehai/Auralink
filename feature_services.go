@@ -12,13 +12,14 @@ import (
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/providers"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // ---- Services ----
 
 func (a *app) featureServices(c *ui.Context, feature string) {
 	t := c.Theme()
-	p := featurePrefix(feature)
+	p := uitext.FeaturePrefix(feature)
 	u := a.fui(feature)
 	f := providers.FeatureOf(a.prefs, feature)
 	enhance := feature != hotkey.Transcribe || a.prefs.Features.Transcribe.Enhance
@@ -97,11 +98,11 @@ func (a *app) featureServices(c *ui.Context, feature string) {
 func serviceOptions(kind providers.Kind, ready []settings.Provider) (opts []string, auto string) {
 	auto = i18n.T("Automatic")
 	if len(ready) > 0 {
-		auto = i18n.T("Automatic: %s", providerName(kind, ready[0]))
+		auto = i18n.T("Automatic: %s", uitext.ProviderName(kind, ready[0]))
 	}
 	opts = []string{auto}
 	for _, p := range ready {
-		opts = append(opts, providerName(kind, p))
+		opts = append(opts, uitext.ProviderName(kind, p))
 	}
 	return opts, auto
 }
@@ -110,7 +111,7 @@ func serviceOptions(kind providers.Kind, ready []settings.Provider) (opts []stri
 func serviceLabel(kind providers.Kind, ready []settings.Provider, id, auto string) string {
 	for _, p := range ready {
 		if p.ID == id {
-			return providerName(kind, p)
+			return uitext.ProviderName(kind, p)
 		}
 	}
 	return auto

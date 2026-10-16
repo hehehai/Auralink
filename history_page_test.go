@@ -389,51 +389,6 @@ func TestHistoryChanged(t *testing.T) {
 	}
 }
 
-func TestHistoryFormat(t *testing.T) {
-	for ms, want := range map[int64]string{0: "", 850: "850 ms", 1180: "1.2 s", 59_000: "59.0 s", 65_000: "1:05"} {
-		if got := stageTime(ms); got != want {
-			t.Errorf("stageTime(%d) = %q, want %q", ms, got, want)
-		}
-	}
-	if got := clockMS(7400); got != "0:07" {
-		t.Errorf("clockMS = %q", got)
-	}
-	for _, c := range []struct {
-		e      store.Entry
-		title  string
-		failed bool
-	}{
-		{store.Entry{Result: "\n  first  \nsecond"}, "first", false},
-		{store.Entry{Status: store.StatusFailed, Error: "boom\nmore"}, "boom", true},
-		{store.Entry{RawText: "heard"}, "heard", false},
-		{store.Entry{}, "No text", true},
-	} {
-		if title, failed := entryTitle(c.e); title != c.title || failed != c.failed {
-			t.Errorf("entryTitle(%+v) = %q, %v", c.e, title, failed)
-		}
-	}
-}
-
-func TestSoundText(t *testing.T) {
-	for _, c := range []struct {
-		dsp  string
-		gain float64
-		want string
-	}{
-		{"", 0, ""},
-		{"highpass+level", 12, "Hum filtered, volume +12.0 dB"},
-		{"highpass+level", -2.5, "Hum filtered, volume -2.5 dB"},
-		{"highpass+level", 0, "Hum filtered, volume unchanged"},
-		{"highpass", 0, "Hum filtered"},
-		{"level", 3, "Volume +3.0 dB"},
-		{"level", 0, "Volume unchanged"},
-	} {
-		if got := soundText(store.Entry{DSP: c.dsp, GainDB: c.gain}); got != c.want {
-			t.Errorf("%q %v: %q, want %q", c.dsp, c.gain, got, c.want)
-		}
-	}
-}
-
 func historyIDs(a *app) []string {
 	var ids []string
 	for _, e := range a.hist.list {

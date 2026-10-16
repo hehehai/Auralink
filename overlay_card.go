@@ -32,12 +32,11 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
-	"github.com/hehehai/Auralink/internal/compose"
-	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/hotkey"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // Sizes of the answer card, in DIPs: Voxt's (WaveformAnswerCard.swift,
@@ -149,7 +148,7 @@ func (a *app) cardNow() cardView {
 	follow := own && !redo
 	v := cardView{kind: card.kind, text: card.text, failed: card.problem, msg: card.msg, why: card.why, lang: card.lang,
 		target: card.target.Name, copied: card.copied, busy: own, conversation: card.conversation || follow}
-	v.title = cardTitle(card.kind, card.title)
+	v.title = uitext.CardTitle(card.kind, card.title)
 	if redo {
 		v.lang = card.redoLang
 	}
@@ -206,21 +205,6 @@ func cmpOr(a, b string) string {
 		return a
 	}
 	return b
-}
-
-// cardTitle is the card's heading: a Rewrite answer's own title, else
-// what the card holds.
-func cardTitle(kind store.Kind, title string) string {
-	if t := strings.TrimSpace(title); t != "" {
-		return t
-	}
-	switch kind {
-	case store.KindTranslate:
-		return i18n.T("Translation")
-	case store.KindRewrite:
-		return i18n.T("AI Answer") // Voxt's, a rewritten selection's too
-	}
-	return i18n.T("Transcription")
 }
 
 // cardRecording says whether the card shows a follow-up recording (its
@@ -337,37 +321,11 @@ func (a *app) cardHeight() (int, bool) {
 	return h, exact
 }
 
-// targetLanguageLabel names a target language in the UI's language.
-func targetLanguageLabel(code string) string {
-	return compose.LanguageName(code, i18n.Locale())
-}
-
 // featureKeys are the glyphs of a feature's first shortcut ("" for none).
 func (a *app) featureKeys(feature string) string {
 	hs := hotkey.HotkeysOf(a.prefs.Features, feature)
 	if len(hs) == 0 {
 		return ""
 	}
-	return hotkeyText(hs[0].Keys)
-}
-
-// whyInCard says why a result is in the card and not in place, for
-// Insert's tip ("" when the user asked for the card, or it went there
-// for its length).
-func whyInCard(r deliver.Reason, selection bool, name string) string {
-	if name == "" {
-		name = i18n.T("the app")
-	}
-	switch r {
-	case deliver.ReasonNotFront, deliver.ReasonNoTarget:
-		return i18n.T("%s is not in front any more: insert it there, or copy it.", name)
-	case deliver.ReasonNotEditable:
-		if selection {
-			return i18n.T("The selection in %s cannot be edited: copy the result, or click where it should go and insert.", name)
-		}
-		return i18n.T("Nothing in %s takes text: click where it should go, then insert.", name)
-	case deliver.ReasonNoAccess:
-		return i18n.T("Allow Accessibility to insert results where you type.")
-	}
-	return ""
+	return uitext.HotkeyText(hs[0].Keys)
 }

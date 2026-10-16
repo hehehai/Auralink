@@ -12,6 +12,7 @@ import (
 	"github.com/hehehai/Auralink/internal/lang"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 func (a *app) generalSettings(c *ui.Context) {
@@ -82,7 +83,7 @@ func (a *app) otherLanguagesRow(c *ui.Context) {
 	others := withoutLanguage(a.prefs.General.OtherLanguages, main)
 	settingRow(c, "other-languages", i18n.T("Other languages"), i18n.T("Languages you mix into what you say and write. Clean-up keeps them as they are instead of translating them into your main language."), func() {
 		for _, code := range others {
-			label := langLabel(code)
+			label := uitext.LangLabel(code)
 			ui.Row(c.Key("other-lang-"+code)).Gap(px(t, 2)).AlignItems(ui.Center).Padding(px(t, 2), px(t, 2), px(t, 2), px(t, 10)).
 				Radius(px(t, radiusControl)).Background(k.Hover).Shrink(0).Children(func() {
 				ui.Text(c, label).FontSize(px(t, fsCaption)).SingleLine()
@@ -107,7 +108,7 @@ func (a *app) otherLanguagesRow(c *ui.Context) {
 		}
 		dropButton(c.Key("other-lang-add"), icons.Add, i18n.T("Add a language")).Shrink(0).Menu(func(m *ui.Menu) {
 			for _, code := range left {
-				if m.Item(langLabel(code)).Chosen() {
+				if m.Item(uitext.LangLabel(code)).Chosen() {
 					a.updateSettings(func(s *settings.Settings) {
 						if !slices.Contains(s.General.OtherLanguages, code) {
 							s.General.OtherLanguages = append(slices.Clone(s.General.OtherLanguages), code)

@@ -26,6 +26,7 @@ import (
 	"github.com/hehehai/Auralink/internal/providers"
 	"github.com/hehehai/Auralink/internal/secrets"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // keyring keeps the providers' keys, by Keychain account ("asr.doubao").
@@ -141,16 +142,6 @@ func (a *app) loadKeyMasks(accounts []string) {
 	})
 }
 
-func maskKey(v string) string {
-	if v == "" {
-		return ""
-	}
-	if demoMask != nil {
-		return demoMask(v)
-	}
-	return secrets.Mask(v)
-}
-
 // hasKey reports whether a key is saved for account (as last read).
 func (a *app) hasKey(account string) bool { return a.keyMasks[account] != "" }
 
@@ -187,11 +178,11 @@ func (a *app) providerUse(c *ui.Context, kind providers.Kind) {
 	}
 	auto := i18n.T("Automatic")
 	if len(ready) > 0 {
-		auto = i18n.T("Automatic: %s", providerName(kind, ready[0]))
+		auto = i18n.T("Automatic: %s", uitext.ProviderName(kind, ready[0]))
 	}
 	opts := []string{auto}
 	for _, p := range ready {
-		opts = append(opts, providerName(kind, p))
+		opts = append(opts, uitext.ProviderName(kind, p))
 	}
 	feats := []struct{ id, title, info string }{
 		{providers.Transcribe, i18n.T("Transcribe"), ""},
@@ -214,7 +205,7 @@ func (a *app) providerUse(c *ui.Context, kind providers.Kind) {
 			a.featSel[ti][i] = auto
 			for _, p := range ready {
 				if p.ID == wants[i] {
-					a.featSel[ti][i] = providerName(kind, p)
+					a.featSel[ti][i] = uitext.ProviderName(kind, p)
 				}
 			}
 		}
@@ -328,7 +319,7 @@ func (a *app) providerCard(c *ui.Context, kind providers.Kind, pr providers.Pres
 	t := c.Theme()
 	k := tok(t)
 	p, configured := providers.Setup(a.prefs, kind, pr.ID)
-	name := providerName(kind, p)
+	name := uitext.ProviderName(kind, p)
 	acc := providers.Account(kind, p.ID)
 	dot, state := a.providerState(c, kind, p, configured)
 	missing := providers.Missing(kind, p, configured, a.hasKey(acc))
@@ -344,7 +335,7 @@ func (a *app) providerCard(c *ui.Context, kind providers.Kind, pr providers.Pres
 				ui.Row(c).Height(px(t, 22)).AlignItems(ui.Center).Shrink(0).Children(func() { statusDot(c, dot) })
 				ui.Text(c, name).FontWeight(600).Grow(1).MinWidth(0).MaxLines(2).Ellipsis("…").Margin(px(t, 2), 0, 0, 0)
 				if kind == providers.ASR {
-					ui.Row(c).Height(px(t, 22)).AlignItems(ui.Center).Shrink(0).Children(func() { tagChip(c, modeLabel(pr)) })
+					ui.Row(c).Height(px(t, 22)).AlignItems(ui.Center).Shrink(0).Children(func() { tagChip(c, uitext.ModeLabel(pr)) })
 				}
 			})
 			model := providers.Model(kind, p)
@@ -423,3 +414,13 @@ func logTest(r *logs.Ring, kind providers.Kind, p settings.Provider, res provide
 
 // runProviderTest is providers.Test; tests swap it for a fake.
 var runProviderTest = providers.Test
+
+func maskKey(v string) string {
+	if v == "" {
+		return ""
+	}
+	if demoMask != nil {
+		return demoMask(v)
+	}
+	return secrets.Mask(v)
+}

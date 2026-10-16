@@ -13,6 +13,7 @@ import (
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // keyRow is a shortcut's controls.
@@ -75,9 +76,9 @@ func (a *app) featureKeysKey(feature string) string {
 // own glyphs.
 func chordLabel(keys string) string {
 	if p := presetOf(keys); p != "" {
-		return hotkeyText(p)
+		return uitext.HotkeyText(p)
 	}
-	return hotkeyText(keys)
+	return uitext.HotkeyText(keys)
 }
 
 // presetOf is the preset keys are, "" for none.
@@ -104,12 +105,12 @@ func keyOptions(cur string, off bool) (opts []string, byLabel map[string]string)
 		byLabel[i18n.T("Off")] = ""
 	}
 	for _, p := range keyPresets {
-		l := hotkeyText(p)
+		l := uitext.HotkeyText(p)
 		opts = append(opts, l)
 		byLabel[l] = p
 	}
 	if cur != "" && presetOf(cur) == "" {
-		l := hotkeyText(cur)
+		l := uitext.HotkeyText(cur)
 		if _, dup := byLabel[l]; !dup {
 			opts = append(opts, l)
 			byLabel[l] = cur
@@ -162,7 +163,7 @@ func newHotkey(f settings.Features) settings.Hotkey {
 
 func (a *app) featureShortcuts(c *ui.Context, feature string) {
 	t := c.Theme()
-	p := featurePrefix(feature)
+	p := uitext.FeaturePrefix(feature)
 	u := a.fui(feature)
 	a.featureSync(feature)
 	if sectionTitleAdd(c, p+"-key-add", i18n.T("Shortcuts"), i18n.T("Tap: press to start, press again to stop. Double tap: press twice quickly. Long press: record while you hold the keys. Escape cancels."), i18n.T("Add a shortcut")) {
@@ -178,7 +179,7 @@ func (a *app) featureShortcuts(c *ui.Context, feature string) {
 				}
 			}, nil)
 	}
-	problems := hotkeyProblems(a.prefs.Features, feature)
+	problems := uitext.HotkeyProblems(a.prefs.Features, feature)
 	card(c.Key(p + "-keys")).Gap(px(t, sp2)).Children(func() {
 		hs := hotkey.HotkeysOf(a.prefs.Features, feature)
 		if len(hs) == 0 {
@@ -213,7 +214,7 @@ func (a *app) keyRowView(c *ui.Context, feature string, i int, h settings.Hotkey
 	k := tok(t)
 	r := &a.fui(feature).rows[i]
 	n := i + 1
-	ui.Column(c.Key(fmt.Sprintf("%s-key-%d", featurePrefix(feature), i))).Gap(px(t, 6)).Children(func() {
+	ui.Column(c.Key(fmt.Sprintf("%s-key-%d", uitext.FeaturePrefix(feature), i))).Gap(px(t, 6)).Children(func() {
 		ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
 			ui.Row(c).Wrap().Gap(px(t, sp2)).AlignItems(ui.Center).Grow(1).MinWidth(0).Children(func() {
 				opts, byLabel := keyOptions(h.Keys, false)
@@ -314,9 +315,9 @@ func (a *app) customKeys(c *ui.Context, r *keyRow, label string, save func(keys 
 	}
 	switch {
 	case err != nil:
-		warnLine(c, parseErrorText(err))
+		warnLine(c, uitext.ParseErrorText(err))
 	case r.edited:
-		caption(c, i18n.T("Press Return to use %s.", hotkeyText(r.text)))
+		caption(c, i18n.T("Press Return to use %s.", uitext.HotkeyText(r.text)))
 	default:
 		caption(c, i18n.T("Modifiers first, then one key: Fn, RightCommand, Control+Option+Space, Fn+F5."))
 	}
@@ -344,7 +345,7 @@ func (a *app) trPasteRow(c *ui.Context) {
 	t := c.Theme()
 	r := &a.fui(hotkey.Transcribe).paste
 	cur := a.prefs.Features.PasteLast.Keys
-	problems := hotkeyProblems(a.prefs.Features, hotkey.PasteLast)[0]
+	problems := uitext.HotkeyProblems(a.prefs.Features, hotkey.PasteLast)[0]
 	ui.Column(c.Key("tr-paste")).Gap(px(t, 6)).Children(func() {
 		settingRow(c, "tr-paste-row", i18n.T("Paste the last result"), i18n.T("Pastes the latest result again where you type, whichever feature made it."), func() {
 			opts, byLabel := keyOptions(cur, true)

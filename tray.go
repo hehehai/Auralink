@@ -13,14 +13,13 @@ import (
 	"context"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/transfer"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/store"
 	"github.com/hehehai/Auralink/internal/trayicon"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // trayState is the menu bar icon.
@@ -33,15 +32,11 @@ type trayState struct {
 	copyText func(string) error
 }
 
-// trayRecentN is how many results the menu lists; trayRecentWidth how
-// wide each shows, in display units (a CJK letter 2, any other 1), the
-// "…" included: about as wide as "Paste the last result ⌃⌘V", so a long
-// result does not widen the menu (10-15: whole results made it as wide
-// as the screen); trayTipRunes how much of it the tooltip shows.
+// trayRecentN is how many results the menu lists (each as wide as
+// uitext.TrayRecentWidth); trayTipRunes how much of one the tooltip shows.
 const (
-	trayRecentN     = 3
-	trayRecentWidth = 26
-	trayTipRunes    = 400
+	trayRecentN  = 3
+	trayTipRunes = 400
 )
 
 // openTray makes the menu bar icon when the settings want one; it runs in
@@ -95,65 +90,10 @@ func (a *app) loadTrayRecent() {
 			return
 		}
 		a.post(func() {
-			a.recent = recentResults(es, trayRecentN)
+			a.recent = uitext.RecentResults(es, trayRecentN)
 			a.buildTrayMenu()
 		})
 	})
-}
-
-// recentResults are the results of the newest n entries that delivered
-// one (done, with a text).
-func recentResults(es []store.Entry, n int) []string {
-	var out []string
-	for _, e := range es {
-		if e.Status == store.StatusDone && strings.TrimSpace(e.Result) != "" {
-			out = append(out, e.Result)
-			if len(out) == n {
-				break
-			}
-		}
-	}
-	return out
-}
-
-// trayLabel is a result as a menu item shows it: one line, its spaces
-// and line breaks one space, at most trayRecentWidth display units wide,
-// cut with "…" (Voxt cuts at a rendered width of 100 pt; a native menu's
-// text cannot be measured here, so the units stand in for it).
-func trayLabel(text string) string {
-	line := strings.Join(strings.Fields(text), " ")
-	if displayWidth(line) <= trayRecentWidth {
-		return line
-	}
-	room, w := trayRecentWidth-1, 0 // the "…" takes one
-	cut := len(line)
-	for i, r := range line {
-		if w+runeWidth(r) > room {
-			cut = i
-			break
-		}
-		w += runeWidth(r)
-	}
-	// Not in the middle of a (Latin) word: back to its space, if near.
-	if latinAt(line, cut-1) && latinAt(line, cut) {
-		if sp := strings.LastIndexByte(line[:cut], ' '); sp > 0 && displayWidth(line[sp:cut]) <= 10 {
-			cut = sp
-		}
-	}
-	return strings.TrimRight(line[:cut], " ,.;:，。；：、") + "…"
-}
-
-// latinAt says whether the rune at byte i of s (or the one ending there,
-// for the last byte of one) is a Latin letter or digit.
-func latinAt(s string, i int) bool {
-	if i < 0 || i >= len(s) {
-		return false
-	}
-	for i > 0 && !utf8.RuneStart(s[i]) {
-		i--
-	}
-	r, _ := utf8.DecodeRuneInString(s[i:])
-	return r < 0x2E80 && (unicode.IsLetter(r) || unicode.IsDigit(r))
 }
 
 // trayTip is a result as its item's tooltip shows it: whole, unless very
@@ -164,26 +104,6 @@ func trayTip(text string) string {
 		return strings.TrimSpace(string(r[:trayTipRunes])) + "…"
 	}
 	return text
-}
-
-// displayWidth is how wide s shows in display units: a wide (CJK) letter
-// 2, a combining mark 0, any other 1.
-func displayWidth(s string) int {
-	w := 0
-	for _, r := range s {
-		w += runeWidth(r)
-	}
-	return w
-}
-
-func runeWidth(r rune) int {
-	switch {
-	case wideRune(r):
-		return 2
-	case unicode.Is(unicode.Mn, r) || r == 0x200B || r == 0xFE0F:
-		return 0
-	}
-	return 1
 }
 
 // buildTrayMenu builds the icon's menu in the current language, and
@@ -211,16 +131,16 @@ func (a *app) trayItems() []*mygo.MenuItem {
 		start = i18n.T("Stop transcribing")
 	}
 	if len(f.Transcribe.Hotkeys) > 0 {
-		start += "    " + hotkeyGlyphs(f.Transcribe.Hotkeys[0].Keys)
+		start += "    " + uitext.HotkeyGlyphs(f.Transcribe.Hotkeys[0].Keys)
 	}
 	items := []*mygo.MenuItem{
 		{Label: start, Click: act(a.toggleTranscribe)},
-		{Label: i18n.T("Paste the last result") + "    " + hotkeyGlyphs(f.PasteLast.Keys), Click: act(func() { a.pasteLast(a.front) })},
+		{Label: i18n.T("Paste the last result") + "    " + uitext.HotkeyGlyphs(f.PasteLast.Keys), Click: act(func() { a.pasteLast(a.front) })},
 	}
 	if len(a.recent) > 0 {
 		items = append(items, mygo.Separator(), &mygo.MenuItem{Label: i18n.T("Recent results"), Disabled: true})
 		for _, text := range a.recent {
-			items = append(items, &mygo.MenuItem{Label: trayLabel(text), ToolTip: trayTip(text), Click: act(func() { a.copyRecent(text) })})
+			items = append(items, &mygo.MenuItem{Label: uitext.TrayLabel(text), ToolTip: trayTip(text), Click: act(func() { a.copyRecent(text) })})
 		}
 	}
 	items = append(items,

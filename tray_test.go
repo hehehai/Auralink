@@ -9,6 +9,7 @@ import (
 
 	"github.com/hehehai/Auralink/internal/store"
 	"github.com/hehehai/Auralink/internal/trayicon"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 func TestTrayIcons(t *testing.T) {
@@ -44,7 +45,7 @@ func TestTrayRecent(t *testing.T) {
 		{Status: store.StatusDone, Result: "third"},
 		{Status: store.StatusDone, Result: "fourth"},
 	}
-	if got := recentResults(es, 3); !slices.Equal(got, []string{"newest", "second", "third"}) {
+	if got := uitext.RecentResults(es, 3); !slices.Equal(got, []string{"newest", "second", "third"}) {
 		t.Fatalf("recent %q", got)
 	}
 	// One short line: as wide as the menu's other items, whatever the
@@ -59,16 +60,16 @@ func TestTrayRecent(t *testing.T) {
 		{"\n  Exactly twenty-six chars\t", "Exactly twenty-six chars"},
 		{"Supercalifragilisticexpialidocious words", "Supercalifragilisticexpia…"},
 	} {
-		got := trayLabel(c.in)
+		got := uitext.TrayLabel(c.in)
 		if got != c.want {
-			t.Errorf("trayLabel(%q) = %q, want %q", c.in, got, c.want)
+			t.Errorf("uitext.TrayLabel(%q) = %q, want %q", c.in, got, c.want)
 		}
-		if displayWidth(got) > trayRecentWidth || strings.ContainsAny(got, "\n\t") {
-			t.Errorf("trayLabel(%q) = %q: %d units", c.in, got, displayWidth(got))
+		if uitext.DisplayWidth(got) > uitext.TrayRecentWidth || strings.ContainsAny(got, "\n\t") {
+			t.Errorf("uitext.TrayLabel(%q) = %q: %d units", c.in, got, uitext.DisplayWidth(got))
 		}
 	}
-	if displayWidth("开始转录 fn") != 11 || displayWidth("e\u0301") != 1 {
-		t.Error("displayWidth")
+	if uitext.DisplayWidth("开始转录 fn") != 11 || uitext.DisplayWidth("e\u0301") != 1 {
+		t.Error("uitext.DisplayWidth")
 	}
 	huge := strings.Repeat("长", 1000)
 	if tip := trayTip(huge); len([]rune(tip)) != trayTipRunes+1 || trayTip(" short \n") != "short" {

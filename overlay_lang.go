@@ -22,6 +22,7 @@ import (
 	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // Sizes of the language menu, in DIPs.
@@ -167,7 +168,7 @@ func (a *app) langMenuView(c *ui.Context) {
 
 // langMenuRow is one language: its name, a check when it is the card's.
 func (a *app) langMenuRow(c *ui.Context, code string, chosen bool) {
-	name := targetLanguageLabel(code)
+	name := uitext.TargetLanguageLabel(code)
 	b := ui.ButtonBase(c.Key("ov-lang-"+code)).Height(ovLangRowH).Padding(0, 10).Radius(8).Label(name).Checked(chosen)
 	if b.Hovered() {
 		b.Background(ui.RGBA(255, 255, 255, 0.08))

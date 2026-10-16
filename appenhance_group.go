@@ -15,6 +15,7 @@ import (
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // ---- The group ----
@@ -31,7 +32,7 @@ func (a *app) aeSyncFields(g appctx.Group) {
 	p.urlIn, p.urlErr = "", ""
 	p.keyCustom, p.keyErr = false, ""
 	p.keyText = g.AutoKey
-	p.keySel = autoKeyLabel(g.AutoKey)
+	p.keySel = uitext.AutoKeyLabel(g.AutoKey)
 }
 
 func (a *app) aeDetail(c *ui.Context, g appctx.Group) {
@@ -172,7 +173,7 @@ func (a *app) aeURLs(c *ui.Context, g appctx.Group) {
 				ui.Text(c, u).Font("monospace").FontSize(px(t, fsCaption)).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 				canon := appctx.CanonicalPattern(u)
 				if err := appctx.CheckPattern(u); err != nil {
-					iconMark(c, icons.DangerTriangle, k.Warning, patternErrorText(err))
+					iconMark(c, icons.DangerTriangle, k.Warning, uitext.PatternErrorText(err))
 				} else if canon != strings.ToLower(strings.TrimSpace(u)) {
 					truncText(c, i18n.T("matches %s", canon)).FontSize(px(t, fsCaption)).TextColor(k.Text3)
 				}
@@ -212,7 +213,7 @@ func (a *app) aeAddURL(g appctx.Group) {
 		return
 	}
 	if err := appctx.CheckPattern(u); err != nil {
-		p.urlErr = patternErrorText(err)
+		p.urlErr = uitext.PatternErrorText(err)
 		return
 	}
 	if slices.ContainsFunc(g.URLs, func(v string) bool { return appctx.CanonicalPattern(v) == appctx.CanonicalPattern(u) }) {
@@ -223,33 +224,8 @@ func (a *app) aeAddURL(g appctx.Group) {
 	p.urlIn, p.urlErr = "", ""
 }
 
-// patternErrorText says why a website rule is not valid.
-func patternErrorText(err error) string {
-	switch err {
-	case appctx.ErrPatternEmpty:
-		return i18n.T("Type a website, as in github.com.")
-	case appctx.ErrPatternSpace:
-		return i18n.T("A website rule has no spaces.")
-	case appctx.ErrPatternScheme:
-		return i18n.T("Only web addresses (http and https).")
-	}
-	return i18n.T("Start with a site, as in github.com or *.notion.so; * stands for anything.")
-}
-
 // autoKeys are the auto key choices besides None and Custom.
 var autoKeys = []string{"Return", "Command+Return", "Shift+Return", "Control+Return", "Option+Return"}
-
-// autoKeyLabel is the select's label of keys.
-func autoKeyLabel(keys string) string {
-	switch c := appctx.CanonicalAutoKey(keys); c {
-	case "":
-		return i18n.T("None")
-	case "Return":
-		return i18n.T("Return ↩")
-	default:
-		return hotkeyText(c)
-	}
-}
 
 // aeAutoKey is the key after inserting.
 func (a *app) aeAutoKey(c *ui.Context, g appctx.Group) {
@@ -260,12 +236,12 @@ func (a *app) aeAutoKey(c *ui.Context, g appctx.Group) {
 		opts := []string{i18n.T("None")}
 		byLabel := map[string]string{i18n.T("None"): ""}
 		for _, k := range autoKeys {
-			l := autoKeyLabel(k)
+			l := uitext.AutoKeyLabel(k)
 			opts = append(opts, l)
 			byLabel[l] = k
 		}
 		if cur := appctx.CanonicalAutoKey(g.AutoKey); cur != "" && !slices.Contains(autoKeys, cur) {
-			l := autoKeyLabel(cur)
+			l := uitext.AutoKeyLabel(cur)
 			opts = append(opts, l)
 			byLabel[l] = cur
 		}
@@ -273,7 +249,7 @@ func (a *app) aeAutoKey(c *ui.Context, g appctx.Group) {
 		if p.keyCustom {
 			p.keySel = i18n.T("Custom…")
 		} else if !slices.Contains(opts, p.keySel) {
-			p.keySel = autoKeyLabel(g.AutoKey)
+			p.keySel = uitext.AutoKeyLabel(g.AutoKey)
 		}
 		if ui.Select(c.Key("ae-key-sel"), &p.keySel, opts).Label(i18n.T("Key after inserting")).Width(px(t, 180)).Changed() {
 			if p.keySel == i18n.T("Custom…") {
@@ -292,7 +268,7 @@ func (a *app) aeAutoKey(c *ui.Context, g appctx.Group) {
 				p.keyErr = i18n.T("One key, with modifiers or not: Return, Command+Return, Tab.")
 			} else {
 				keys := appctx.CanonicalAutoKey(p.keyText)
-				p.keyErr, p.keyCustom, p.keySel = "", false, autoKeyLabel(keys)
+				p.keyErr, p.keyCustom, p.keySel = "", false, uitext.AutoKeyLabel(keys)
 				a.updateGroup(g.ID, func(g *appctx.Group) { g.AutoKey = keys })
 			}
 		}

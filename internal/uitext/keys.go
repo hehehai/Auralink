@@ -1,8 +1,9 @@
-package main
+package uitext
 
-// The words of shortcuts (feature_page.go's feature pages and every other
-// place that names a shortcut): a chord's name and glyphs, a parse error,
-// the system shortcut a chord takes, and the problems of a feature's shortcuts.
+// The words of shortcuts (the feature pages and every other place that
+// names a shortcut): a chord's name and glyphs, a parse error, the system
+// shortcut a chord takes, the problems of a feature's shortcuts, the
+// triggers, and the features' names.
 
 import (
 	"errors"
@@ -16,9 +17,9 @@ import (
 
 // ---- Text of shortcuts and their problems ----
 
-// hotkeyText shows keys as macOS writes them: "fn ⇧", "Right ⌘",
+// HotkeyText shows keys as macOS writes them: "fn ⇧", "Right ⌘",
 // "⌃⌥ Space", "⌃⌘V". Keys that do not parse show as written.
-func hotkeyText(keys string) string {
+func HotkeyText(keys string) string {
 	c, err := hotkey.Parse(keys)
 	if err != nil {
 		return strings.TrimSpace(keys)
@@ -91,8 +92,8 @@ func keyGlyph(k string) string {
 	return k
 }
 
-// parseErrorText says why typed keys do not parse.
-func parseErrorText(err error) string {
+// ParseErrorText says why typed keys do not parse.
+func ParseErrorText(err error) string {
 	switch {
 	case err == nil:
 		return ""
@@ -123,15 +124,15 @@ func systemShortcutName(sys string) string {
 	return i18n.T("copy, paste and other editing commands")
 }
 
-// hotkeyProblemText says what is wrong with a binding.
-func hotkeyProblemText(p hotkey.Problem) string {
+// HotkeyProblemText says what is wrong with a binding.
+func HotkeyProblemText(p hotkey.Problem) string {
 	switch p.Code {
 	case hotkey.ProblemInvalid:
-		return parseErrorText(p.Err)
+		return ParseErrorText(p.Err)
 	case hotkey.ProblemDuplicate:
 		return i18n.T("The same keys as shortcut %d.", p.OtherIndex+1)
 	case hotkey.ProblemConflict:
-		return i18n.T("%s has the same keys and trigger: only one of them works.", featureTitle(p.Other))
+		return i18n.T("%s has the same keys and trigger: only one of them works.", FeatureTitle(p.Other))
 	case hotkey.ProblemSystem:
 		return i18n.T("macOS uses these keys for %s.", systemShortcutName(p.System))
 	case hotkey.ProblemBareKey:
@@ -140,19 +141,75 @@ func hotkeyProblemText(p hotkey.Problem) string {
 	return ""
 }
 
-// hotkeyProblems are the problems to show under feature's bindings, by
+// HotkeyProblems are the problems to show under feature's bindings, by
 // index: its own, and the conflicts reported on another feature's
 // binding that clash with it.
-func hotkeyProblems(f settings.Features, feature string) map[int][]string {
+func HotkeyProblems(f settings.Features, feature string) map[int][]string {
 	out := map[int][]string{}
 	for _, p := range hotkey.Check(f) {
 		switch {
 		case p.Feature == feature:
-			out[p.Index] = append(out[p.Index], hotkeyProblemText(p))
+			out[p.Index] = append(out[p.Index], HotkeyProblemText(p))
 		case p.Code == hotkey.ProblemConflict && p.Other == feature:
 			out[p.OtherIndex] = append(out[p.OtherIndex],
-				i18n.T("%s has the same keys and trigger: only one of them works.", featureTitle(p.Feature)))
+				i18n.T("%s has the same keys and trigger: only one of them works.", FeatureTitle(p.Feature)))
 		}
 	}
 	return out
+}
+
+// HotkeyGlyphs shows a settings.Hotkey's keys as macOS writes them:
+// "Fn+Shift" → "fn ⇧", "Control+Command+V" → "⌃⌘V", "RightCommand" →
+// "Right ⌘" (HotkeyText, feature_keys_text.go); "—" for none.
+func HotkeyGlyphs(keys string) string {
+	if strings.TrimSpace(keys) == "" {
+		return "—"
+	}
+	return HotkeyText(keys)
+}
+
+// TriggerText names a trigger.
+func TriggerText(trigger string) string {
+	switch trigger {
+	case settings.TriggerDouble:
+		return i18n.T("Double tap")
+	case settings.TriggerLong:
+		return i18n.T("Long press")
+	}
+	return i18n.T("Tap")
+}
+
+// TriggerHowText says how a shortcut's trigger is used.
+func TriggerHowText(trigger string) string {
+	switch trigger {
+	case settings.TriggerDouble:
+		return i18n.T("Press twice quickly to start; once more to stop.")
+	case settings.TriggerLong:
+		return i18n.T("Record while you hold the keys; release to stop.")
+	}
+	return i18n.T("Press to start, press again to stop.")
+}
+
+// FeaturePrefix keys a feature page's controls.
+func FeaturePrefix(feature string) string {
+	switch feature {
+	case hotkey.Translate:
+		return "tl"
+	case hotkey.Rewrite:
+		return "rw"
+	}
+	return "tr"
+}
+
+// FeatureTitle names a feature (or paste-last) in a problem.
+func FeatureTitle(feature string) string {
+	switch feature {
+	case hotkey.Translate:
+		return i18n.T("Translate")
+	case hotkey.Rewrite:
+		return i18n.T("Rewrite")
+	case hotkey.PasteLast:
+		return i18n.T("Paste the last result")
+	}
+	return i18n.T("Transcribe")
 }

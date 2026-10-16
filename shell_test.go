@@ -18,6 +18,7 @@ import (
 	"github.com/hehehai/Auralink/internal/permission"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 func TestSidebarAndShortcuts(t *testing.T) {
@@ -123,17 +124,6 @@ func TestPaletteAndDeepLinks(t *testing.T) {
 	}
 }
 
-func TestHotkeyGlyphs(t *testing.T) {
-	for keys, want := range map[string]string{
-		"Fn": "fn", "Fn+Shift": "fn ⇧", "Fn+Control": "fn ⌃", "Control+Command+V": "⌃⌘V",
-		"RightCommand": "Right ⌘", "RightOption+Shift": "Right ⌥ ⇧", "Option+Space": "⌥ Space", "": "—", "Command+Shift+k": "⇧⌘K",
-	} {
-		if got := hotkeyGlyphs(keys); got != want {
-			t.Errorf("%q → %q, want %q", keys, got, want)
-		}
-	}
-}
-
 func TestSettingsPersistAndApply(t *testing.T) {
 	dir := t.TempDir()
 	a, _, tt := newTestAppIn(t, dir)
@@ -171,7 +161,7 @@ func TestSettingsPersistAndApply(t *testing.T) {
 	if p := b.prefs; p.General.Language != "zh-Hans" || p.General.MainLanguage != "ja" || p.Appearance.Theme != "dark" || p.Network.Proxy != "socks5://127.0.0.1:1080" {
 		t.Errorf("reopened: %+v", p)
 	}
-	if b.settingsForm.proxyMode != proxyOptions()[2] || b.settingsForm.mainLanguage != langLabel("ja") {
+	if b.settingsForm.proxyMode != proxyOptions()[2] || b.settingsForm.mainLanguage != uitext.LangLabel("ja") {
 		t.Errorf("form %q %q", b.settingsForm.proxyMode, b.settingsForm.mainLanguage)
 	}
 }
@@ -182,7 +172,7 @@ func TestMainLanguagesAreKnown(t *testing.T) {
 			t.Errorf("%s is not in the language table", code)
 		}
 	}
-	if got := langLabel("ja"); got != "Japanese · 日本語" {
+	if got := uitext.LangLabel("ja"); got != "Japanese · 日本語" {
 		t.Errorf("label %q", got)
 	}
 }

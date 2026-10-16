@@ -16,6 +16,7 @@ import (
 	"github.com/hehehai/Auralink/internal/providers"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // helperReady reports whether the helper can record.
@@ -117,25 +118,6 @@ func (a *app) toggleTranscribe() {
 	}
 }
 
-// deliveryText says why a result was not inserted.
-func deliveryText(res deliver.Result, target proto.App) string {
-	name := target.Name
-	if name == "" {
-		name = i18n.T("the app")
-	}
-	switch res.Reason {
-	case deliver.ReasonNoAccess:
-		return i18n.T("Allow Accessibility to insert results where you type.")
-	case deliver.ReasonNotFront, deliver.ReasonNoTarget:
-		return i18n.T("%s is not in front any more.", name)
-	case deliver.ReasonNotEditable:
-		return i18n.T("Click where the text should go in %s, then insert.", name)
-	case deliver.ReasonFailed:
-		return i18n.T("Could not insert: %v", res.Err)
-	}
-	return ""
-}
-
 // setDelivery records in the history how a result left the card.
 func (a *app) setDelivery(id, how string) {
 	h := a.lib.store.History()
@@ -170,7 +152,7 @@ func (a *app) pasteLast(target proto.App) {
 		res := deliver.Insert(ctx, io, deliver.Request{Text: text, Target: target})
 		a.post(func() {
 			if !res.Inserted {
-				a.showNotice(sessionNotice{text: deliveryText(res, target)})
+				a.showNotice(sessionNotice{text: uitext.DeliveryText(res, target)})
 			}
 		})
 	})

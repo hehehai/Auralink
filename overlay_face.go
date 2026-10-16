@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
-	"github.com/hehehai/Auralink/internal/appctx"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // overlayView is the overlay window's content.
@@ -116,7 +116,7 @@ func overlayPill(c *ui.Context, s session.Snapshot, mode overlayMode, look pillL
 	col.Children(func() {
 		ui.Row(c).Height(ovRowH).Shrink(0).Gap(ovGap).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Size(ovIconSlot, ovRowH).Shrink(0).Center().Children(func() {
-				ui.Icon(c, overlayKindIcon(s.Kind).Bold).Size(ovIconSize, ovIconSize).TextColor(ovIcon).Shrink(0).Label(kindTitle(s.Kind))
+				ui.Icon(c, overlayKindIcon(s.Kind).Bold).Size(ovIconSize, ovIconSize).TextColor(ovIcon).Shrink(0).Label(uitext.KindTitle(s.Kind))
 			})
 			if mode == ovRecording {
 				waveform(c, s.Levels, !s.HeardAt.IsZero(), look)
@@ -126,11 +126,11 @@ func overlayPill(c *ui.Context, s session.Snapshot, mode overlayMode, look pillL
 					})
 				}
 			} else {
-				overlayLoader(c, workingText(s), look)
+				overlayLoader(c, uitext.WorkingText(s), look)
 			}
-			if name := sceneShort(s); name != "" {
+			if name := uitext.SceneShort(s); name != "" {
 				ui.Text(c, name).FontSize(ovSceneSize).TextColor(ovText2).SingleLine().Ellipsis("…").MaxWidth(ovSceneMaxW).MinWidth(0).Shrink(1).
-					Label(i18n.T("App enhancement: %s", sceneLabel(s)))
+					Label(i18n.T("App enhancement: %s", uitext.SceneLabel(s)))
 			}
 		})
 		if text != "" {
@@ -221,56 +221,6 @@ func liveText(s session.Snapshot) string {
 	return strings.TrimSpace(s.Selection)
 }
 
-// sceneLabel is the app enhancement group a session falls in, as the
-// history and the pill's description say it: "Slack · Team chat"; ""
-// for none.
-func sceneLabel(s session.Snapshot) string {
-	if s.Scene == nil || !s.Scene.Matched() {
-		return ""
-	}
-	app := s.Target.Name
-	if s.Scene.Source == appctx.SourceURL && s.Scene.Host != "" {
-		app = s.Scene.Host // a website rule: the site, not the browser
-	}
-	if app == "" {
-		return s.Scene.GroupName()
-	}
-	return app + " · " + s.Scene.GroupName()
-}
-
-// sceneShort is the group's name alone, as the pill shows it: the user
-// knows which app they are in.
-func sceneShort(s session.Snapshot) string {
-	if s.Scene == nil || !s.Scene.Matched() {
-		return ""
-	}
-	return s.Scene.GroupName()
-}
-
-// workingText says what a session does after recording (the loader's
-// description).
-func workingText(s session.Snapshot) string {
-	switch s.State {
-	case session.Reading:
-		return i18n.T("Reading the selection…")
-	case session.Composing:
-		switch {
-		case s.Kind == store.KindTranslate && s.Selection != "":
-			return i18n.T("Translating the selection…")
-		case s.Kind == store.KindTranslate:
-			return i18n.T("Translating…")
-		case s.Kind == store.KindRewrite && s.Selection != "":
-			return i18n.T("Rewriting the selection…")
-		case s.Kind == store.KindRewrite:
-			return i18n.T("Writing…")
-		}
-		return i18n.T("Cleaning up…")
-	case session.Delivering:
-		return i18n.T("Inserting…")
-	}
-	return i18n.T("Recognizing…")
-}
-
 // overlayKindIcon is a feature's icon in the overlay: Voxt's mode icons
 // (10-15: the overlay's icons are Voxt's, the app's pages keep Solar's).
 func overlayKindIcon(k store.Kind) icons.Icon {
@@ -283,7 +233,7 @@ func overlayKindIcon(k store.Kind) icons.Icon {
 	return icons.VoxtTranscribe
 }
 
-// kindIcon is a feature's icon; kindTitle its name.
+// kindIcon is a feature's icon; uitext.KindTitle its name.
 func kindIcon(k store.Kind) icons.Icon {
 	switch k {
 	case store.KindTranslate:
@@ -292,16 +242,6 @@ func kindIcon(k store.Kind) icons.Icon {
 		return rewriteIcon
 	}
 	return transcribeIcon
-}
-
-func kindTitle(k store.Kind) string {
-	switch k {
-	case store.KindTranslate:
-		return i18n.T("Translate")
-	case store.KindRewrite:
-		return i18n.T("Rewrite")
-	}
-	return i18n.T("Transcribe")
 }
 
 // overlayNotice is a notice: the pill with an icon and one line in place
@@ -342,17 +282,4 @@ func (a *app) overlayNotice(c *ui.Context) {
 	if b.Children(content).Clicked() {
 		a.noticeAction(n.action)
 	}
-}
-
-// noticeActionLabel is a notice's button.
-func noticeActionLabel(action string) string {
-	switch action {
-	case actionProviders:
-		return i18n.T("Open Model services")
-	case actionPermissions:
-		return i18n.T("Open Permissions")
-	case actionHelper:
-		return i18n.T("Restart the helper")
-	}
-	return ""
 }

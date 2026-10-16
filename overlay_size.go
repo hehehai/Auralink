@@ -8,10 +8,10 @@ import (
 	"math"
 	"slices"
 	"strings"
-	"unicode"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // overlaySize is the face's size for mode, and whether its width is the
@@ -29,7 +29,7 @@ func (a *app) overlaySize(mode overlayMode) (w, h int, exact bool) {
 		return noticeWidth(tw, a.notice.action != actionNone), ovPillH, exact
 	case ovRecording, ovWorking:
 		scene, exact := float32(0), true
-		if name := sceneShort(a.sess); name != "" {
+		if name := uitext.SceneShort(a.sess); name != "" {
 			scene, exact = a.ovTextWidth(sceneText(name))
 		}
 		row := rowWidth(mode == ovRecording && a.prefs.Overlay.ShowTime, scene)
@@ -155,7 +155,7 @@ func (a *app) overlayTexts() []ovSized {
 			out = append(out, noticeText(a.notice.text))
 		}
 	case ovRecording, ovWorking:
-		if name := sceneShort(a.sess); name != "" {
+		if name := uitext.SceneShort(a.sess); name != "" {
 			out = append(out, sceneText(name))
 		}
 		if text := liveLineText(a.sess); text != "" {
@@ -202,7 +202,7 @@ func textWidth(text string, size float64) int {
 	w := 0.0
 	for _, r := range text {
 		switch {
-		case wideRune(r):
+		case uitext.WideRune(r):
 			w += size
 		case r == ' ' || r == 'i' || r == 'l' || r == '.' || r == ',' || r == ':':
 			w += 0.32 * size
@@ -211,13 +211,6 @@ func textWidth(text string, size float64) int {
 		}
 	}
 	return int(math.Ceil(w))
-}
-
-// wideRune says whether r is a wide (CJK) letter: as wide as the font
-// is high.
-func wideRune(r rune) bool {
-	return unicode.Is(unicode.Han, r) || unicode.In(r, unicode.Hiragana, unicode.Katakana, unicode.Hangul) ||
-		r >= 0xFF00 && r <= 0xFFEF || r >= 0x3000 && r <= 0x303F
 }
 
 // ovTestArea is the work area the overlay takes without a display

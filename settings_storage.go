@@ -19,6 +19,7 @@ import (
 	"github.com/hehehai/Auralink/internal/secrets"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store/sqlitestore"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // storageState is the Storage page's state.
@@ -149,7 +150,7 @@ func (a *app) startMove(dir string) {
 	}
 	need, _ := datadir.TreeSize(context.Background(), from, nil)
 	if free := diskFree(filepath.Dir(to)); free > 0 && free < need+need/20+(256<<20) {
-		a.toast(i18n.T("Not enough space there: %s needed, %s free.", humanBytes(need), humanBytes(free)))
+		a.toast(i18n.T("Not enough space there: %s needed, %s free.", uitext.HumanBytes(need), uitext.HumanBytes(free)))
 		return
 	}
 	_, existed := os.Stat(to)
@@ -289,14 +290,14 @@ func (a *app) storageSettings(c *ui.Context) {
 	}
 
 	sectionTitle(c, i18n.T("Data folder"))
-	settingRow(c, "st-data", shortPath(a.dataDir()), i18n.T("Your history, its recordings, your dictionary and the database."), func() {
+	settingRow(c, "st-data", uitext.ShortPath(a.dataDir()), i18n.T("Your history, its recordings, your dictionary and the database."), func() {
 		open("st-open-data", a.dataDir())
 		if ui.Button(c.Key("st-move"), i18n.T("Move…")).Disabled(a.moving).Clicked() {
 			chooseMoveDir(a, a.startMove)
 		}
 	})
 	if l := a.stLoc; l.Previous != "" {
-		settingRowNote(c, "st-prev", i18n.T("The previous data folder is still there"), shortPath(l.Previous), func() {
+		settingRowNote(c, "st-prev", i18n.T("The previous data folder is still there"), uitext.ShortPath(l.Previous), func() {
 			if ui.Button(c.Key("st-prev-rm"), i18n.T("Remove it")).Clicked() {
 				a.removePrevious()
 			}
@@ -320,11 +321,11 @@ func (a *app) storageSettings(c *ui.Context) {
 			muted(i18n.T("Measuring…"))
 		})
 	} else {
-		muted(i18n.T("Data folder: %s · free on its disk: %s", humanBytes(r.data), humanBytes(r.free)))
+		muted(i18n.T("Data folder: %s · free on its disk: %s", uitext.HumanBytes(r.data), uitext.HumanBytes(r.free)))
 		ui.Grid(c.Key("st-cats")).ColumnTracks(ui.Fr(1), ui.Fixed(px(t, 90)), ui.Fixed(px(t, 80))).GapX(px(t, sp3)).GapY(px(t, 6)).AlignItems(ui.Center).Children(func() {
 			for _, cat := range r.cats {
 				ui.Text(c, cat.title)
-				ui.Text(c, humanBytes(cat.bytes)).TextColor(t.TextMuted).TextAlign(ui.End)
+				ui.Text(c, uitext.HumanBytes(cat.bytes)).TextColor(t.TextMuted).TextAlign(ui.End)
 				ui.Row(c.Key("cat-" + cat.id)).Children(func() { open("open", cat.dir) })
 			}
 		})
@@ -394,13 +395,13 @@ func (a *app) storageDialogs(c *ui.Context) {
 		panel.Width(px(t, 440)).Radius(px(t, radiusCard)).Background(t.Background).Border(1, t.Border).Padding(px(t, sp5)).Label(i18n.T("Moving the data folder"))
 		ui.Column(c).Gap(px(t, 10)).Children(func() {
 			ui.Text(c, i18n.T("Moving the data folder")).Bold()
-			ui.Text(c, i18n.T("Copying to %s. Auralink restarts when the copy is checked, and finishes the move as it starts.", shortPath(a.moveTo))).FontSize(px(t, fsCaption))
+			ui.Text(c, i18n.T("Copying to %s. Auralink restarts when the copy is checked, and finishes the move as it starts.", uitext.ShortPath(a.moveTo))).FontSize(px(t, fsCaption))
 			frac := 0.0
 			if a.moveTotal > 0 {
 				frac = float64(a.moveDone) / float64(a.moveTotal)
 			}
 			ui.Progress(c, frac)
-			ui.Text(c, fmt.Sprintf("%s / %s", humanBytes(a.moveDone), humanBytes(a.moveTotal))).FontSize(px(t, fsCaption)).TextColor(t.TextMuted)
+			ui.Text(c, fmt.Sprintf("%s / %s", uitext.HumanBytes(a.moveDone), uitext.HumanBytes(a.moveTotal))).FontSize(px(t, fsCaption)).TextColor(t.TextMuted)
 			ui.Row(c).Justify(ui.End).Children(func() {
 				if ui.Button(c.Key("st-move-cancel"), i18n.T("Cancel")).Disabled(a.moveCancel == nil).Clicked() && a.moveCancel != nil {
 					a.moveCancel()

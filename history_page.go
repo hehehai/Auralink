@@ -21,6 +21,7 @@ import (
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/Auralink/internal/uitext"
 )
 
 // historyLimit is how many entries the list holds at most: the newest.
@@ -257,7 +258,7 @@ func (a *app) historyRow(c *ui.Context, e store.Entry) {
 	t := c.Theme()
 	k := tok(t)
 	h := &a.hist
-	title, failed := entryTitle(e)
+	title, failed := uitext.EntryTitle(e)
 	row := ui.ButtonBase(c.Key("hist-row-"+e.ID)).Padding(px(t, sp2), px(t, sp2)).Margin(0, px(t, sp4)).Radius(px(t, radiusControl)).
 		Label(title).Gap(px(t, sp2)).AlignItems(ui.Start)
 	switch {
@@ -282,7 +283,27 @@ func (a *app) historyRow(c *ui.Context, e store.Entry) {
 				}
 				entryMarks(c, e)
 			})
-			ui.Text(c, entryMeta(e)).FontSize(px(t, fsCaption)).TextColor(k.Text3).SingleLine().Ellipsis("…").MinWidth(0)
+			ui.Text(c, uitext.EntryMeta(e)).FontSize(px(t, fsCaption)).TextColor(k.Text3).SingleLine().Ellipsis("…").MinWidth(0)
 		})
 	})
+}
+
+// entryMarks are an entry's status marks: failed or cancelled, or left
+// in the answer card, or copied from it.
+func entryMarks(c *ui.Context, e store.Entry) {
+	k := tok(c.Theme())
+	switch e.Status {
+	case store.StatusFailed:
+		tagChip(c, i18n.T("Failed")).TextColor(k.Danger)
+		return
+	case store.StatusCancelled:
+		tagChip(c, i18n.T("Cancelled"))
+		return
+	}
+	switch e.Delivery {
+	case "card":
+		tagChip(c, i18n.T("Not inserted")).Tooltip(i18n.T("Shown in the answer card, and not inserted"))
+	case "copy":
+		tagChip(c, i18n.T("Copied")).Tooltip(i18n.T("Copied from the answer card"))
+	}
 }
