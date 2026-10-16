@@ -20,9 +20,3 @@ shell_settings.go                         674  # the settings dialog, General, t
 home_page.go                              624  # Home and its readiness list; R2
 onboarding.go                             618  # the setup guide's flow and its steps; R2
 history_page.go                           607  # the page and the entry's details; R2
-session_e2e_test.go                       855  # the session tests of the three features over the fake helper; R3
-internal/session/run.go                   981  # a session's run: listening, audio, composing and ending; R3
-internal/helper/helpertest/fake.go        936  # the fake helper: its protocol, capture and text I/O; R3
-internal/helper/supervise.go              767  # the supervisor's API, its process and its I/O; R3
-internal/helper/proto/methods.go          668  # every method's wire types; R3, by the protocol's sections
-internal/session/session.go               617  # the session's types and its Manager; R3

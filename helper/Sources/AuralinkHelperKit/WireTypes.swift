@@ -1,6 +1,7 @@
 import Foundation
 
-// The params and results of each method: internal/helper/proto/methods.go
+// The params and results of each method: internal/helper/proto (methods.go,
+// apps.go, capture.go, hotkey.go, textio.go)
 // field for field (see the conventions in Wire.swift).
 
 // MARK: helper.*, job.cancel, log
