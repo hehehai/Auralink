@@ -64,7 +64,7 @@ func TestSnapshotsAppEnhance(t *testing.T) {
 				}
 			}
 			browserURLs(fs, map[string]string{chromeApp.BundleID: "https://github.com/hehehai/Auralink/pulls"})
-			snapshotIcons(fs)
+			snapshotIcons(fs, os.Getenv("AURALINK_SNAPSHOT_ICONS"))
 			a.setRules(sampleRules())
 			a.urlReads["com.google.Chrome"] = urlRead{ok: true}
 			a.urlReads["com.apple.Safari"] = urlRead{err: "no web area"}

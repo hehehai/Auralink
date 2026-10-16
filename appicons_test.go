@@ -17,12 +17,12 @@ import (
 
 // snapshotIcons makes the fake supervisor answer app.icons with the fake
 // helper's icons, none for com.example.* (a removed app), and counts the
-// apps asked for. With AURALINK_SNAPSHOT_ICONS=<dir> it answers the PNGs
-// there (<bundle id>.png, as TestMacHelperIcons saves real ones), none
-// for the others.
-func snapshotIcons(fs *fakeSupervisor) *[][]string {
+// apps asked for. With a dir it answers the PNGs there (<bundle id>.png,
+// as TestMacHelperIcons saves real ones), none for the others: the
+// snapshots pass AURALINK_SNAPSHOT_ICONS, the tests of the icons' states
+// "" (with it set to a dir without their apps they saw none).
+func snapshotIcons(fs *fakeSupervisor, dir string) *[][]string {
 	var asked [][]string
-	dir := os.Getenv("AURALINK_SNAPSHOT_ICONS")
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 	fs.handlers[proto.MethodAppIcons] = func(raw json.RawMessage) (any, error) {
@@ -65,7 +65,7 @@ func manyApps(fs *fakeSupervisor, n int) {
 // time, and show them; a removed app shows the generic icon.
 func TestAppIcons(t *testing.T) {
 	a, fs, tt := aeTester(t)
-	asked := snapshotIcons(fs)
+	asked := snapshotIcons(fs, "")
 	tt.SetSize(windowWidth, windowHeight)
 	r := sampleRules()
 	r.Groups[0].Apps = append(r.Groups[0].Apps, appctx.App{BundleID: "com.example.removed", Name: "Removed"})
@@ -116,7 +116,7 @@ func TestAppIconsNoHelper(t *testing.T) {
 	a.iconCache.Write("com.tinyspeck.slackmacgap", proto.IconSize, helpertest.Icon("com.tinyspeck.slackmacgap", 64))
 	fs.Stop()
 	frames(tt)
-	asked := snapshotIcons(fs)
+	asked := snapshotIcons(fs, "")
 	a.setRules(sampleRules())
 	a.aePage.sel = "g-chat"
 	frames(tt)
