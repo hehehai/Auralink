@@ -223,3 +223,35 @@ func TestCleanOnByDefault(t *testing.T) {
 		t.Errorf("off lost: %s", data)
 	}
 }
+
+// TestBetaUpdates: betas follow the running version until the user
+// chooses, older documents have no choice, and a choice either way stays.
+func TestBetaUpdates(t *testing.T) {
+	s, err := Migrate([]byte(`{"version":3}`))
+	if err != nil || s.Updates.Beta != nil {
+		t.Fatalf("older document: %+v %v", s.Updates, err)
+	}
+	for v, want := range map[string]bool{"0.1.0-beta.1": true, "1.0.0-rc.2": true, "0.1.0": false, "": false} {
+		if got := s.Updates.BetaOn(v); got != want {
+			t.Errorf("BetaOn(%q) = %t without a choice", v, got)
+		}
+	}
+	data, _ := json.Marshal(Defaults())
+	if strings.Contains(string(data), `"updates"`) {
+		t.Errorf("updates written without a choice: %s", data)
+	}
+	for _, on := range []bool{true, false} {
+		s := Defaults()
+		s.Updates.Beta = &on
+		data, _ := json.Marshal(s)
+		m, err := Migrate(data)
+		if err != nil || m.Updates.Beta == nil || *m.Updates.Beta != on {
+			t.Fatalf("choice %t lost: %s", on, data)
+		}
+		for _, v := range []string{"0.1.0-beta.1", "0.1.0"} {
+			if m.Updates.BetaOn(v) != on {
+				t.Errorf("choice %t, running %s: %t", on, v, m.Updates.BetaOn(v))
+			}
+		}
+	}
+}

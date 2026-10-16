@@ -111,6 +111,17 @@ func TestSnapshots(t *testing.T) {
 			if s.id == "about" { // Updates, under the fold (updates.go)
 				scrollToText(tt, i18n.T("Updates"))
 				save("settings-about-updates")
+				// Beta updates, on by default in a beta.
+				ver := a.version
+				a.version = "0.1.0-beta.1"
+				scrollToText(tt, i18n.T("Beta updates"))
+				save("settings-about-beta")
+				off := false // turned off in a beta: no going back
+				a.prefs.Updates.Beta = &off
+				frames(tt)
+				save("settings-about-beta-off")
+				a.prefs.Updates.Beta = nil
+				a.version = ver
 			}
 			if s.id == "overlay" { // its preview, under the controls
 				w, h := snapshotSize()

@@ -9,7 +9,10 @@ package main
 // when there is one, else the archive), reads the version of the bundle on
 // disk afterwards, and starts the helper supervisor as the app does, which
 // must see the update (appbundle.Updated) and start no helper. It writes
-// what happened to <report.json> and quits. Release builds do not have it.
+// what happened to <report.json> and quits. With --update-beta on it takes
+// betas (mygo.Updater.SetPrereleases), as Beta updates does; without it,
+// as the app does by default: betas when the running version is one.
+// Release builds do not have it.
 
 import (
 	"context"
@@ -22,6 +25,7 @@ import (
 	"github.com/hehehai/Auralink/internal/appbundle"
 	"github.com/hehehai/Auralink/internal/core"
 	"github.com/hehehai/Auralink/internal/helper"
+	"github.com/hehehai/Auralink/internal/settings"
 )
 
 func init() { updateCheck = runUpdateCheck }
@@ -29,6 +33,7 @@ func init() { updateCheck = runUpdateCheck }
 // updateCheckReport is what the check found and did.
 type updateCheckReport struct {
 	Running  string `json:"running"`  // App.Version
+	Beta     bool   `json:"beta"`     // the check took betas
 	Enabled  bool   `json:"enabled"`  // Updater.Enabled
 	Found    string `json:"found"`    // the version Check found, "" when up to date
 	Notes    string `json:"notes"`    // its release notes
@@ -48,6 +53,13 @@ type updateCheckReport struct {
 
 func runUpdateCheck(out string) {
 	rep := updateCheckReport{Running: mygo.App.Version(), Enabled: mygo.Updater.Enabled()}
+	var beta settings.Updates
+	if v := argAfter("--update-beta"); v != "" {
+		on := v == "on"
+		beta.Beta = &on
+	}
+	rep.Beta = beta.BetaOn(rep.Running)
+	mygo.Updater.SetPrereleases(rep.Beta)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	up, err := mygo.Updater.Check(ctx)

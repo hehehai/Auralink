@@ -14,9 +14,16 @@ package main
 // not start it (helper.FailUpdated), and a card asks to restart Auralink
 // (appUpdated), which a timer, a check and the helper's failure look for
 // (checkBundle, appbundle.Updated).
+//
+// Beta updates (Settings → About): betas are GitHub prereleases, which
+// MyGo offers only while mygo.Updater.SetPrereleases is on (patch 0006);
+// the switch is Updates.Beta in Auralink's settings, on by default while
+// the running version is itself a beta (settings.Updates.BetaOn), and
+// applied when the app starts and when it changes (applyBeta).
 
 import (
 	"os"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -24,6 +31,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/core"
 	"github.com/hehehai/Auralink/internal/i18n"
+	"github.com/hehehai/Auralink/internal/settings"
 )
 
 // updateCheck is the update check of -tags updatecheck builds
@@ -48,6 +56,8 @@ type updateService interface {
 	Prefs() updatePrefs
 	SetAutomaticChecks(on bool)
 	SetAutomaticDownloads(on bool)
+	// SetPrereleases makes checks offer betas too (memory only).
+	SetPrereleases(on bool)
 	// CheckNow checks as the user asked: the update window shows at once.
 	CheckNow()
 	// OnChange calls fn on the main thread after the preferences or the
@@ -74,6 +84,7 @@ func (pluginUpdates) Prefs() updatePrefs {
 }
 func (pluginUpdates) SetAutomaticChecks(on bool)      { updater.SetAutomaticChecks(on) }
 func (pluginUpdates) SetAutomaticDownloads(on bool)   { updater.SetAutomaticDownloads(on) }
+func (pluginUpdates) SetPrereleases(on bool)          { mygo.Updater.SetPrereleases(on) }
 func (pluginUpdates) CheckNow()                       { updater.CheckForUpdates() }
 func (pluginUpdates) OnChange(fn func()) (off func()) { return updater.OnChange(fn) }
 
@@ -154,6 +165,24 @@ func (a *app) setAutoCheck(on bool) {
 	a.updPrefs.AutoCheck = on
 	upd := a.upd
 	a.async(func() { upd.SetAutomaticChecks(on) })
+}
+
+// betaOn reports whether updates include betas: the user's choice, else
+// whether this version is a beta.
+func (a *app) betaOn() bool { return a.prefs.Updates.BetaOn(a.version) }
+
+// applyBeta tells the updater whether to offer betas; it runs once the
+// version is known (main, after openWindow) and when the choice changes.
+func (a *app) applyBeta() {
+	if a.upd != nil {
+		a.upd.SetPrereleases(a.betaOn())
+	}
+}
+
+// setBeta is the user's choice of Beta updates, which lasts.
+func (a *app) setBeta(on bool) {
+	a.updateSettings(func(s *settings.Settings) { s.Updates.Beta = &on })
+	a.applyBeta()
 }
 
 func (a *app) setAutoInstall(on bool) {
@@ -242,6 +271,19 @@ func (a *app) updateSettingsSection(c *ui.Context) {
 	settingRow(c, "about-update-auto", i18n.T("Check automatically"), i18n.T("Once a day, in the background. A new version opens a window with its notes, which asks before installing it."), func() {
 		if ui.Switch(c.Key("about-update-auto-switch"), &a.updPrefs.AutoCheck).Label(i18n.T("Check for updates automatically")).Changed() {
 			a.setAutoCheck(a.updPrefs.AutoCheck)
+		}
+	})
+	beta := a.betaOn()
+	note := i18n.T("Releases only. Turning it on offers betas too: new features sooner, and more bugs.")
+	switch {
+	case beta:
+		note = i18n.T("Betas and releases, whichever is newer. Betas bring new features sooner, and more bugs.")
+	case strings.Contains(a.version, "-"):
+		note = i18n.T("Releases only. This beta stays until a release newer than it comes out: Auralink never goes back to an older version.")
+	}
+	settingRowNote(c, "about-update-beta", i18n.T("Beta updates"), note, func() {
+		if ui.Switch(c.Key("about-update-beta-switch"), &beta).Label(i18n.T("Get beta versions")).Changed() {
+			a.setBeta(beta)
 		}
 	})
 	settingRow(c, "about-update-install", i18n.T("Install updates automatically"), i18n.T("Updates found in the background download and install without asking; Auralink then asks to restart. Off by default."), func() {

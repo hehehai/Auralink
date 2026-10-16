@@ -18,6 +18,7 @@ import (
 type fakeUpdates struct {
 	mu      sync.Mutex
 	prefs   updatePrefs
+	pre     bool // SetPrereleases
 	checks  int
 	changes []*func()
 }
@@ -38,6 +39,18 @@ func (f *fakeUpdates) SetAutomaticChecks(on bool) {
 
 func (f *fakeUpdates) SetAutomaticDownloads(on bool) {
 	f.change(func(p *updatePrefs) { p.AutoInstall = on })
+}
+
+func (f *fakeUpdates) SetPrereleases(on bool) {
+	f.mu.Lock()
+	f.pre = on
+	f.mu.Unlock()
+}
+
+func (f *fakeUpdates) prereleases() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.pre
 }
 
 func (f *fakeUpdates) CheckNow() {
@@ -117,6 +130,60 @@ func TestUpdatesSettings(t *testing.T) {
 	click(t, tt, "Check for Updates…") // the window says why
 	if f.checked() != 2 {
 		t.Errorf("checks %d", f.checked())
+	}
+}
+
+// TestBetaUpdates: Settings → About → Beta updates is on by default in a
+// beta and off in a release, tells the updater, and the user's choice
+// lasts over versions.
+func TestBetaUpdates(t *testing.T) {
+	dir := t.TempDir()
+	a, _, tt := newTestAppIn(t, dir)
+	f := a.upd.(*fakeUpdates)
+	a.version = "0.1.0-beta.1"
+	a.applyBeta()
+	if !f.prereleases() {
+		t.Error("a beta does not take betas by default")
+	}
+	a.navigate("/settings/about")
+	see(t, tt, "Get beta versions")
+	if !has(tt, "Beta updates") || !hasPrefix(tt, "Betas and releases, whichever is newer.") {
+		t.Fatalf("about: %q", firstTexts(tt))
+	}
+	click(t, tt, "Get beta versions")
+	frames(tt)
+	if !hasPrefix(tt, "Releases only. This beta stays until a release newer than it comes out") {
+		t.Errorf("off in a beta: %q", firstTexts(tt))
+	}
+	if f.prereleases() || a.prefs.Updates.Beta == nil || *a.prefs.Updates.Beta {
+		t.Errorf("after turning betas off: updater %t, settings %v", f.prereleases(), a.prefs.Updates.Beta)
+	}
+	if b := a.lib.settings.Get().Updates.Beta; b == nil || *b {
+		t.Errorf("saved %v", b)
+	}
+	// A release turns them off by default, and the choice lasts.
+	a.quit()
+	a.lib.close()
+	b, _, _ := newTestAppIn(t, dir)
+	b.version = "0.1.0-beta.2"
+	b.applyBeta()
+	if b.upd.(*fakeUpdates).prereleases() {
+		t.Error("the choice to turn betas off was lost")
+	}
+	c, _, tt3 := newTestApp(t)
+	c.version = "0.1.0"
+	c.applyBeta()
+	if c.upd.(*fakeUpdates).prereleases() {
+		t.Error("a release takes betas by default")
+	}
+	c.navigate("/settings/about")
+	see(t, tt3, "Get beta versions")
+	if !hasPrefix(tt3, "Releases only. Turning it on offers betas too") {
+		t.Errorf("off in a release: %q", firstTexts(tt3))
+	}
+	click(t, tt3, "Get beta versions")
+	if !c.upd.(*fakeUpdates).prereleases() {
+		t.Error("turning betas on did not reach the updater")
 	}
 }
 
