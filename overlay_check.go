@@ -201,6 +201,7 @@ func (a *app) overlayCheck(dir string) {
 	var log strings.Builder
 	logf := func(format string, args ...any) { fmt.Fprintf(&log, format+"\n", args...) }
 	self := os.Getpid()
+	logf("# the system's language %q (Settings: follow the system)", systemLanguage())
 	logf("# step mode asked=x,y,w,h window=x,y,w,h visible front")
 	n := 0
 	var columns [][]ovCheckShot
@@ -208,7 +209,7 @@ func (a *app) overlayCheck(dir string) {
 		lang string
 		dark bool
 	}{{"en", false}, {"zh-Hans", true}} {
-		i18n.SetLocale(bd.lang)
+		showLanguage(i18n.SetLocale(bd.lang))
 		var back *mygo.Window
 		var region mygo.Rectangle
 		onMain(func() {

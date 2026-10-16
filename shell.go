@@ -317,7 +317,7 @@ func section(path string) string {
 // closes" on, Auralink starts in the menu bar: the window waits hidden.
 func (a *app) openWindow() {
 	a.version = mygo.App.Version()
-	a.systemLocale = mygo.App.Locale()
+	a.systemLocale = systemLanguage() // shell_settings.go
 	a.hasMenu = true
 	a.applyLocale() // the system's language, unless the settings name one
 	a.buildMenu()
@@ -549,7 +549,7 @@ func (a *app) sidebarSearch(c *ui.Context) {
 func showFatal(err error) {
 	log.Print(err)
 	mygo.App.WhenReady(func() {
-		i18n.SetLocale(mygo.App.Locale())
+		showLanguage(i18n.SetLocale(systemLanguage())) // shell_settings.go
 		go func() {
 			dataDir, _ := mygo.App.Path(mygo.PathUserData)
 			res, _ := mygo.Dialog.Message(mygo.MessageOptions{

@@ -14,9 +14,16 @@ import (
 	"log"
 
 	"github.com/egoist/mygo"
+	// MyGo's own strings (a text field's menu, a dialog's buttons) in
+	// Chinese, when the app shows it (showLanguage).
+	_ "github.com/egoist/mygo/locales/zh-Hans"
+	"github.com/hehehai/Auralink/internal/i18n"
 )
 
 func main() {
+	// The languages Auralink is written in, of which MyGo shows one
+	// (showLanguage, shell_settings.go).
+	mygo.App.SetLanguages(i18n.Supported()...)
 	// The overlay check (overlay_check.go) runs instead of the app: no
 	// data, no lock, no helper.
 	if dir := overlayCheckDir(); dir != "" {

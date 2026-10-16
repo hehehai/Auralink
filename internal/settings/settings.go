@@ -50,7 +50,8 @@ type Settings struct {
 // General: languages and how the app stays around.
 type General struct {
 	// Language is the UI language as a BCP-47 tag ("en", "zh-Hans"), or ""
-	// to follow the system (mygo.App.Locale()); see i18n.Match.
+	// to follow the system (its first preferred language, systemLanguage);
+	// see i18n.Match.
 	Language string `json:"language"`
 	// MainLanguage is the language the user mostly speaks and writes (a
 	// lang code, "zh"); OtherLanguages the ones they mix in. The prompt
