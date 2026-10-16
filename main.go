@@ -24,7 +24,7 @@ import (
 
 func main() {
 	// The languages Auralink is written in, of which MyGo shows one
-	// (showLanguage, shell_settings.go).
+	// (showLanguage, settings_locale.go).
 	mygo.App.SetLanguages(i18n.Supported()...)
 	// The update check of -tags updatecheck builds (update_check.go) runs
 	// instead of the app: no window, no data, no lock.
@@ -76,7 +76,7 @@ func main() {
 		return
 	}
 	if demoLibrary != nil {
-		demoLibrary(lib) // demo.go: the sample data
+		demoLibrary(lib) // demo_data.go: the sample data
 	}
 	h := newHelperHost(resources, logDir) // helperlink.go
 	a := newApp(lib, h)                   // app.go

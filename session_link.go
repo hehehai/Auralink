@@ -233,7 +233,7 @@ func (a *app) sessionChanged(s session.Snapshot) {
 // history.
 func (a *app) sessionEnded(s session.Snapshot) {
 	if s.State == session.Done && strings.TrimSpace(s.Result) != "" {
-		a.markTried() // home_page.go: Home stops offering its Try area
+		a.markTried() // home_try.go: Home stops offering its Try area
 	}
 	if s.Try {
 		a.historyChanged() // history_page.go (a try keeps nothing, but the page may show it)

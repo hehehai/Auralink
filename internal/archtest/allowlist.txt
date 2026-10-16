@@ -8,9 +8,5 @@
 # said why in the commit.
 #
 # path                                  lines  # why it is long; the batch that splits it
-demo.go                                   724  # the demo build's machinery and its sample data; R2
-overlay_card.go                           714  # the answer card's model and its view; R2
-shell_settings.go                         674  # the settings dialog, General, the locale and the rows every section uses; R2
-home_page.go                              624  # Home and its readiness list; R2
-onboarding.go                             618  # the setup guide's flow and its steps; R2
-history_page.go                           607  # the page and the entry's details; R2
+#
+# (none: refactor R1–R3 split every file that was over the limit)

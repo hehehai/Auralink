@@ -26,7 +26,6 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/core"
 	"github.com/hehehai/Auralink/internal/i18n"
-	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/logs"
 	"github.com/hehehai/Auralink/internal/notify"
 	"github.com/hehehai/Auralink/internal/settings"
@@ -92,13 +91,9 @@ type shellState struct {
 	logsHeight   float32
 	logsDirty    atomic.Bool // a redraw for new lines is on its way
 
-	navState            // shell_nav.go
-	storageState        // settings_storage.go
-	networkState        // settings_network.go
-	aboutState          // settings_about.go
-	settingsForm        // shell_settings.go
-	menuLocale   string // locale the native menu was built in
-	hasMenu      bool   // the app runs (not a test): it has a menu bar to build
+	navState          // shell_nav.go
+	menuLocale string // locale the native menu was built in
+	hasMenu    bool   // the app runs (not a test): it has a menu bar to build
 }
 
 func newShellState() shellState {
@@ -164,114 +159,6 @@ func (a *app) closeShell() {
 	a.logs.Close()
 }
 
-// navPage is a page of the sidebar.
-type navPage struct {
-	path, title string // title: English, translated where shown (pageTitle)
-	icon        icons.Icon
-}
-
-// navGroup is a section of the sidebar; the first has no title.
-type navGroup struct {
-	id    string // English title, translated by groupTitle; "" for none
-	pages []navPage
-}
-
-// navGroups are the sidebar's sections and pages, in order (plan §3.1).
-// pages.go keeps the pages' views; their icons are below.
-var navGroups = []navGroup{
-	{"", []navPage{
-		{"/home", "Home", homeIcon},
-		{"/history", "History", historyIcon},
-	}},
-	{"Features", []navPage{
-		{"/transcribe", "Transcribe", transcribeIcon},
-		{"/translate", "Translate", translateIcon},
-		{"/rewrite", "Rewrite", rewriteIcon},
-		{"/app-enhancement", "App enhancement", appEnhancementIcon},
-	}},
-	{"Resources", []navPage{
-		{"/providers", "Model services", providersIcon},
-		{"/dictionary", "Dictionary", dictionaryIcon},
-	}},
-	{"System", []navPage{
-		{"/logs", "Logs", logsIcon},
-	}},
-}
-
-// shortcutPages are the pages ⌘1…⌘6 open, in that order.
-var shortcutPages = []string{"/home", "/history", "/transcribe", "/translate", "/rewrite", "/app-enhancement"}
-
-// pages are every page of the sidebar, in its order.
-var pages = func() []navPage {
-	var out []navPage
-	for _, g := range navGroups {
-		out = append(out, g.pages...)
-	}
-	return out
-}()
-
-// pageKeys is the shortcut of a page ("⌘1"), "" when it has none.
-func pageKeys(path string) string {
-	for i, p := range shortcutPages {
-		if p == path {
-			return "⌘" + itoa(i+1)
-		}
-	}
-	return ""
-}
-
-// groupTitle translates a sidebar section's title.
-func groupTitle(id string) string {
-	switch id {
-	case "Features":
-		return i18n.T("Features")
-	case "Resources":
-		return i18n.T("Resources")
-	case "System":
-		return i18n.T("System")
-	}
-	return id
-}
-
-// navBadge is what a page's sidebar item shows after its title: a count
-// or a state, "" for nothing. Areas answer for their pages.
-func (a *app) navBadge(path string) string {
-	return ""
-}
-
-// pageTitle translates a page's title (literal calls, for the key scan).
-func pageTitle(path string) string {
-	switch path {
-	case "/home":
-		return i18n.T("Home")
-	case "/history":
-		return i18n.T("History")
-	case "/transcribe":
-		return i18n.T("Transcribe")
-	case "/translate":
-		return i18n.T("Translate")
-	case "/rewrite":
-		return i18n.T("Rewrite")
-	case "/app-enhancement":
-		return i18n.T("App enhancement")
-	case "/providers":
-		return i18n.T("Model services")
-	case "/dictionary":
-		return i18n.T("Dictionary")
-	case "/logs":
-		return i18n.T("Logs")
-	case "/settings":
-		return i18n.T("Settings")
-	}
-	return path
-}
-
-// movedPaths are pages that moved, and where they are now: links,
-// notifications and old settings may still name them.
-var movedPaths = map[string]string{
-	"/permissions": "/settings/permissions", // a page of the sidebar until 10-2026
-}
-
 // navigate goes to a router path ("/models"); it does nothing when that
 // page shows already. "/settings/general" opens the settings dialog at
 // that section, over the page, and "/settings" at the section shown last;
@@ -317,7 +204,7 @@ func section(path string) string {
 // closes" on, Auralink starts in the menu bar: the window waits hidden.
 func (a *app) openWindow() {
 	a.version = mygo.App.Version()
-	a.systemLocale = systemLanguage() // shell_settings.go
+	a.systemLocale = systemLanguage() // settings_locale.go
 	a.hasMenu = true
 	a.applyLocale() // the system's language, unless the settings name one
 	a.buildMenu()
@@ -342,21 +229,6 @@ func (a *app) openWindow() {
 func startHidden(atLogin bool, g settings.General) bool {
 	return atLogin && g.MenuBar && g.CloseToTray
 }
-
-// The pages' and the shell's icons (Solar; internal/icons/names.txt).
-var (
-	homeIcon           = icons.Home2
-	historyIcon        = icons.History
-	transcribeIcon     = icons.Microphone3
-	translateIcon      = icons.Global
-	rewriteIcon        = icons.PenNewRound
-	appEnhancementIcon = icons.Target
-	providersIcon      = icons.Cloud
-	dictionaryIcon     = icons.NotebookBookmark
-	permissionsIcon    = icons.ShieldKeyhole
-	logsIcon           = icons.ClipboardList
-	searchIcon         = icons.Magnifer
-)
 
 func (a *app) view(c *ui.Context) {
 	a.applyTheme(c)
@@ -389,7 +261,7 @@ func (a *app) view(c *ui.Context) {
 		})
 	})
 	a.settingsDialog(c)     // shell_settings.go
-	a.onboarding(c)         // onboarding.go
+	a.onboarding(c)         // onboarding_view.go
 	a.providerDialogView(c) // providers_dialog.go: over the page and the setup guide
 	a.palette(c)
 	a.shortcutSheet(c)
@@ -451,105 +323,12 @@ func (a *app) syncNav() {
 	}
 }
 
-func (a *app) sidebar(c *ui.Context) {
-	t := c.Theme()
-	k := tok(t)
-	ui.Row(c).Height(titleBarHeight).Shrink(0).DragWindow().AlignItems(ui.Center).Justify(ui.End).Padding(0, px(t, sp2), 0, 0).Children(func() {
-		if iconButton(c.Key("rail-on"), icons.SidebarMinimalistic, i18n.T("Show icons only")).Clicked() {
-			a.setRail(true)
-		}
-	})
-	a.sidebarSearch(c)
-	// The sidebar's own theme: icons in the secondary grey, the chosen
-	// page's in the text colour (MyGo draws a sidebar item's icon in the
-	// accent, and the chosen one's in the accent's text colour).
-	side := *t
-	side.Accent, side.AccentText = k.Text2, k.Text
-	side.SurfaceHover, side.SurfacePressed = k.G[2], k.G[3]
-	chosen := side
-	chosen.Accent = k.Text
-	// The list scrolls: a fade at its foot says there is more below.
-	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
-		ui.Sidebar(c, &a.nav, func() {
-			for _, g := range navGroups {
-				items := func() {
-					for _, p := range g.pages {
-						sel := p.path == a.nav
-						if sel {
-							c.SetTheme(&chosen)
-						} else {
-							c.SetTheme(&side)
-						}
-						item := ui.SidebarItem(c, p.path, p.icon.Get(sel), pageTitle(p.path)).Padding(px(t, 4), px(t, sp2))
-						c.SetTheme(t)
-						if sel {
-							item.Background(k.Pressed).FontWeight(600)
-						} else {
-							item.TextColor(k.G[8])
-						}
-						if b := a.navBadge(p.path); b != "" {
-							item.Children(func() { ui.Badge(c, b) })
-						}
-					}
-				}
-				if g.id == "" {
-					items()
-					continue
-				}
-				ui.SidebarSection(c.Key("nav-"+g.id), groupTitle(g.id), a.sectionOpen(g.id), items).Margin(px(t, 2), 0, 0, 0)
-			}
-		}).Grow(1).MinHeight(0).Background(ui.Transparent).Padding(0, px(t, 10), px(t, sp2)).Label(i18n.T("Sections")).OnChange(func() {
-			a.navigate(a.nav)
-		})
-		ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(px(t, 20)).Gradient(k.Sidebar.Alpha(0), k.Sidebar, 180).PassThrough()
-	})
-	a.saveClosedSections()
-	// The notifications, over Settings (shell_notices.go).
-	if len(a.notices) > 0 {
-		ui.Column(c).Shrink(0).Padding(px(t, sp1), px(t, 10), px(t, sp2)).Children(func() { a.noticeStack(c) })
-	}
-	ui.Column(c).Shrink(0).Padding(px(t, 6), px(t, 10), px(t, 8)).BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
-		b := ghostBase(c.Key("nav-settings")).Padding(px(t, 6), px(t, sp2)).Gap(px(t, sp2)).Justify(ui.Start).Label(i18n.T("Settings")).Tooltip(i18n.T("Settings") + " (⌘,)")
-		b.Children(func() {
-			ui.Icon(c, icons.Settings.Get(a.settingsOpen)).Size(px(t, 16), px(t, 16)).TextColor(k.Text2)
-			ui.Text(c, i18n.T("Settings")).TextColor(k.G[8]).SingleLine().Grow(1).MinWidth(0)
-			if a.version != "" {
-				ui.Text(c, "v"+a.version).FontSize(px(t, fsMicro)).TextColor(k.Text3).SingleLine().Shrink(0)
-			}
-		})
-		if b.Clicked() {
-			a.navigate("/settings")
-		}
-	})
-}
-
-// sidebarSearch is the sidebar's search field: it opens the palette.
-func (a *app) sidebarSearch(c *ui.Context) {
-	t := c.Theme()
-	k := tok(t)
-	ui.Column(c).Shrink(0).Padding(0, px(t, 10), px(t, sp2)).Children(func() {
-		b := ui.ButtonBase(c.Key("nav-search")).Padding(px(t, 6), px(t, sp2)).Gap(px(t, sp2)).Radius(px(t, radiusControl)).
-			Background(k.Bg).Border(1, k.Line).Justify(ui.Start).Label(i18n.T("Command palette")).Tooltip(i18n.T("Command palette") + " (⌘K)")
-		if b.Hovered() {
-			b.Border(1, k.G[4])
-		}
-		b.Children(func() {
-			ui.Icon(c, icons.Magnifer.Linear).Size(px(t, 14), px(t, 14)).TextColor(k.Text3)
-			ui.Text(c, i18n.T("Search")).FontSize(px(t, fsCaption)).TextColor(k.Text3).SingleLine().Grow(1).MinWidth(0)
-			ui.Text(c, "⌘K").FontSize(px(t, fsMicro)).TextColor(k.Text3)
-		})
-		if b.Clicked() {
-			a.openPalette()
-		}
-	})
-}
-
 // showFatal explains, in a dialog, why Auralink cannot start (its library
 // did not open), then quits. It runs instead of the app.
 func showFatal(err error) {
 	log.Print(err)
 	mygo.App.WhenReady(func() {
-		showLanguage(i18n.SetLocale(systemLanguage())) // shell_settings.go
+		showLanguage(i18n.SetLocale(systemLanguage())) // settings_locale.go
 		go func() {
 			dataDir, _ := mygo.App.Path(mygo.PathUserData)
 			res, _ := mygo.Dialog.Message(mygo.MessageOptions{

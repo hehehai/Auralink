@@ -12,7 +12,8 @@ import (
 // Each area keeps its fields in a struct of its own, embedded here, in the
 // file of its area (docs/architecture.md):
 //
-//	shellState        shell.go        window chrome, navigation, settings, notifications, logs
+//	shellState        shell.go        window chrome, navigation, notifications, logs
+//	settingsState     shell_settings.go  the settings dialog's sections
 //	helperLink        helperlink.go   the Swift helper's supervisor and status
 //	trayState         tray.go         the menu bar icon
 //	permissionsState  permissions.go  Settings → Permissions
@@ -39,6 +40,7 @@ type app struct {
 	postQueue func(func())
 
 	shellState
+	settingsState
 	helperLink
 	trayState
 	permissionsState
