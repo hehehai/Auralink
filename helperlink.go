@@ -6,7 +6,7 @@ package main
 // its status kept here from helper.StatusChanged. Requests go from a
 // goroutine (helperCall); notifications that belong to no request
 // (hotkey.event) arrive in helperNotified and start sessions
-// (sessionlink.go).
+// (session_link.go).
 
 import (
 	"context"
@@ -65,7 +65,7 @@ func (a *app) connectHelper() {
 		})
 	}
 	a.hstatus = h.sup.Status()
-	a.openSessions() // sessionlink.go
+	a.openSessions() // session_link.go
 }
 
 // startHelper starts the helper; it runs when the window opens.
@@ -98,7 +98,7 @@ func (a *app) helperChanged(st helper.Status) {
 	if st.State == helper.Ready && was != helper.Ready {
 		a.recheckPermissions() // permissions.go
 		a.hotkeysSent = ""     // a new helper has no shortcuts yet
-		a.syncHotkeys()        // sessionlink.go
+		a.syncHotkeys()        // session_hotkeys.go
 		a.treesSent = ""
 		a.syncTrees()        // appenhance.go
 		a.iconsHelperReady() // appicons.go: the icons that failed, again
@@ -124,7 +124,7 @@ func (a *app) helperChanged(st helper.Status) {
 }
 
 // helperNotified handles a notification of no request: a shortcut
-// (sessionlink.go), the event tap's state and the app in front.
+// (session_link.go), the event tap's state and the app in front.
 func (a *app) helperNotified(m proto.Message) {
 	switch m.Method {
 	case proto.MethodHotkeyEvent:

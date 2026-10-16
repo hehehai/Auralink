@@ -66,7 +66,7 @@ func (a *app) shortcutsSettings(c *ui.Context) {
 		})
 		for _, feat := range append(append([]string{}, hotkey.Features...), hotkey.PasteLast) {
 			hs := hotkey.HotkeysOf(f, feat)
-			problems := hotkeyProblems(f, feat) // transcribe_page.go
+			problems := hotkeyProblems(f, feat) // feature_keys_text.go
 			if len(hs) == 0 {
 				a.shortcutRow(c, feat, 0, nil, nil, keysW)
 				continue
@@ -138,7 +138,7 @@ func (a *app) shortcutRow(c *ui.Context, feature string, i int, h *settings.Hotk
 			})
 			if len(problems) > 0 {
 				ui.Column(c).Padding(0, 0, 0, px(t, 16+sp2)).Gap(px(t, 2)).Children(func() {
-					problemLines(c, problems) // transcribe_page.go
+					problemLines(c, problems) // feature_keys.go
 				})
 			}
 		})
