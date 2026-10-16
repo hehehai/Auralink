@@ -12,6 +12,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater"
@@ -68,6 +69,8 @@ func main() {
 		return
 	}
 	resources, _ := mygo.App.Path(mygo.PathResources)
+	wd, _ := os.Getwd()
+	legalDocs = findLegalDocs(resources, wd) // settings_about.go: LICENSE, NOTICE
 	logDir, _ := mygo.App.Path(mygo.PathLogs)
 	cacheDir, _ := mygo.App.Path(mygo.PathCache)
 

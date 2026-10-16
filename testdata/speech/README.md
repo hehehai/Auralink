@@ -34,8 +34,8 @@ Synthetic speech, no human voice:
   threshold), 0.3 s of silence before and after, peak-normalise to −3 dBFS,
   resample to 16 kHz (`rate -v`), 16-bit with dither.
 
-Apache-2.0 puts no condition on the model's outputs; the file is shipped
-under this repository's licence (AGPL-3.0-or-later; NOTICE).
+Apache-2.0 puts no condition on the model's outputs. The file is test
+data of this repository and does not ship in Auralink.app (NOTICE).
 
 Checked with two local recognisers (AudioSmith's engine):
 

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -386,8 +387,24 @@ func TestAboutAndBundle(t *testing.T) {
 	if ents, _ := os.ReadDir(bundleDir); len(ents) != 1 || !strings.HasSuffix(ents[0].Name(), ".zip") {
 		t.Errorf("bundle: %v", ents)
 	}
-	if u := a.bugReportURL(); !strings.HasPrefix(u, issuesURL+"?") || !strings.Contains(u, "Diagnostics") {
+	if u := a.bugReportURL(); !strings.HasPrefix(u, "mailto:"+supportEmail+"?") || !strings.Contains(u, "subject=Auralink%20bug%20report") || !strings.Contains(u, "Diagnostics") || strings.Contains(u, "+") {
 		t.Errorf("bug url %s", u)
+	}
+	// The licence and the notices: the app's own copies, else the website.
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "NOTICE"), []byte("notice"), 0o644)
+	if got := findLegalDocs("", t.TempDir(), dir); got != dir {
+		t.Errorf("findLegalDocs: %q, want %q", got, dir)
+	}
+	saved := legalDocs
+	t.Cleanup(func() { legalDocs = saved })
+	legalDocs = ""
+	if u := legalDocURL("NOTICE", websiteURL); u != websiteURL {
+		t.Errorf("no bundled NOTICE: %s", u)
+	}
+	legalDocs = "/Applications/Auralink.app/Contents/Resources"
+	if u := legalDocURL("NOTICE", websiteURL); u != "file:///Applications/Auralink.app/Contents/Resources/NOTICE" {
+		t.Errorf("bundled NOTICE: %s", u)
 	}
 }
 
