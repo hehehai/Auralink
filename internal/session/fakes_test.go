@@ -57,6 +57,7 @@ type fakeAudio struct {
 	late    map[string]func(AudioEvent) // the callback of an ended recording
 	frames  int
 	stopped int
+	running int // Records that have not returned
 }
 
 func newFakeAudio() *fakeAudio {
@@ -70,10 +71,12 @@ func (f *fakeAudio) Record(ctx context.Context, id string, p proto.CaptureParams
 	stop := make(chan struct{})
 	f.mu.Lock()
 	f.stops[id] = stop
+	f.running++
 	f.mu.Unlock()
 	defer func() {
 		f.mu.Lock()
 		f.late[id] = fn
+		f.running--
 		f.mu.Unlock()
 	}()
 	fn(AudioEvent{Started: &proto.CaptureStartedParams{Job: id, DeviceName: "MacBook Air Microphone", SampleRate: 16000}})
@@ -128,6 +131,25 @@ func (f *fakeAudio) recorded() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.frames
+}
+
+// waitStopped waits for every recording to return, as the helper's
+// capture ends when a session cancels or stops it; false when one still
+// runs after d.
+func (f *fakeAudio) waitStopped(d time.Duration) bool {
+	deadline := time.Now().Add(d)
+	for {
+		f.mu.Lock()
+		n := f.running
+		f.mu.Unlock()
+		if n == 0 {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(time.Millisecond)
+	}
 }
 
 // lateEvents plays events to an ended recording's callback.
