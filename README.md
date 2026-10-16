@@ -92,7 +92,7 @@ Every preset has a default model and lets you type another. **Model services** s
 
 - **No local inference, no server of our own.** Your audio and the text to clean up, translate or rewrite go only to the services you set up; each service's own terms apply to what it receives. Auralink has no account and collects no usage data, crash reports or identifiers.
 - **Keys** stay in this Mac's Keychain.
-- **History** stays on this Mac, in `~/Library/Application Support/Auralink` (movable in **Settings → Storage**). **Settings → Privacy** turns the history off, turns keeping recordings on (off by default) and clears everything. Logs hold lengths and timings, not your text, unless you allow it.
+- **History** stays on this Mac, in `~/Library/Application Support/Auralink` (movable in **Settings → Storage**). **Settings → Privacy** turns the history off, turns keeping recordings on (off by default) and clears the history. Logs hold lengths and timings, not your text, unless you allow it.
 - **Browser addresses** are read through Accessibility only to choose an app enhancement group. They are never sent to a model; only the app's name is.
 - Besides your services, Auralink contacts GitHub to check for updates, and the hosts you test yourself in Settings (Network, the self-check).
 
