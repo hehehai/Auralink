@@ -1,9 +1,14 @@
 {
   "name": "Auralink",
   "identifier": "dev.hehehai.auralink",
-  "version": "0.1.0-beta.1",
-  "copyright": "Copyright © 2026 actnow and the Auralink contributors. Licensed under the GNU AGPL 3.0 or later.",
+  "version": "0.1.0-beta.2",
+  "copyright": "Copyright © 2026 actnow. All rights reserved.",
   "out": "build",
+  "resources": [
+    "LICENSE",
+    "NOTICE",
+    "LICENSES"
+  ],
   "urlSchemes": [
     "auralink"
   ],

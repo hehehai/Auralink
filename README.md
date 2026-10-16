@@ -12,7 +12,7 @@ It runs no models on your Mac. You choose the speech and language services (Step
 
 Auralink is a pared-down rewrite of [Voxt](https://github.com/hehehai/voxt), by the same author: Voxt's dictation, translation and rewriting, with remote models only, and without meetings, file transcription, notes or local models. Its interface and engineering come from [AudioSmith](https://github.com/hehehai/AudioSmith).
 
-> **Status: 0.1.0-beta.1, the first beta (a GitHub prerelease).** Everything below is built and tested; the first signed builds come out on [Releases](https://github.com/hehehai/Auralink/releases) as betas. The app icon is still a placeholder.
+> **Status: 0.1.0-beta.2, a beta.** Everything below is built and tested. Download it from [actnow.dev](https://actnow.dev/download/auralink) (sign in first); the product page is [actnow.dev/auralink](https://actnow.dev/auralink), the [changelog](https://actnow.dev/auralink/changelog) and the [price](https://actnow.dev/pricing) (a one-time purchase) are there too. The app icon is still a placeholder.
 
 <sub>Screenshots and recordings: Auralink 0.1.0-beta.1 on macOS 26, with sample data, StepFun for speech and DeepSeek for the language model.</sub>
 
@@ -87,11 +87,13 @@ The recording kept in the history is always the original. These switches are in 
 
 ### Updates
 
-Signed releases update themselves from GitHub Releases: a daily check, the new version's notes in a window of their own, a download of only what changed, and installation when you say so (or automatically, if you turn that on). **Check for Updates…** is in the app menu, the menu bar icon's menu and **Settings → About → Updates**. Updates keep the Microphone and Accessibility grants.
+Signed releases update themselves from [actnow.dev](https://actnow.dev/auralink/changelog): a daily check, the new version's notes in a window of their own, a download of only what changed, and installation when you say so (or automatically, if you turn that on). **Check for Updates…** is in the app menu, the menu bar icon's menu and **Settings → About → Updates**. Updates keep the Microphone and Accessibility grants.
 
 **Beta updates**: a switch in **Settings → About → Updates** that chooses whether to get betas. It is on by default while you run a beta and off in a release. On, you get whichever is newer, beta or release; off, releases only, and Auralink never goes back: a beta stays until a newer release.
 
 ![Settings → About: the version, and the updates with the Beta updates switch](docs/images/settings-about.png)
+
+<!-- TODO(#36): retake settings-about.png (en, zh): the About section now shows the copyright, the website, changelog, licence and third-party notices links. -->
 
 ## Services
 
@@ -118,13 +120,13 @@ Every preset has a default model and lets you type another. **Model services** s
 - **Keys** stay in this Mac's Keychain.
 - **History** stays on this Mac, in `~/Library/Application Support/Auralink` (movable in **Settings → Storage**). **Settings → Privacy** turns the history off, turns keeping recordings on (off by default) and clears the history. Logs hold lengths and timings, not your text, unless you allow it.
 - **Browser addresses** are read through Accessibility only to choose an app enhancement group. They are never sent to a model; only the app's name is.
-- Besides your services, Auralink contacts GitHub to check for updates, and the hosts you test yourself in Settings (Network, the self-check).
+- Besides your services, Auralink contacts actnow.dev to check for updates, and the hosts you test yourself in Settings (Network, the self-check).
 
 ## Install
 
 Auralink needs **macOS 15 or later on Apple silicon**. Intel Macs are not supported yet.
 
-1. Download `Auralink <version> arm64.dmg` from [Releases](https://github.com/hehehai/Auralink/releases) and drag Auralink to Applications. Releases are signed with a Developer ID and notarised by Apple, so they open without warnings.
+1. Sign in at [actnow.dev/download/auralink](https://actnow.dev/download/auralink), download the disk image and drag Auralink to Applications. Releases are signed with a Developer ID and notarised by Apple, so they open without warnings.
 2. Open it from Applications (an app run from the disk image cannot update itself). To update itself it must be able to write where it is: in `/Applications` that takes an administrator account; otherwise use `~/Applications`.
 3. The setup guide asks for two permissions:
    - **Microphone**: to record while a shortcut is active, and only then.
@@ -181,14 +183,13 @@ cd helper && swift test              # the Swift helper (on a Mac), against the 
 
 The store's tests use MyGo's SQLite plugin, which downloads its library once (checked against its SHA-256) or uses `MYGO_SQLITE_LIBRARY`. On Linux the overlay's pixel checks of Chinese text need a CJK font (Ubuntu: `fonts-noto-cjk`). This README's screenshots and recordings come from a demo build on a Mac: [scripts/readme-media](scripts/readme-media/README.md).
 
-CI runs gofmt, the Go tests (also under the race detector) and MyGo vet on Linux, and the helper's tests on macOS. What needs permissions, a screen and real services is checked by hand with [docs/manual-test.md](docs/manual-test.md) (in Chinese). Releases are built, signed, notarised and published by GitHub Actions from a tag: [docs/release.md](docs/release.md).
+CI runs gofmt, the Go tests (also under the race detector) and MyGo vet on Linux, and the helper's tests on macOS. What needs permissions, a screen and real services is checked by hand with [docs/manual-test.md](docs/manual-test.md) (in Chinese). Releases are built, signed and notarised by GitHub Actions from a tag, and published on actnow.dev: [docs/release.md](docs/release.md).
 
 - [docs/architecture.md](docs/architecture.md): packages, threading, the session, the prompt composer, data on disk.
 - [docs/behavior.md](docs/behavior.md): what Auralink does differently from Voxt, and why.
 - [docs/helper-protocol.md](docs/helper-protocol.md): the helper's protocol.
 - [AGENTS.md](AGENTS.md): the rules for changes (strings, threading, the helper protocol).
 - [CHANGELOG.md](CHANGELOG.md): changes by version.
-- [CONTRIBUTING.md](CONTRIBUTING.md): how to send a change, and the CLA.
 
 ## Acknowledgements
 
@@ -197,14 +198,8 @@ CI runs gofmt, the Go tests (also under the race detector) and MyGo vet on Linux
 - [MyGo](https://github.com/egoist/mygo): native macOS UI from Go, without cgo (MIT).
 - [Solar](https://www.figma.com/community/file/1166831539721848736) icons by 480 Design, under CC BY 4.0.
 
-## Contributing
-
-Issues and pull requests are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) says how, and how to sign the [Contributor License Agreement](CLA.md) (one comment on your first pull request).
-
 ## Licence
 
-Copyright (C) 2026 actnow and the Auralink contributors. Auralink is free software under the [GNU Affero General Public License, version 3 or later](LICENSE) (AGPL-3.0-or-later).
+Copyright (c) 2026 actnow. All rights reserved. Auralink is proprietary software, sold at [actnow.dev](https://actnow.dev/pricing): see [LICENSE](LICENSE). Third-party material and its licences are listed in [NOTICE](NOTICE), and both ship inside the app.
 
-In short: you may use, study, change and share Auralink. If you distribute it, changed or not, you pass on the same freedoms: the source, under the same licence. The AGPL adds one condition to the GPL: if you change Auralink and let people use your changed version over a network, you offer them its source too. Auralink is a desktop app, so using it on your Mac, as it is, asks nothing of you.
-
-Contributions come in under the [CLA](CLA.md): contributors keep their copyright and give actnow the right to license their work under other terms as well. Versions up to v0.1.0-beta.1 were released under the Apache License 2.0. Third-party material and its licences are listed in [NOTICE](NOTICE).
+Earlier versions were published as open source: up to commit 7d1c9a7 (v0.1.0-beta.1) under the Apache License 2.0, and up to commit 748cf55 under the GNU AGPL 3.0 or later. Copies received under those licences keep them; versions from 0.1.0-beta.2 on are proprietary.

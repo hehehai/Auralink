@@ -12,7 +12,7 @@ Auralink 是一个精简的 macOS 语音输入 app。在任意 App 里按下快�
 
 Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重写：保留 Voxt 的听写、翻译和改写，只用远程模型，去掉了会议、文件转录、笔记和本地模型。界面和工程沿用 [AudioSmith](https://github.com/hehehai/AudioSmith)。
 
-> **状态：0.1.0-beta.1，第一个 beta 版（GitHub 上的 prerelease）。** 下面的功能都已完成并通过测试；第一批签名版本会先以 beta 形式发布在 [Releases](https://github.com/hehehai/Auralink/releases)。app 图标目前还是占位的。
+> **状态：0.1.0-beta.2，beta 版。** 下面的功能都已完成并通过测试。在 [actnow.dev](https://actnow.dev/download/auralink) 下载（需要先登录）；产品页是 [actnow.dev/auralink](https://actnow.dev/auralink)，[更新日志](https://actnow.dev/auralink/changelog)和[价格](https://actnow.dev/pricing)（一次性购买）也在官网。app 图标目前还是占位的。
 
 <sub>截图和录屏：Auralink 0.1.0-beta.1，macOS 26，演示数据；语音识别用阶跃星辰，语言模型用 DeepSeek。</sub>
 
@@ -87,11 +87,13 @@ Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重
 
 ### 更新
 
-签名的发布版会从 GitHub Releases 自动更新：每天检查一次，有新版本时在单独的窗口里显示更新说明，只下载有变化的部分，你同意后才安装（也可以打开自动安装）。**检查更新…** 在应用菜单、菜单栏图标的菜单和 **设置 → 诊断与关于 → 更新** 里。更新后麦克风和辅助功能授权仍然有效。
+签名的发布版会从 [actnow.dev](https://actnow.dev/auralink/changelog) 自动更新：每天检查一次，有新版本时在单独的窗口里显示更新说明，只下载有变化的部分，你同意后才安装（也可以打开自动安装）。**检查更新…** 在应用菜单、菜单栏图标的菜单和 **设置 → 诊断与关于 → 更新** 里。更新后麦克风和辅助功能授权仍然有效。
 
 **Beta 更新**：**设置 → 诊断与关于 → 更新** 里的一个开关，决定要不要接收 beta。正在用 beta 时默认打开，正式版默认关闭。打开时 beta 和正式版哪个新就更新到哪个；关闭后只接收正式版，而且不会降级，当前的 beta 会保留到比它新的正式版发布。
 
 ![设置 → 诊断与关于：版本，以及更新和 Beta 更新开关](docs/images/zh/settings-about.png)
+
+<!-- TODO(#36)：settings-about.png（中英文）待重拍：关于一节现在显示版权，以及官网、更新日志、许可、第三方声明的链接。 -->
 
 ## 支持的服务
 
@@ -118,13 +120,13 @@ Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重
 - **Key** 只保存在这台 Mac 的钥匙串里。
 - **历史** 只保存在本机 `~/Library/Application Support/Auralink`（可在 **设置 → 存储** 中移动）。在 **设置 → 隐私** 中可以关闭历史、打开保存录音（默认关闭），也可以清除全部历史。日志里只记长度和耗时，除非你允许，否则不记录文字内容。
 - **浏览器网址** 只通过辅助功能读取，用来匹配应用增强分组，不会发给模型；发给模型的只有 App 的名字。
-- 除了你配置的服务，Auralink 只会访问 GitHub 检查更新，以及你在设置里主动测试的地址（网络测试、自检）。
+- 除了你配置的服务，Auralink 只会访问 actnow.dev 检查更新，以及你在设置里主动测试的地址（网络测试、自检）。
 
 ## 安装
 
 Auralink 需要 **macOS 15 及以上、Apple 芯片的 Mac**。暂不支持 Intel Mac。
 
-1. 从 [Releases](https://github.com/hehehai/Auralink/releases) 下载 `Auralink <版本> arm64.dmg`，把 Auralink 拖进“应用程序”。发布版本用 Developer ID 签名并经过 Apple 公证，打开时不会有安全警告。
+1. 登录 [actnow.dev/download/auralink](https://actnow.dev/download/auralink) 下载磁盘映像，把 Auralink 拖进“应用程序”。发布版本用 Developer ID 签名并经过 Apple 公证，打开时不会有安全警告。
 2. 从“应用程序”里打开（直接在磁盘映像里运行无法自动更新）。自动更新要求 Auralink 能写入它所在的位置：放在 `/Applications` 需要管理员账户，否则请放到 `~/Applications`。
 3. 设置引导会请求两项权限：
    - **麦克风**：只在快捷键触发录音时使用。
@@ -181,14 +183,13 @@ cd helper && swift test              # Swift 辅助进程的测试（在 Mac 上
 
 存储层的测试用 MyGo 的 SQLite 插件，第一次会下载它的库（校验 SHA-256），也可以用 `MYGO_SQLITE_LIBRARY` 指定。在 Linux 上，浮窗中文文字的像素检查需要 CJK 字体（Ubuntu 装 `fonts-noto-cjk`）。本 README 的截图和录屏来自 Mac 上的演示构建：[scripts/readme-media](scripts/readme-media/README.md)。
 
-CI 在 Linux 上跑 gofmt、Go 测试（含 race 检测）和 MyGo vet，在 macOS 上跑辅助进程的测试。需要权限、屏幕和真实服务的部分，按 [docs/manual-test.md](docs/manual-test.md) 手动验证。发布版本由 GitHub Actions 在打 tag 时构建、签名、公证并上传，见 [docs/release.md](docs/release.md)。
+CI 在 Linux 上跑 gofmt、Go 测试（含 race 检测）和 MyGo vet，在 macOS 上跑辅助进程的测试。需要权限、屏幕和真实服务的部分，按 [docs/manual-test.md](docs/manual-test.md) 手动验证。发布版本由 GitHub Actions 在打 tag 时构建、签名、公证，发布到 actnow.dev，见 [docs/release.md](docs/release.md)。
 
 - [docs/architecture.md](docs/architecture.md)：包结构、线程规则、会话、prompt 组装、磁盘上的数据。
 - [docs/behavior.md](docs/behavior.md)：和 Voxt 行为上的差异及原因。
 - [docs/helper-protocol.md](docs/helper-protocol.md)：辅助进程的协议。
 - [AGENTS.md](AGENTS.md)：修改代码要遵守的规则（界面文字、线程、辅助进程协议）。
 - [CHANGELOG.md](CHANGELOG.md)：各版本的更新记录。
-- [CONTRIBUTING.md](CONTRIBUTING.md)：怎么提交改动，以及 CLA。
 
 ## 致谢
 
@@ -197,14 +198,8 @@ CI 在 Linux 上跑 gofmt、Go 测试（含 race 检测）和 MyGo vet，在 mac
 - [MyGo](https://github.com/egoist/mygo)：用 Go 写原生 macOS 界面，不用 cgo（MIT 许可）。
 - 480 Design 的 [Solar](https://www.figma.com/community/file/1166831539721848736) 图标，以 CC BY 4.0 授权。
 
-## 参与贡献
-
-欢迎提 issue 和 PR：做法见 [CONTRIBUTING.md](CONTRIBUTING.md)，其中也说明了怎么签[贡献者许可协议](CLA.md)（在第一个 PR 里评论一句即可）。
-
 ## 许可证
 
-Copyright (C) 2026 actnow and the Auralink contributors。Auralink 是自由软件，以 [GNU Affero 通用公共许可证第 3 版或更高版本](LICENSE)（AGPL-3.0-or-later）发布。
+Copyright (c) 2026 actnow。保留所有权利。Auralink 是专有软件，在 [actnow.dev](https://actnow.dev/pricing) 销售，许可条款见 [LICENSE](LICENSE)（以英文为准）。第三方素材及其许可见 [NOTICE](NOTICE)，两者都随 app 一起分发。
 
-简单说：你可以使用、研究、修改和分享 Auralink。发布它（无论改没改）时，要把同样的自由传下去：附上源码，并使用同一许可。AGPL 在 GPL 之外只多一条：如果你修改了 Auralink，并让别人通过网络使用你的修改版，也要向他们提供源码。Auralink 是桌面应用，在自己的 Mac 上照常使用，没有任何额外要求。
-
-贡献按 [CLA](CLA.md) 接收：贡献者保留版权，并授权 actnow 也可以用其他协议发布其贡献。v0.1.0-beta.1 及以前的版本以 Apache License 2.0 发布。第三方素材及其许可见 [NOTICE](NOTICE)。
+之前的版本曾以开源许可公开：截至提交 7d1c9a7（v0.1.0-beta.1）为 Apache License 2.0，截至提交 748cf55 为 GNU AGPL 3.0 或更高版本。按这些许可取得的副本仍适用当时的许可；0.1.0-beta.2 起的版本是专有的。

@@ -4,25 +4,7 @@ All notable changes to Auralink. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
-### Added
-
-- **Mute system audio while recording** (Settings → Audio, on by default): the current output device is muted from just after the start sound until the recording stops, so that videos, music or calls are not recorded; a device you muted stays muted, one you unmute during the recording stays on, and a device that cannot be muted leaves the recording as it is (the overlay says so). No permission is needed. If Auralink or its helper stops while muting, the sound comes back at once, or at the next start.
-
-### Changed
-
-- Auralink's licence is now the GNU Affero General Public License, version 3 or later (AGPL-3.0-or-later; it was the Apache License 2.0 up to 0.1.0-beta.1). Contributions come in under a Contributor License Agreement (CLA.md). Settings → About shows the copyright and the licence, with links to the licence, the source code and the third-party notices.
-
-### 新增
-
-- **录音时静音系统声音**（设置 → 音频，默认开启）：从开始提示音之后到停止录音为止，当前输出设备静音，免得视频、音乐、通话的声音被录进去；你自己静音的设备保持静音，录音中你取消静音后不会再被静音，不支持软件静音的设备照常录音（浮窗会提示）。不需要任何权限。Auralink 或辅助进程在静音期间意外退出时，声音会立即恢复，最迟在下次启动时恢复。
-
-### 变更
-
-- Auralink 的许可改为 GNU Affero 通用公共许可证第 3 版或更高版本（AGPL-3.0-or-later；0.1.0-beta.1 及以前是 Apache License 2.0），新增贡献者许可协议（CLA.md）。设置 → 诊断与关于显示版权和许可，并链接到许可全文、源代码和第三方声明。
-
-## [0.1.0-beta.1] - 2026-10-16
-
-The first version, a beta: voice input for macOS on remote models. It updates to the next beta and to the release that follows (Settings → About → Beta updates).
+The first public version, a beta: voice input for macOS on remote models, from [actnow.dev](https://actnow.dev/auralink). It updates to the next beta and to the release that follows (Settings → About → Beta updates). 0.1.0-beta.1 was built but not released; its changes are listed here.
 
 ### Added
 
@@ -42,8 +24,14 @@ The first version, a beta: voice input for macOS on remote models. It updates to
 - A small window (800×520 by default, 680×440 at the least) with no status bar: notifications stack as cards at the foot of the sidebar (a dot on Settings when it shows only icons), and a missing service or a stopped helper becomes a card with the action that fixes it.
 - The menu bar icon: start or stop transcribing, paste the last result, the last three results to copy (one short line each, the whole in the tooltip); it changes while recording. Closing the window keeps Auralink there, and it can open at login.
 - Settings: General (languages, the menu bar, login, the setup guide), Permissions, Audio (the microphones in your order of preference, skipping silence, optimizing the sound, sounds), Overlay style (place, opacity, corners, the recording time, with a live preview over a desktop picture), Shortcuts (every feature's keys and their conflicts), Appearance (the sidebar shrinks to icons in a narrow window), Network (proxy), Privacy, Storage, About (versions, updates, the self-check, reporting a problem); English and Simplified Chinese.
-- Signed with a Developer ID and notarised. Updates from GitHub Releases: a daily check, the new version's notes in a window of its own, a download of only what changed, installed when you say so; Check for Updates… in the app menu, the menu bar icon's menu and Settings → About. An update installed while Auralink runs asks for a restart instead of starting the new helper.
+- Signed with a Developer ID and notarised. Updates from actnow.dev: a daily check, the new version's notes in a window of its own, a download of only what changed, installed when you say so; Check for Updates… in the app menu, the menu bar icon's menu and Settings → About. An update installed while Auralink runs asks for a restart instead of starting the new helper.
 - Beta updates (Settings → About): betas too, or releases only; on by default in a beta. Turning it off never goes back to an older version: a beta stays until a release newer than it.
+- **Mute system audio while recording** (Settings → Audio, on by default): the current output device is muted from just after the start sound until the recording stops, so that videos, music or calls are not recorded; a device you muted stays muted, one you unmute during the recording stays on, and a device that cannot be muted leaves the recording as it is (the overlay says so). No permission is needed. If Auralink or its helper stops while muting, the sound comes back at once, or at the next start.
+
+### Changed
+
+- Auralink is now proprietary software of actnow, sold at [actnow.dev](https://actnow.dev/auralink) (it was open source up to 0.1.0-beta.1). Settings → About shows the copyright, links to the website and the changelog, and opens the licence and the third-party notices, which now ship inside the app. Report a bug writes an email to hello@actnow.dev instead of a GitHub issue.
+- Downloads, updates and release notes come from [actnow.dev](https://actnow.dev/auralink/changelog) instead of GitHub Releases: sign in at actnow.dev/download/auralink to download. Updates come from actnow.dev/updates/auralink, and Beta updates read its beta channel, which always offers the newer of the latest beta and the latest release.
 
 ### Known limitations
 
@@ -52,13 +40,31 @@ The first version, a beta: voice input for macOS on remote models. It updates to
 
 ### 中文
 
-第一个版本，是 beta 版：只用远程模型的 macOS 语音输入。它会更新到下一个 beta 和之后的正式版（设置 → 诊断与关于 → Beta 更新）。
+第一个公开版本，是 beta 版：只用远程模型的 macOS 语音输入，在 [actnow.dev](https://actnow.dev/auralink) 下载。它会更新到下一个 beta 和之后的正式版（设置 → 诊断与关于 → Beta 更新）。0.1.0-beta.1 构建了但没有发布，它的内容都列在这里。
+
+### 新增
 
 - **转录**：按住快捷键说话，语音识别服务转成文字，语言模型整理（去口头禅、改标点和数字，可加结构和你自己的规则），粘贴到光标处。
 - **翻译**：选中的文字或你说的话，翻译成你选的语言；答案卡片里可以阅读、复制、插入或换一种语言。
 - **转写**：说出怎么改选中的文字，或在没有选中时说出要写什么；回答进卡片，可以插入，也可以继续追问。
 - **应用增强**：按 App 和网站分组的场景规则；**词典**：术语和别名，发给语音识别和语言模型。
 - 首页、设置引导、历史、浮窗和答案卡片、菜单栏图标、静音裁剪和声音优化，以及完整的设置；界面有英文和简体中文。
-- 使用 Developer ID 签名并经过公证。通过 GitHub Releases 更新：每天检查一次，在单独的窗口里显示更新说明，只下载有变化的部分，你同意后才安装。
+- 使用 Developer ID 签名并经过公证。通过 actnow.dev 更新：每天检查一次，在单独的窗口里显示更新说明，只下载有变化的部分，你同意后才安装。
 - Beta 更新（设置 → 诊断与关于）：同时接收 beta 版，或只接收正式版；正在用 beta 时默认打开。关闭后不会降级：已装的 beta 会保留到比它新的正式版发布。
-- 已知限制：只支持 Apple 芯片和 macOS 15 及以上；app 图标还是占位的。
+- **录音时静音系统声音**（设置 → 音频，默认开启）：从开始提示音之后到停止录音为止，当前输出设备静音，免得视频、音乐、通话的声音被录进去；你自己静音的设备保持静音，录音中你取消静音后不会再被静音，不支持软件静音的设备照常录音（浮窗会提示）。不需要任何权限。Auralink 或辅助进程在静音期间意外退出时，声音会立即恢复，最迟在下次启动时恢复。
+
+### 变更
+
+- Auralink 改为 actnow 的专有软件，在 [actnow.dev](https://actnow.dev/auralink) 销售（0.1.0-beta.1 及以前是开源的）。设置 → 诊断与关于显示版权，链接到官网和更新日志，并打开 app 内附带的许可和第三方声明。“报告问题”改为给 hello@actnow.dev 写邮件，不再打开 GitHub issue。
+- 下载、更新和更新说明改由 [actnow.dev](https://actnow.dev/auralink/changelog) 提供，不再用 GitHub Releases：登录 actnow.dev/download/auralink 下载。更新来自 actnow.dev/updates/auralink，打开 Beta 更新时读它的 beta 通道，那里始终是最新 beta 和最新正式版中较新的那个。
+
+### 已知限制
+
+- 只支持 Apple 芯片和 macOS 15 及以上；app 图标还是占位的。
+
+## [0.1.0-beta.1] - 2026-10-16 (not released)
+
+Built but not released: it updated from GitHub Releases, which the repository, now private, no longer serves. Its changes are in the next version.
+
+构建了但没有发布：它从 GitHub Releases 更新，仓库改为私有以后读不到了。它的内容并入了下一个版本。
+

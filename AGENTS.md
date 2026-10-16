@@ -12,7 +12,7 @@ Auralink is a macOS voice input app on remote models: Go + MyGo (native UI, no c
 - **The helper protocol** changes in every place at once: `internal/helper/proto`, the Swift types (`helper/Sources/AuralinkHelperKit/Wire*.swift`), `helper/Fixtures`, the fake helper (`internal/helper/helpertest`) and `docs/helper-protocol.md`. Go and Swift tests decode the same fixtures.
 - **The helper does, Go decides**: policy (when ⌘C may run, delays, keys after a paste, which device) goes in the params; the helper keeps no settings.
 - **Files stay small**: at most 600 lines of code (aim for 400), 800 of tests; split by topic into `<area>_<part>.go`. `internal/archtest` checks the sizes (a ratchet over `allowlist.txt`) and the import layering (`imports.txt` lists every internal → internal import: add a line for a new one). Refactors that move code prove it with `declhash` and `scripts/snapshots.sh check` (docs/architecture.md, "Code structure rules").
-- **Licence**: Auralink is AGPL-3.0-or-later, contributions under [CLA.md](CLA.md). Third-party code, data or artwork needs a licence compatible with AGPLv3 (no GPLv2-only, no non-commercial or no-derivatives terms) and an entry in `NOTICE`, with its licence text in `LICENSES/` (a new Go module: its licence file in `LICENSES/go/`). No per-file licence headers.
+- **Licence**: Auralink is proprietary (all rights reserved by actnow, [LICENSE](LICENSE)); the repository is private. Third-party code, data or artwork needs a licence that allows it in closed-source software we sell: permissive ones (MIT, BSD, ISC, Apache-2.0, Unicode, CC BY for artwork); no GPL, AGPL or LGPL code linked into the app, no non-commercial or no-derivatives terms. Give it an entry in `NOTICE` and its licence text in `LICENSES/` (a new Go module: its licence file in `LICENSES/go/`); both ship inside Auralink.app (mygo.json `resources`). No per-file licence headers.
 - Code comments and commit messages in English. Keep the MyGo lifetime rules (`.agents/skills/mygo-maintenance`).
 
 ## Commands
@@ -31,4 +31,5 @@ scripts/vendor-mygo.sh --check                               # third_party/mygo 
 scripts/snapshots.sh check                                   # every snapshot, pixel for pixel, against the merge base
 go run ./internal/tools/declhash . ./internal/...            # a hash per declaration: equal before and after a pure move
 go vet -tags demo ./... && go vet -tags updatecheck .        # the demo and update-check builds (CI does too)
+bash scripts/actnow-publish.sh --app auralink --dir build/darwin-arm64 --changelog CHANGELOG.md --dry-run   # what a release sends to actnow.dev (docs/release.md)
 ```
