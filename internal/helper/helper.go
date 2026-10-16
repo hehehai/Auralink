@@ -222,10 +222,14 @@ func (t Trace) String() string {
 	return s
 }
 
-// answered records when the reader read c's response.
+// answered records when the reader read c's response. Written is noted
+// by the caller's goroutine after its write returns, and the reader's
+// goroutine can read the response before that (the caller was not
+// scheduled in between): the write had ended by then, so Answered is
+// never before Written and the helper's phase never negative.
 func (t *Trace) answered(c *call) {
 	if !c.answered.IsZero() {
-		t.Answered = c.answered.Sub(t.Start)
+		t.Answered = max(c.answered.Sub(t.Start), t.Written)
 	}
 }
 

@@ -465,6 +465,22 @@ func TestTrace(t *testing.T) {
 	}
 }
 
+// TestTraceAnsweredBeforeWritten: the reader can read a response before
+// the caller notes that its write returned (CI saw "helper -30µs"); the
+// helper's phase is then 0, not negative.
+func TestTraceAnsweredBeforeWritten(t *testing.T) {
+	start := time.Now()
+	tr := Trace{Start: start, Written: 120 * time.Microsecond}
+	tr.answered(&call{answered: start.Add(90 * time.Microsecond)})
+	if tr.Answered != tr.Written {
+		t.Errorf("answered %v, written %v", tr.Answered, tr.Written)
+	}
+	tr.answered(&call{answered: start.Add(time.Millisecond)})
+	if tr.Answered != time.Millisecond {
+		t.Errorf("answered %v", tr.Answered)
+	}
+}
+
 func TestCrashRestartsAndFailsCalls(t *testing.T) {
 	h := start(t, "frame-ms=10")
 	first := h.ready(t).PID
