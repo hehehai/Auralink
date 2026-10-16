@@ -16,11 +16,10 @@ import (
 // header), its scene prompt and apps, and the Add
 // apps and Browsers dialogs, with the fake helper's icons.
 func TestSnapshotsAppEnhance(t *testing.T) {
-	out := os.Getenv("AURALINK_SNAPSHOTS")
-	if out == "" {
-		t.Skip("set AURALINK_SNAPSHOTS to a directory")
-	}
-	os.MkdirAll(out, 0o755)
+	runSnapshots(t, "AURALINK_SNAPSHOTS", snapshotsAppEnhance)
+}
+
+func snapshotsAppEnhance(t *testing.T, out string) {
 	for _, size := range [][2]int{{windowWidth, windowHeight}, {windowMinWidth, windowMinHeight}} {
 		for _, run := range []struct {
 			lang string

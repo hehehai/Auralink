@@ -14,12 +14,9 @@ import (
 // TestSnapshotsShortcuts saves the feature pages' Shortcuts sections (and
 // App enhancement's Apps) at the default and the smallest window, Chinese
 // dark and English light, and the sections with nothing in them.
-func TestSnapshotsShortcuts(t *testing.T) {
-	out := os.Getenv("AURALINK_SNAPSHOTS")
-	if out == "" {
-		t.Skip("set AURALINK_SNAPSHOTS to a directory")
-	}
-	os.MkdirAll(out, 0o755)
+func TestSnapshotsShortcuts(t *testing.T) { runSnapshots(t, "AURALINK_SNAPSHOTS", snapshotsShortcuts) }
+
+func snapshotsShortcuts(t *testing.T, out string) {
 	for _, size := range [][2]int{{windowWidth, windowHeight}, {windowMinWidth, windowMinHeight}} {
 		for _, run := range []struct {
 			lang string

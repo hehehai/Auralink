@@ -11,6 +11,7 @@ Auralink is a macOS voice input app on remote models: Go + MyGo (native UI, no c
 - **Pure logic in `internal/`, platform code behind narrow interfaces** (the helper, `permission`), with fakes for tests: everything must be testable on Linux.
 - **The helper protocol** changes in every place at once: `internal/helper/proto`, the Swift types (`helper/Sources/AuralinkHelperKit/Wire*.swift`), `helper/Fixtures`, the fake helper (`internal/helper/helpertest`) and `docs/helper-protocol.md`. Go and Swift tests decode the same fixtures.
 - **The helper does, Go decides**: policy (when ⌘C may run, delays, keys after a paste, which device) goes in the params; the helper keeps no settings.
+- **Files stay small**: at most 600 lines of code (aim for 400), 800 of tests; split by topic into `<area>_<part>.go`. `internal/archtest` checks the sizes (a ratchet over `allowlist.txt`) and the import layering (`imports.txt` lists every internal → internal import: add a line for a new one). Refactors that move code prove it with `declhash` and `scripts/snapshots.sh check` (docs/architecture.md, "Code structure rules").
 - Code comments and commit messages in English. Keep the MyGo lifetime rules (`.agents/skills/mygo-maintenance`).
 
 ## Commands
@@ -26,4 +27,7 @@ scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'   # the Swift hel
 scripts/mac.sh 'cd helper && swift test'                     # the helper's tests (same fixtures as Go)
 MAC_DIR=code/Auralink-mt scripts/mac.sh scripts/mac-e2e.sh   # headless Mac tests: real helper, no window or key (--offline: no services)
 scripts/vendor-mygo.sh --check                               # third_party/mygo is MyGo + our patches
+scripts/snapshots.sh check                                   # every snapshot, pixel for pixel, against the merge base
+go run ./internal/tools/declhash . ./internal/...            # a hash per declaration: equal before and after a pure move
+go vet -tags demo ./... && go vet -tags updatecheck .        # the demo and update-check builds (CI does too)
 ```
