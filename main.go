@@ -40,6 +40,9 @@ func main() {
 	}
 	// Dev builds are "Auralink Dev"; share data with the installed app.
 	mygo.App.SetName("Auralink")
+	if demoStart != nil {
+		demoStart() // demo.go (-tags demo): a data folder and keys of its own
+	}
 	// One Auralink at a time (one library, one set of global shortcuts);
 	// a second launch shows the first one's window.
 	if !mygo.App.RequestSingleInstanceLock() {
@@ -72,6 +75,9 @@ func main() {
 		showFatal(err) // shell.go: explains, then quits
 		return
 	}
+	if demoLibrary != nil {
+		demoLibrary(lib) // demo.go: the sample data
+	}
 	h := newHelperHost(resources, logDir) // helperlink.go
 	a := newApp(lib, h)                   // app.go
 	a.dataHome = home                     // settings_storage.go
@@ -88,6 +94,9 @@ func main() {
 		a.openTray()          // tray.go: the menu bar icon, close to the menu bar
 		a.connectWindowLife() // tray.go
 		a.watchBundle()       // updates.go: an update installed while it runs
+		if demoReady != nil {
+			demoReady(a) // demo.go: the recording script's commands
+		}
 		mygo.App.OnSecondInstance(func([]string, string) { a.post(a.showMainWindow) })
 	})
 	mygo.App.OnQuit(func() {

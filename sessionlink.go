@@ -166,7 +166,7 @@ func resolver(kr keyring) session.Resolver {
 		var svc session.Services
 		if pa, ok := providers.Choose(s, providers.ASR, f.ASR, hasKey); ok {
 			key, _ := kr.Get(providers.Account(providers.ASR, pa.ID))
-			p, err := providers.NewASR(pa, providers.Env{Key: key, Proxy: s.Network.Proxy})
+			p, err := providers.NewASR(pa, providers.Env{Key: key, Proxy: s.Network.Proxy, HTTP: demoHTTP})
 			if err != nil {
 				return svc, err
 			}
@@ -181,7 +181,7 @@ func resolver(kr keyring) session.Resolver {
 			return svc, nil // no language model: the text goes on as recognised
 		}
 		lkey, _ := kr.Get(providers.Account(providers.LLM, pl.ID))
-		b, err := providers.NewLLM(pl, providers.Env{Key: lkey, Proxy: s.Network.Proxy})
+		b, err := providers.NewLLM(pl, providers.Env{Key: lkey, Proxy: s.Network.Proxy, HTTP: demoHTTP})
 		if err != nil {
 			return svc, nil
 		}

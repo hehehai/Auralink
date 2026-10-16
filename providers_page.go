@@ -149,6 +149,9 @@ func maskKey(v string) string {
 	if v == "" {
 		return ""
 	}
+	if demoMask != nil {
+		return demoMask(v)
+	}
 	return secrets.Mask(v)
 }
 
