@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -48,6 +49,9 @@ func browserURLs(fs *fakeSupervisor, urls map[string]string) {
 		for _, app := range helpertest.Apps {
 			apps = append(apps, proto.AppInfo{BundleID: app.BundleID, Name: app.Name, Running: true, PID: app.PID})
 		}
+		// By name, as the helper lists them: Apps is a map, and the
+		// snapshots must not change with its order.
+		slices.SortFunc(apps, func(x, y proto.AppInfo) int { return strings.Compare(x.Name, y.Name) })
 		apps = append(apps, helpertest.Installed...)
 		return proto.AppListResult{Apps: apps}, nil
 	}
