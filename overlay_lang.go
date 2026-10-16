@@ -114,7 +114,7 @@ func (a *app) syncLangMenu() {
 		return // tests: the state is enough
 	}
 	if m.win == nil {
-		m.win = mygo.NewWindow(floatingWindowOptions("Auralink languages", frame.Width, frame.Height, ui.View(a.langMenuView)))
+		m.win = mygo.NewWindow(floatingWindowOptions("Auralink languages", frame.Width, frame.Height, hudContent(a.langMenuView)))
 	}
 	if moved {
 		m.win.SetContentBounds(frame)

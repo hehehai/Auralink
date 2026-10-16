@@ -444,7 +444,7 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 			menuDY = a.ov.frame.Y - a.ov.lang.frame.Y
 			h += menuDY
 		}
-		tt := ui.NewTester(func(c *ui.Context) {
+		tt := hudTester(func(c *ui.Context) {
 			// The desktop: a page of text lines.
 			ui.Column(c).Absolute().Fill().Background(desk).Padding(10, 14).Gap(8).Children(func() {
 				for j := range 12 {
@@ -618,7 +618,7 @@ func renderOverlay(t *testing.T, a *app) *image.RGBA {
 	a.measureHook = nil
 	for range 2 {
 		w, h := a.ov.w+2*ovPad, a.ov.h+2*ovPad
-		tt := ui.NewTester(a.overlayView, w, h)
+		tt := hudTester(a.overlayView, w, h)
 		tt.SetScale(2)
 		frames(tt)
 		if a.ov.w+2*ovPad == w && a.ov.h+2*ovPad == h {

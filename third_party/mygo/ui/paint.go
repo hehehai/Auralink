@@ -574,7 +574,7 @@ func (p *Painter) textForeground(l *text.Layout, x, y float32, color Color, ts t
 	sys := p.rt.text
 	s := p.scale
 	deco := decoration{underline: ts.underline, wavy: ts.wavy, strike: ts.strike, color: ts.decoColor, thick: ts.decoThick}
-	shade := text.ShadeOf(color.R, color.G, color.B)
+	shade := p.shadeOf(color)
 	start := int32(len(p.s.Glyphs))
 	var run *glyphRun
 	if sys.JoinsGlyphs() && !p.inlineTransforms() {
@@ -597,7 +597,7 @@ func (p *Painter) textForeground(l *text.Layout, x, y float32, color Color, ts t
 			glyphColor, glyphShade := color, shade
 			if sp != nil {
 				if glyphColor = sp.color(sp.at(g.Cluster), color); glyphColor != color {
-					glyphShade = text.ShadeOf(glyphColor.R, glyphColor.G, glyphColor.B)
+					glyphShade = p.shadeOf(glyphColor)
 				}
 			}
 			gi := sys.Glyph(g.Font, g.ID, s, pen, glyphShade, p.opaque && !p.inlineTransforms())
@@ -630,6 +630,16 @@ func (p *Painter) textForeground(l *text.Layout, x, y float32, color Color, ts t
 	if end := int32(len(p.s.Glyphs)); end > start {
 		p.add(scene.Op{Kind: scene.OpGlyphs, Start: start, End: end})
 	}
+}
+
+// shadeOf returns the shade glyphs of text of color c are drawn in: Flat
+// in a window without font smoothing (Content.FontSmoothing), else the
+// color's.
+func (p *Painter) shadeOf(c Color) text.Shade {
+	if p.rt.unsmoothed {
+		return text.Flat
+	}
+	return text.ShadeOf(c.R, c.G, c.B)
 }
 
 // glyphRun gathers glyphs of a line in one font and color whose

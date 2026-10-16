@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/helper/proto"
@@ -198,7 +197,7 @@ func TestAnswerCardInteraction(t *testing.T) {
 	if !a.answer.langOpen || !a.ov.lang.shown || a.ov.frame != card {
 		t.Fatalf("menu: open %v shown %v, card %+v (was %+v)", a.answer.langOpen, a.ov.lang.shown, a.ov.frame, card)
 	}
-	mt := ui.NewTester(a.langMenuView, a.ov.lang.frame.Width, a.ov.lang.frame.Height)
+	mt := hudTester(a.langMenuView, a.ov.lang.frame.Width, a.ov.lang.frame.Height)
 	frames(mt)
 	for _, s := range []string{"English", "Japanese", "Simplified Chinese"} {
 		if !has(mt, s) {
@@ -370,7 +369,7 @@ func TestCardHeaderFits(t *testing.T) {
 				}
 				c.apply(a)
 				renderOverlay(t, a)
-				tt := ui.NewTester(a.overlayView, a.ov.w+2*ovPad, a.ov.h+2*ovPad)
+				tt := hudTester(a.overlayView, a.ov.w+2*ovPad, a.ov.h+2*ovPad)
 				frames(tt)
 				right := float32(ovPad + ovAnswerW - ovCardPadX)
 				prev := float32(-1)

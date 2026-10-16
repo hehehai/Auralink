@@ -233,6 +233,14 @@ func (t *Tester) SetPreferences(p Preferences) {
 	t.settle()
 }
 
+// SetFontSmoothing turns font smoothing on or off for the window's text,
+// as Content.FontSmoothing does for a window's.
+func (t *Tester) SetFontSmoothing(on bool) {
+	t.rt.unsmoothed = !on
+	t.rt.themeChanged()
+	t.settle()
+}
+
 // Frame renders another frame, as when the view's state changed.
 func (t *Tester) Frame() { t.h.requested.Store(true); t.settle() }
 

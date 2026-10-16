@@ -85,7 +85,7 @@ func Shape(s string, f Font) []Glyph {
 func (p *Painter) Glyphs(glyphs []Glyph, x, y float32, c Color) {
 	sys := p.rt.text
 	s := p.scale
-	shade := text.ShadeOf(c.R, c.G, c.B)
+	shade := p.shadeOf(c)
 	c = c.Alpha(p.opacity)
 	color := c.scene()
 	baseline := sys.Baseline(y * s)
@@ -158,7 +158,7 @@ func (p *Painter) TextLine(l *text.Layout, x, y float32, color func(cluster int)
 			continue
 		}
 		c := color(g.Cluster)
-		shade := text.ShadeOf(c.R, c.G, c.B)
+		shade := p.shadeOf(c)
 		gi := sys.Glyph(g.Font, g.ID, s, pen, shade, p.opaque)
 		if !gi.OK {
 			continue

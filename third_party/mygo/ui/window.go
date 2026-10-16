@@ -18,6 +18,22 @@ import (
 // mygo.WindowOptions.Content. Create it with View.
 type Content struct {
 	view func(*context)
+	// unsmoothed is FontSmoothing(false).
+	unsmoothed bool
+}
+
+// FontSmoothing turns font smoothing off (or back on) for the text of the
+// windows showing the content. On macOS, Core Text's font smoothing, on
+// while the user leaves it on, emboldens glyphs, the more the lighter the
+// text; AppKit applies it to text over an opaque background. Text over a
+// window's material or a transparent window, as a floating HUD's, can
+// turn it off to draw as thin as text styled -webkit-font-smoothing:
+// antialiased (Flat glyphs). Thickened glyphs (Font.Thicken) stay thick.
+// Other platforms, which do not smooth fonts this way, ignore it. Set it
+// before the content is attached to a window.
+func (v *Content) FontSmoothing(on bool) *Content {
+	v.unsmoothed = !on
+	return v
 }
 
 // View returns the content of a window whose user interface view builds,
@@ -41,6 +57,7 @@ func RegisterFont(data []byte, family string) error {
 func (v *Content) AttachContent(conn *surface.Conn) {
 	h := &windowHost{conn: conn}
 	rt := newRuntime(v.view, h)
+	rt.unsmoothed = v.unsmoothed
 	h.rt = rt
 	conn.Event = h.event
 	conn.ThemeChanged = func() {

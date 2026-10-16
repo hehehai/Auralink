@@ -91,6 +91,9 @@ type engine struct {
 	scene           scene.Scene
 	painter         Painter
 	glyphRun        glyphRun
+	// unsmoothed draws the window's text without font smoothing
+	// (Content.FontSmoothing).
+	unsmoothed bool
 	// measured are the last spans laid out outside elements (richParams).
 	measured     [8]measuredSpans
 	nextMeasured int

@@ -88,7 +88,7 @@ func (f *ovFlow) picture() []byte {
 	if a.ov.shown {
 		w, h = a.ov.w+2*ovPad, a.ov.h+2*ovPad
 	}
-	tt := ui.NewTester(func(c *ui.Context) {
+	tt := hudTester(func(c *ui.Context) {
 		ui.Box(c).Absolute().Fill().Background(ui.RGB(30, 31, 36))
 		if a.ov.shown {
 			ui.Box(c).Absolute().Fill().Children(func() { a.overlayView(c) })

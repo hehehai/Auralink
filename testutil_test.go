@@ -260,8 +260,16 @@ func (f *fakeTimers) advance(d time.Duration) {
 // overlay view (measureHook is guessText).
 func guessWidth(k ovSized) float32 { w, _ := guessText(k); return w }
 
+// hudTester tests a view of a floating window (floating.go), whose text
+// is drawn as hudContent draws it.
+func hudTester(view func(*ui.Context), w, h int) *ui.Tester {
+	tt := ui.NewTester(view, w, h)
+	tt.SetFontSmoothing(hudSmoothing)
+	return tt
+}
+
 // cardTester is a tester of the overlay's window as large as the
 // highest answer card.
 func cardTester(a *app) *ui.Tester {
-	return ui.NewTester(a.overlayView, ovAnswerW+2*ovPad, ovCardMaxH+2*ovPad)
+	return hudTester(a.overlayView, ovAnswerW+2*ovPad, ovCardMaxH+2*ovPad)
 }
