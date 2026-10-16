@@ -33,3 +33,25 @@ func (a *app) sidebarRow(c *ui.Context) {
 		}
 	})
 }
+
+func (a *app) appearanceSettings(c *ui.Context) {
+	settingRow(c, "theme", i18n.T("Theme"), "", func() {
+		if ui.Segmented(c.Key("theme-seg"), &a.theme, i18n.T("System"), i18n.T("Light"), i18n.T("Dark")).Label(i18n.T("Theme")).Changed() {
+			theme := settings.Themes[a.theme]
+			a.updateSettings(func(s *settings.Settings) { s.Appearance.Theme = theme })
+		}
+	})
+	settingRow(c, "scale", i18n.T("Interface size"), i18n.T("Scales text and spacing."), func() {
+		if ui.Segmented(c.Key("scale-seg"), &a.scale, scaleLabels...).Label(i18n.T("Interface size")).Changed() {
+			scale := settings.Scales[a.scale]
+			a.updateSettings(func(s *settings.Settings) { s.Appearance.Scale = scale })
+		}
+	})
+	a.sidebarRow(c) // settings_appearance.go
+	settingRow(c, "motion", i18n.T("Reduce motion"), i18n.T("Pages and panels change without animating. The system's setting is followed too."), func() {
+		if ui.Switch(c.Key("motion-switch"), &a.reduceMotion).Label(i18n.T("Reduce motion")).Changed() {
+			on := a.reduceMotion
+			a.updateSettings(func(s *settings.Settings) { s.Appearance.ReduceMotion = on })
+		}
+	})
+}

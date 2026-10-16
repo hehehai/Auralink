@@ -19,10 +19,17 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
-	"github.com/hehehai/Auralink/internal/lang"
-	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 )
+
+// settingsState is the settings dialog's sections' view state, embedded
+// in app: each section keeps its own struct in its file.
+type settingsState struct {
+	storageState // settings_storage.go
+	networkState // settings_network.go
+	aboutState   // settings_about.go
+	settingsForm // shell_settings.go: the controls that edit a setting
+}
 
 // settingsForm is the settings pages' view state: the controls bind to
 // these, and their changes go to the service.
@@ -157,50 +164,6 @@ func (a *app) settingsChanged(old, new settings.Settings) {
 	a.loadSettingsForm()
 }
 
-// applyLocale switches the UI to the settings' language, or the system's,
-// and rebuilds the native menu (and the menu bar icon's) in it.
-func (a *app) applyLocale() {
-	tag := a.prefs.General.Language
-	if tag == "" {
-		tag = a.systemLocale
-	}
-	i18n.SetLocale(tag)
-	if a.hasMenu { // the app runs: MyGo's locale waits for its main loop
-		showLanguage(i18n.Locale())
-	}
-	if i18n.Locale() != a.menuLocale {
-		a.buildMenu()
-		a.buildTrayMenu() // tray.go
-	}
-	a.loadSettingsForm() // its labels are translated
-}
-
-// systemLanguage is the user's first preferred language, as the system
-// lists them, "" when it lists none: the language Auralink follows unless
-// the settings name one. (Before MyGo 0.5, mygo.App.Locale; it is now the
-// language the app shows, of those it is written in.)
-func systemLanguage() string {
-	if langs := mygo.App.PreferredLanguages(); len(langs) > 0 {
-		return langs[0]
-	}
-	return ""
-}
-
-// showLanguage makes tag, one of i18n.Supported, the language MyGo shows
-// (mygo.App.SetLocale; the languages are main's SetLanguages): its own
-// strings say it, and the text engine lays the windows' text out in it.
-// Without it, MyGo 0.5 lays out every text as English, which on macOS
-// gives Chinese punctuation at the end of a line its full width (a face
-// of the overlay ending in "。" 6 DIPs wider than with 0.4.8). MyGo keeps
-// it for the next launch as the app's language (AppleLanguages in its
-// defaults), which AppKit's own texts then say. Main thread, once the app
-// is ready.
-func showLanguage(tag string) {
-	if mygo.App.Locale() != tag {
-		mygo.App.SetLocale(tag)
-	}
-}
-
 // applyTheme sets the frame's theme from the appearance settings: a
 // forced light or dark theme, the UI scale, which grows the text and the
 // spacing (sizes of our own scale with px), and the design tokens
@@ -225,41 +188,6 @@ func (a *app) applyTheme(c *ui.Context) {
 	}
 	styleTheme(&th)
 	c.SetTheme(&th)
-}
-
-// The options of the selects, and what they mean.
-func languageOptions() []string {
-	opts := []string{i18n.T("Follow the system")}
-	for _, tag := range i18n.Supported() {
-		opts = append(opts, i18n.Name(tag))
-	}
-	return opts
-}
-
-// mainLanguages are the languages the main language select offers (lang
-// codes), most spoken by Auralink's users first; M3 adds a search.
-var mainLanguages = []string{"zh", "en", "ja", "ko", "yue", "fr", "de", "es", "pt", "ru", "it", "vi", "th", "id", "ar"}
-
-func mainLanguageOptions() []string {
-	opts := []string{i18n.T("Same as the app")}
-	for _, code := range mainLanguages {
-		opts = append(opts, langLabel(code))
-	}
-	return opts
-}
-
-// langLabel names a language in the UI's language, with its own name
-// when that differs: "Japanese · 日本語", "日语 · 日本語".
-func langLabel(code string) string {
-	l, ok := lang.Lookup(code)
-	if !ok {
-		return code
-	}
-	name := l.NameIn(i18n.Locale())
-	if l.Native != "" && l.Native != name {
-		return name + " · " + l.Native
-	}
-	return name
 }
 
 func proxyOptions() []string {
@@ -470,205 +398,4 @@ func (a *app) settingsSection(c *ui.Context, r *ui.Route) {
 		}
 	}
 	ui.Text(c, i18n.T("There is no page at %s.", a.shownPath())).TextColor(c.Theme().TextMuted)
-}
-
-// settingRow is a setting: its name, a ⓘ telling what it does (desc, ""
-// for none) and its control on the right (formRow in ui_layout.go).
-func settingRow(c *ui.Context, key, title, desc string, control func()) {
-	formRow(c, key, title, desc, control)
-}
-
-// settingRowNote is a setting whose description is a state to read at
-// once (a path, what is missing, a version): it shows under the name.
-func settingRowNote(c *ui.Context, key, title, note string, control func()) {
-	t := c.Theme()
-	ui.Row(c.Key(key)).Wrap().GapX(px(t, sp4)).GapY(px(t, 6)).AlignItems(ui.Center).MinHeight(px(t, 32)).Children(func() {
-		ui.Column(c).Grow(1).Basis(px(t, 200)).MinWidth(px(t, 140)).Gap(px(t, 2)).Children(func() {
-			ui.Text(c, title)
-			if note != "" {
-				caption(c, note).Selectable()
-			}
-		})
-		ui.Row(c).Wrap().Gap(px(t, sp2)).AlignItems(ui.Center).Shrink(1).MinWidth(0).Children(control)
-	})
-}
-
-// sectionTitle heads a group of settings.
-func sectionTitle(c *ui.Context, title string) {
-	t := c.Theme()
-	sectionTitleText(c, title).Margin(px(t, sp2), 0, 0, 0)
-}
-
-func sectionTitleText(c *ui.Context, title string) ui.Element {
-	t := c.Theme()
-	return ui.Text(c, title).FontSize(px(t, fsCaption)).FontWeight(600).TextColor(tok(t).Text2)
-}
-
-// sectionTitleTip is sectionTitle with a ⓘ beside it: the margin goes on
-// the row, so the title and the ⓘ share one centre line.
-func sectionTitleTip(c *ui.Context, title, tip string) {
-	t := c.Theme()
-	ui.Row(c).Gap(px(t, 6)).AlignItems(ui.Center).Margin(px(t, sp2), 0, 0, 0).Children(func() {
-		sectionTitleText(c, title)
-		infoTip(c, tip)
-	})
-}
-
-// sectionTitleAdd is sectionTitleTip with a small Add button on the
-// right of its row, for a card of items below it (shortcuts, apps), so
-// the card holds only its items. It reports a click.
-//
-// The row is as wide as the card. As the title starts on the card's left
-// edge, the button's label ends on its right edge: the button's right
-// padding and hairline hang past it (its hover face shows in the page's
-// margin). Its height past the ⓘ's 18 hangs out above and below, so the
-// row stands as tall as sectionTitleTip's and the title does not move.
-func sectionTitleAdd(c *ui.Context, key, title, tip, add string) bool {
-	t := c.Theme()
-	clicked := false
-	ui.Row(c).Gap(px(t, 6)).AlignItems(ui.Center).Margin(px(t, sp2), 0, 0, 0).Children(func() {
-		sectionTitleText(c, title).SingleLine().Shrink(0)
-		infoTip(c, tip).Shrink(0)
-		ui.Spacer(c)
-		b := quietButton(c.Key(key), icons.Add, add).Margin(px(t, -3.5), -titleAddHang(t), px(t, -3.5), 0)
-		clicked = b.Clicked()
-	})
-	return clicked
-}
-
-// titleAddHang is how far sectionTitleAdd's button hangs past the card's
-// right edge: quietButton's right padding and its hairline.
-func titleAddHang(t *ui.Theme) float32 { return px(t, 10) + 1 }
-
-func (a *app) generalSettings(c *ui.Context) {
-	t := c.Theme()
-	sectionTitle(c, i18n.T("Languages"))
-	settingRow(c, "language", i18n.T("App language"), i18n.T("The language of Auralink's own text. Following the system uses English unless the system's language is supported."), func() {
-		opts := languageOptions()
-		if ui.Select(c.Key("language-select"), &a.settingsForm.language, opts).Label(i18n.T("App language")).Width(px(t, 220)).Changed() {
-			tag := ""
-			if i := slices.Index(opts, a.settingsForm.language); i > 0 {
-				tag = i18n.Supported()[i-1]
-			}
-			a.updateSettings(func(s *settings.Settings) { s.General.Language = tag })
-		}
-	})
-	settingRow(c, "main-language", i18n.T("Main language"), i18n.T("The language you mostly speak and write. Clean-up keeps your text in it; Translate writes in English, or in Chinese when this is English, unless the Translate page says otherwise."), func() {
-		opts := mainLanguageOptions()
-		if ui.Select(c.Key("main-language-select"), &a.settingsForm.mainLanguage, opts).Label(i18n.T("Main language")).Width(px(t, 220)).Changed() {
-			code := ""
-			if i := slices.Index(opts, a.settingsForm.mainLanguage); i > 0 {
-				code = mainLanguages[i-1]
-			}
-			a.setMainLanguage(code)
-		}
-	})
-	a.otherLanguagesRow(c)
-
-	sectionTitle(c, i18n.T("Menu bar and login"))
-	settingRow(c, "menu-bar", i18n.T("Show in the menu bar"), i18n.T("An icon in the menu bar to start a transcription, see the last result and open Auralink."), func() {
-		if ui.Switch(c.Key("menu-bar-switch"), &a.settingsForm.menuBar).Label(i18n.T("Show in the menu bar")).Changed() {
-			on := a.settingsForm.menuBar
-			a.updateSettings(func(s *settings.Settings) { s.General.MenuBar = on })
-		}
-	})
-	settingRow(c, "close-to-tray", i18n.T("Keep running when the window closes"), i18n.T("Closing the window leaves Auralink in the menu bar, so its shortcuts keep working. Quit from the menu bar icon or with ⌘Q."), func() {
-		sw := ui.Switch(c.Key("close-to-tray-switch"), &a.settingsForm.closeToTray).Label(i18n.T("Keep running when the window closes")).Disabled(!a.prefs.General.MenuBar)
-		if sw.Changed() {
-			on := a.settingsForm.closeToTray
-			a.updateSettings(func(s *settings.Settings) { s.General.CloseToTray = on })
-		}
-	})
-	settingRow(c, "open-at-login", i18n.T("Open at login"), "", func() {
-		if ui.Switch(c.Key("open-at-login-switch"), &a.settingsForm.openAtLogin).Label(i18n.T("Open at login")).Changed() {
-			on := a.settingsForm.openAtLogin
-			a.updateSettings(func(s *settings.Settings) { s.General.LaunchAtLogin = on })
-		}
-	})
-
-	sectionTitle(c, i18n.T("Getting started"))
-	a.onboardingRow(c) // onboarding.go
-}
-
-// setMainLanguage sets the main language (a lang code, "" = the app's)
-// and takes it off the other languages.
-func (a *app) setMainLanguage(code string) {
-	a.updateSettings(func(s *settings.Settings) {
-		s.General.MainLanguage = code
-		s.General.OtherLanguages = withoutLanguage(s.General.OtherLanguages, session.MainLanguage(*s, i18n.Locale()))
-	})
-}
-
-// otherLanguagesRow is General → Other languages: the languages the user
-// mixes in, as chips with ×, and Add (a menu of the languages left).
-func (a *app) otherLanguagesRow(c *ui.Context) {
-	t := c.Theme()
-	k := tok(t)
-	main := lang.Canonical(session.MainLanguage(a.prefs, i18n.Locale()))
-	others := withoutLanguage(a.prefs.General.OtherLanguages, main)
-	settingRow(c, "other-languages", i18n.T("Other languages"), i18n.T("Languages you mix into what you say and write. Clean-up keeps them as they are instead of translating them into your main language."), func() {
-		for _, code := range others {
-			label := langLabel(code)
-			ui.Row(c.Key("other-lang-"+code)).Gap(px(t, 2)).AlignItems(ui.Center).Padding(px(t, 2), px(t, 2), px(t, 2), px(t, 10)).
-				Radius(px(t, radiusControl)).Background(k.Hover).Shrink(0).Children(func() {
-				ui.Text(c, label).FontSize(px(t, fsCaption)).SingleLine()
-				b := ui.ButtonBase(c.Key("remove")).Size(px(t, 20), px(t, 20)).Center().Radius(px(t, 4)).Label(i18n.T("Remove %s", label)).Tooltip(i18n.T("Remove"))
-				if b.Hovered() {
-					b.Background(k.Pressed)
-				}
-				b.Children(func() { ui.Icon(c, icons.Close.Linear).Size(px(t, 12), px(t, 12)).TextColor(k.Text2) })
-				if b.Clicked() {
-					a.updateSettings(func(s *settings.Settings) { s.General.OtherLanguages = withoutLanguage(s.General.OtherLanguages, code) })
-				}
-			})
-		}
-		var left []string
-		for _, code := range mainLanguages {
-			if lang.Canonical(code) != main && !slices.ContainsFunc(others, func(o string) bool { return lang.Canonical(o) == lang.Canonical(code) }) {
-				left = append(left, code)
-			}
-		}
-		if len(left) == 0 {
-			return
-		}
-		dropButton(c.Key("other-lang-add"), icons.Add, i18n.T("Add a language")).Shrink(0).Menu(func(m *ui.Menu) {
-			for _, code := range left {
-				if m.Item(langLabel(code)).Chosen() {
-					a.updateSettings(func(s *settings.Settings) {
-						if !slices.Contains(s.General.OtherLanguages, code) {
-							s.General.OtherLanguages = append(slices.Clone(s.General.OtherLanguages), code)
-						}
-					})
-				}
-			}
-		})
-	})
-}
-
-// withoutLanguage is list without code (in any spelling: "zh", "zh-Hans").
-func withoutLanguage(list []string, code string) []string {
-	c := lang.Canonical(code)
-	return slices.DeleteFunc(slices.Clone(list), func(x string) bool { return x == code || c != "" && lang.Canonical(x) == c })
-}
-
-func (a *app) appearanceSettings(c *ui.Context) {
-	settingRow(c, "theme", i18n.T("Theme"), "", func() {
-		if ui.Segmented(c.Key("theme-seg"), &a.theme, i18n.T("System"), i18n.T("Light"), i18n.T("Dark")).Label(i18n.T("Theme")).Changed() {
-			theme := settings.Themes[a.theme]
-			a.updateSettings(func(s *settings.Settings) { s.Appearance.Theme = theme })
-		}
-	})
-	settingRow(c, "scale", i18n.T("Interface size"), i18n.T("Scales text and spacing."), func() {
-		if ui.Segmented(c.Key("scale-seg"), &a.scale, scaleLabels...).Label(i18n.T("Interface size")).Changed() {
-			scale := settings.Scales[a.scale]
-			a.updateSettings(func(s *settings.Settings) { s.Appearance.Scale = scale })
-		}
-	})
-	a.sidebarRow(c) // settings_appearance.go
-	settingRow(c, "motion", i18n.T("Reduce motion"), i18n.T("Pages and panels change without animating. The system's setting is followed too."), func() {
-		if ui.Switch(c.Key("motion-switch"), &a.reduceMotion).Label(i18n.T("Reduce motion")).Changed() {
-			on := a.reduceMotion
-			a.updateSettings(func(s *settings.Settings) { s.Appearance.ReduceMotion = on })
-		}
-	})
 }
