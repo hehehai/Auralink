@@ -63,6 +63,9 @@ func (a *app) loadDevices() {
 			a.audio.err = errText(err)
 			return
 		}
+		if demoDevices != nil {
+			r.Devices = demoDevices(r.Devices)
+		}
 		a.audio.devices, a.audio.read, a.audio.err = r.Devices, true, ""
 		a.rememberDeviceNames(r.Devices)
 	})

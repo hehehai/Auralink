@@ -12,10 +12,13 @@ import (
 // with sample data and driven from a script. Every hook is nil in other
 // builds, which behave exactly as without them.
 var (
-	demoStart   func()                         // first in main: the demo's folders and keys
-	demoLibrary func(*library)                 // the library is open: seed it
-	demoReady   func(*app)                     // the window is open: the script's commands
-	demoHTTP    *http.Client                   // the services' HTTP (record and replay)
-	demoPerms   func(*proto.PermissionsResult) // the helper's permissions, as the demo sees them
-	demoMask    func(key string) string        // a saved key as Model services shows it
+	demoStart   func()                                            // first in main: the demo's folders and keys
+	demoLibrary func(*library)                                    // the library is open: seed it
+	demoReady   func(*app)                                        // the window is open: the script's commands
+	demoHTTP    *http.Client                                      // the services' HTTP (record and replay)
+	demoPerms   func(*proto.PermissionsResult)                    // the helper's permissions, as the demo sees them
+	demoMask    func(key string) string                           // a saved key as Model services shows it
+	demoNoKeys  bool                                              // no global shortcuts: the user's own Auralink keeps fn
+	demoDevices func([]proto.CaptureDevice) []proto.CaptureDevice // the microphones listed
+	demoFront   func(proto.App) proto.App                         // the app in front, as named
 )

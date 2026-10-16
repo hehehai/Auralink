@@ -11,7 +11,7 @@
 //   alcap shot   --rect x y w h --include b1,b2 --out f.png
 //   alcap record --rect x y w h --include b1,b2 --out f.mov [--fps 30]   # until SIGINT/SIGTERM
 //   alcap place  <pid> x y w h                     # the app's front window
-//   alcap select <pid> <start> <length>            # in the focused text
+//   alcap select <pid> <start> <length>            # in the focused text (-1 -1: the end)
 //   alcap activate <pid>
 //
 // --include names apps by bundle ID or process ID; the backdrop's process
@@ -80,8 +80,14 @@ case "select":
     let app = AXUIElementCreateApplication(pid)
     var f: CFTypeRef?
     guard AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &f) == .success else { fail("no focused element") }
-    var r = CFRange(location: loc, length: len)
+    // A negative start counts from the end; a negative length runs to it.
+    var n: CFTypeRef?
+    AXUIElementCopyAttributeValue(f as! AXUIElement, kAXNumberOfCharactersAttribute as CFString, &n)
+    let total = (n as? Int) ?? 0
+    let start = loc < 0 ? max(0, total + loc + 1) : loc
+    var r = CFRange(location: start, length: len < 0 ? max(0, total - start) : len)
     let e = AXUIElementSetAttributeValue(f as! AXUIElement, kAXSelectedTextRangeAttribute as CFString, AXValueCreate(.cfRange, &r)!)
+    print("selected \(r.location)+\(r.length) of \(total)")
     if e != .success { fail("select: \(e.rawValue)") }
 
 case "backdrop":
@@ -155,7 +161,7 @@ func runCapture() {
     let sem = DispatchSemaphore(value: 0)
     var content: SCShareableContent?
     var err: Error?
-    SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { c, e in content = c; err = e; sem.signal() }
+    SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: false) { c, e in content = c; err = e; sem.signal() }
     sem.wait()
     guard let c = content, let display = c.displays.first(where: { $0.displayID == CGMainDisplayID() }) ?? c.displays.first else {
         fail("no shareable content: \(String(describing: err))")
@@ -165,7 +171,12 @@ func runCapture() {
         a.applicationName == "alcap" || include.contains(a.bundleIdentifier) || include.contains(String(a.processID))
     }
     FileHandle.standardError.write("including \(apps.map { "\($0.applicationName)(\($0.processID))" })\n".data(using: .utf8)!)
-    let filter = SCContentFilter(display: display, including: apps, exceptingWindows: [])
+    // The display without the other apps: a filter that includes the apps
+    // instead makes macOS put its window-sharing badge in place of their
+    // windows' traffic lights (ALCAP_MODE=include).
+    let filter = ProcessInfo.processInfo.environment["ALCAP_MODE"] != "include"
+        ? SCContentFilter(display: display, excludingApplications: c.applications.filter { a in !apps.contains { $0.processID == a.processID } }, exceptingWindows: [])
+        : SCContentFilter(display: display, including: apps, exceptingWindows: [])
     let r = rect ?? CGRect(x: 0, y: 0, width: display.width, height: display.height)
     let cfg = SCStreamConfiguration()
     cfg.sourceRect = r

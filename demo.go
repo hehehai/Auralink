@@ -35,6 +35,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -61,7 +62,33 @@ func init() {
 			r.Microphone = proto.PermGranted
 		}
 	}
-	demoMask = func(v string) string { return v[:min(3, len(v))] + "…••••" }
+	demoMask = func(string) string { return "••••…••••" }
+	// In English, the system apps' English names (this Mac runs in
+	// Chinese).
+	demoFront = func(a proto.App) proto.App {
+		if os.Getenv("AURALINK_DEMO_LANG") != "zh" {
+			if n, ok := map[string]string{"com.apple.TextEdit": "TextEdit", "com.apple.Notes": "Notes", "com.apple.mail": "Mail",
+				"com.apple.finder": "Finder", "com.apple.Safari": "Safari"}[a.BundleID]; ok {
+				a.Name = n
+			}
+		}
+		return a
+	}
+	demoNoKeys = true
+	// The Mac's own microphone only (not a phone's, named after its
+	// owner), under its English name in English.
+	demoDevices = func(ds []proto.CaptureDevice) []proto.CaptureDevice {
+		var out []proto.CaptureDevice
+		for _, d := range ds {
+			if d.Transport == "builtin" {
+				if os.Getenv("AURALINK_DEMO_LANG") != "zh" {
+					d.Name = "MacBook Air Microphone"
+				}
+				out = append(out, d)
+			}
+		}
+		return out
+	}
 }
 
 // demoBundleID is the demo app's bundle ID; the user's is realBundleID.
@@ -359,6 +386,11 @@ func demoCommand(a *app, line string) string {
 	}
 	switch f[0] {
 	case "fire": // fire transcribe|translate|rewrite: the feature's first shortcut, tapped
+		// Only into the apps the script works in (AURALINK_DEMO_TARGETS):
+		// another app that came to the front gets nothing.
+		if t := os.Getenv("AURALINK_DEMO_TARGETS"); t != "" && !slices.Contains(strings.Split(t, ","), a.front.BundleID) && !a.answer.open {
+			return "error: " + a.front.BundleID + " is in front"
+		}
 		a.hotkeyFired(proto.HotkeyEventParams{Binding: hotkey.ID(arg(1), 0), Phase: proto.PhaseTrigger})
 	case "esc":
 		a.hotkeyFired(proto.HotkeyEventParams{Binding: proto.HotkeyEscape, Phase: proto.PhaseTrigger})

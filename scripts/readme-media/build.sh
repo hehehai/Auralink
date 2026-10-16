@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds the demo app (-tags demo, demo.go) for the README's media, on the
 # Mac, in a mirror of its own: another bundle ID (dev.hehehai.auralink.demo)
-# and name, so it shares nothing with an installed Auralink. Also builds
+# so it shares nothing with an installed Auralink. Also builds
 # alcap (the capture tool).
 #
 #   MAC_DIR=code/Auralink-demo scripts/mac.sh scripts/readme-media/build.sh
@@ -11,6 +11,9 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 [[ "$ROOT" != "$HOME/code/Auralink" ]] || { echo "not in the main mirror: MAC_DIR=code/Auralink-demo" >&2; exit 1; }
 export GOMAXPROCS=2 GOFLAGS="-p=2 -tags=demo" SWIFT_BUILD_JOBS=2
+# With the release's updates (GitHub Releases), so that Settings → About
+# shows them as a release does; it finds nothing newer than itself.
+scripts/release-config.sh >/dev/null
 tmp="$(mktemp)"
 jq '.identifier = "dev.hehehai.auralink.demo"' mygo.json >"$tmp" && mv "$tmp" mygo.json
 nice -n 10 scripts/build-helper.sh >/dev/null
