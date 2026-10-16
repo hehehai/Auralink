@@ -30,18 +30,17 @@ package main
 //
 // The face is a translucent dark fill (Overlay.Opacity) over the window's
 // HUD material, which blurs what is behind it (mygo patch 0004), with a
-// white hairline and a small shadow the window leaves room for (ovPad).
+// white hairline and a small shadow the window leaves room for (layout.Pad).
 // Its place comes from settings.Overlay: the top or bottom of the display
 // under the pointer, and the margin from that edge.
 
 import (
-	"math"
 	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/session"
-	"github.com/hehehai/Auralink/internal/settings"
 )
 
 // overlayMode is what the overlay shows.
@@ -58,73 +57,6 @@ const (
 func (m overlayMode) String() string {
 	return [...]string{"hidden", "recording", "working", "notice", "answer"}[m]
 }
-
-// The face's shadow: small, and whole. The window adds ovPad around the
-// face for it (the window has none: macOS would draw its rectangle's):
-// the blur's reach plus the offset, the side it falls on.
-const (
-	ovShadowY    = 4
-	ovShadowBlur = 12
-	ovShadowA    = 0.22
-	ovPad        = ovShadowBlur + ovShadowY + 2
-)
-
-// Sizes of the overlay's face, in DIPs: Voxt's (WaveformView.swift).
-const (
-	// ovBorder is the face's hairline. MyGo's boxes are border boxes: it
-	// takes this much from each side of the face's content, so the
-	// paddings inside the face are Voxt's less it. (10-15: they were not,
-	// and the pill's row overflowed its content box to the right and
-	// down, a point each: the icon's side looked wider than the
-	// waveform's.)
-	ovBorder = 1
-	// The row: the feature's icon (ovIconSize) centred in its slot, ovGap,
-	// the waveform (its 16 bars, waveW wide) or the loader centred in its
-	// slot; ovRowH high.
-	ovIconSlot = 16
-	ovIconSize = 14
-	ovGap      = 10
-	ovWaveW    = 94
-	ovRowH     = 28
-	ovRowW     = ovIconSlot + ovGap + ovWaveW
-	// The pill, without text: the row, ovPillPadX and ovPillPadY around
-	// it: 148 × 48.
-	ovPillPadX = 14
-	ovPillPadY = 10
-	ovPillW    = ovRowW + 2*ovPillPadX
-	ovPillH    = ovRowH + 2*ovPillPadY
-	// With live text: the row, ovLiveGap, one line of the text (ovLiveSize,
-	// medium, ovLineH high) as wide as it is up to ovLiveTextW, the two
-	// centred, ovLivePadX and ovLivePadY around them: as wide as the wider
-	// of the two, at most 300, and 76 high.
-	ovLivePadX   = 20
-	ovLivePadY   = 12
-	ovLiveGap    = 8
-	ovLineH      = 16
-	ovLiveSize   = 12
-	ovLiveWeight = 500
-	ovLiveTextW  = 260
-	ovLiveMaxW   = ovLiveTextW + 2*ovLivePadX
-	ovLiveH      = ovRowH + ovLiveGap + ovLineH + 2*ovLivePadY
-	ovFadeW      = 16 // the line's left edge fades out over this, scrolled
-	// After the waveform in the row, ovGap before each, when they show:
-	// the time, and the matched group's name (ovSceneSize, at most
-	// ovSceneMaxW wide).
-	ovTimeW     = 30
-	ovSceneSize = 11
-	ovSceneMaxW = 88
-	// A notice: the icon's slot, ovGap, its line (ovNoticeSize), the
-	// arrow of an action, in the pill's padding; ovNoticeW to ovNoticeW2
-	// wide.
-	ovNoticeSize = 13
-	ovArrowW     = 8 + 14
-	ovNoticeW    = 200
-	ovNoticeW2   = 420
-	// ovFrame paces the waveform and the loader (Voxt's 20 per second);
-	// ovFadeStep the fade after an insert (two steps, then hidden).
-	ovFrame    = 50 * time.Millisecond
-	ovFadeStep = 50 * time.Millisecond
-)
 
 // overlayState is the overlay's window and what it shows.
 type overlayState struct {
@@ -270,7 +202,7 @@ func (a *app) overlaySync() {
 	if !was {
 		a.ov.area = a.overlayArea()
 	}
-	frame := overlayFrame(a.ov.area, a.prefs.Overlay, w, h)
+	frame := layout.Frame(a.ov.area, a.prefs.Overlay, w, h)
 	moved := frame != a.ov.frame
 	a.ov.mode, a.ov.w, a.ov.h, a.ov.frame = mode, w, h, frame
 	a.ov.shown = true
@@ -327,22 +259,13 @@ func (a *app) revealOverlay() {
 	}
 }
 
-// overlayFrame is the window's frame for a face of w × h in the work area
-// wa: centred, its anchor edge (the bottom, or the top) Overlay.Margin
-// from the work area's, the shadow's margin around the face.
-func overlayFrame(wa mygo.Rectangle, o settings.Overlay, w, h int) mygo.Rectangle {
-	winW, winH := w+2*ovPad, h+2*ovPad
-	x, y := overlayPlace(wa, o, winW, winH)
-	return mygo.Rectangle{X: x, Y: y, Width: winW, Height: winH}
-}
-
 // syncOverlayMaterial shapes the window's material to the face: inside
 // the shadow's margin, with the face's corners, dark.
 func (a *app) syncOverlayMaterial() {
 	if a.ov.win == nil {
 		return
 	}
-	style := mygo.VibrancyStyle{Top: ovPad, Right: ovPad, Bottom: ovPad, Left: ovPad,
+	style := mygo.VibrancyStyle{Top: layout.Pad, Right: layout.Pad, Bottom: layout.Pad, Left: layout.Pad,
 		Radius: float64(faceRadius(a.prefs.Overlay, a.ov.mode, a.ov.h)), Dark: true}
 	if style != a.ov.style {
 		a.ov.style = style
@@ -377,20 +300,8 @@ func (a *app) overlayFadeOut() {
 		}
 	}
 	dim(0.6)()
-	a.later(ovFadeStep, dim(0.25))
-	a.later(2*ovFadeStep, hide)
-}
-
-// overlayPlace is where a window of w × h goes in the work area wa:
-// centred, Overlay.Margin from its bottom (or top) edge to the face.
-func overlayPlace(wa mygo.Rectangle, o settings.Overlay, w, h int) (int, int) {
-	margin := int(math.Round(o.Margin)) - ovPad
-	x := wa.X + (wa.Width-w)/2
-	y := wa.Y + wa.Height - h - margin
-	if o.Position == "top" {
-		y = wa.Y + margin
-	}
-	return x, y
+	a.later(layout.FadeStep, dim(0.25))
+	a.later(2*layout.FadeStep, hide)
 }
 
 // overlayFace is the face's size in mode, kept as the session's live
@@ -399,7 +310,7 @@ func overlayPlace(wa mygo.Rectangle, o settings.Overlay, w, h int) (int, int) {
 func (a *app) overlayFace(mode overlayMode) (int, int) {
 	w, h, exact := a.overlaySize(mode)
 	switch {
-	case h == ovLiveH && mode != ovAnswer:
+	case h == layout.LiveH && mode != ovAnswer:
 		if a.ov.live.id != a.sess.ID {
 			a.ov.live.id, a.ov.live.w = a.sess.ID, 0
 		}
@@ -420,7 +331,7 @@ func (a *app) overlayRestyle() {
 		return
 	}
 	w, h := a.overlayFace(a.ov.mode)
-	frame := overlayFrame(a.ov.area, a.prefs.Overlay, w, h)
+	frame := layout.Frame(a.ov.area, a.prefs.Overlay, w, h)
 	moved := frame != a.ov.frame
 	a.ov.w, a.ov.h, a.ov.frame = w, h, frame
 	a.syncLangMenu()

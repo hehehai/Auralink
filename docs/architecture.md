@@ -58,6 +58,12 @@ github.com/hehehai/Auralink
 │   │                     there or missing; the PNGs on disk (a week fresh); fetching a batch
 │   ├── appbundle/        the version of the app bundle on disk (Info.plist), to tell an update      (leaf)
 │   │                     installed while the app runs (updates.go, helper.Config.Stale)
+│   ├── overlay/
+│   │   ├── layout/       the overlay's geometry as numbers: the pill's, the live text's, a notice's and
+│   │   │                 the answer card's sizes (Voxt's), the shadow's margin, the frame anchored to an
+│   │   │                 edge of the display, the waveform's bars, the loader's dots (mygo.Rectangle only)
+│   │   └── ink/          the overlay's ink check: the face and its strokes measured from a picture, against
+│   │                     the layout (Tester renders on Linux, the window's captures on the Mac)
 │   ├── uitext/           the words the UI shows from the domain's values (shortcuts, providers' errors,
 │   │                     a session's state, history entries, sizes and times, the menu bar's labels):
 │   │                     i18n, no MyGo; the one internal package that imports i18n
@@ -80,7 +86,7 @@ Arrows point to what a package may import. No cycles. Leaves import nothing inte
 
 ```
 main ──▶ every internal package
-store ──▶ core                 store/sqlitestore ──▶ core, store      datadir ──▶ store/sqlitestore
+store ──▶ core                 store/sqlitestore ──▶ core, store      datadir ──▶ store/sqlitestore    overlay/layout ──▶ session (Bars), settings (Overlay)    overlay/ink ──▶ overlay/layout
 uitext ──▶ i18n and the domain's types (appctx, asr, compose, core, deliver, dict, helper, helper/proto, hotkey, lang, llm, permission, providers, session, settings, store)
 helper ──▶ core, helper/proto  helper/helpertest ──▶ helper/proto
 notify, logs ──▶ core
@@ -114,7 +120,7 @@ MyGo builds the root `main` package (`mygo dev`, `mygo build`, `ui.View`); views
 `internal/archtest` checks these with every `go test ./...`; each failure says how to fix it (the rules from AudioSmith's refactor, the plan of refactor R0–R8).
 
 - **File size.** A Go file has at most 600 lines, a test file 800; code should keep to about 400 (files over it are reported by `go test -v -run TestFileSizes ./internal/archtest`, not failed). Generated files, `third_party/`, `testdata/`, `build/` and the Swift helper are not counted. The files over the limit today are listed in `internal/archtest/allowlist.txt` with their size as a ceiling, why they are long and the batch that splits them: they may shrink, not grow, and leave the list once split. Functions over 150 lines are reported (`-run TestLongFuncs`).
-- **Layering.** Leaves (above) import nothing internal; only `icons` uses `mygo/ui` and only `store/sqlitestore` another MyGo package (`plugins/sqlite`); only `uitext` may import `i18n` (the domain returns codes and errors, package main and `uitext` say them); fakes (packages whose name ends in `test`) are for tests; `internal/tools` is standard library only. The rules and their reasons are in `internal/archtest/imports_test.go`.
+- **Layering.** Leaves (above) import nothing internal; only `icons` uses `mygo/ui`, and only `store/sqlitestore` (`plugins/sqlite`) and `overlay/layout` (`mygo`, for `mygo.Rectangle`) another MyGo package; only `uitext` may import `i18n` (the domain returns codes and errors, package main and `uitext` say them); fakes (packages whose name ends in `test`) are for tests; `internal/tools` is standard library only. The rules and their reasons are in `internal/archtest/imports_test.go`.
 - **Every internal → internal import is listed** in `internal/archtest/imports.txt` (`from to`, paths under `internal/`). A new dependency adds a line there, so that review sees it; a line no import needs fails until removed.
 - **Refactors that only move code** prove it: `go run ./internal/tools/declhash . ./internal/...` on the base and on the branch print the same lines (a hash per top-level declaration, comments and build constraints included; `-nocomments` tells a move that also updated the file names comments mention), and `scripts/snapshots.sh check` renders every set of UI snapshots of both and compares them pixel for pixel (§6). Snapshots are reproducible: `snapshot_env_test.go` pins the clock (a `testing/synctest` bubble), the data directories, the free disk space and the sizes Settings → Storage measures.
 
@@ -191,7 +197,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `a.trayItems()`, `a.loadTrayRecent()` (the last three results), `trayicon.Icon(recording)` (Voxt's microphone, `internal/trayicon`), `a.copyText` (tests) | tray.go | `historyChanged`, the menu bar |
 | `a.helperStatus()`, `helperCall[T](a, method, params, timeout, then)`, `a.helperNotified(m)`, `a.restartHelper()`, `a.hotkeys` (hotkey.state), `a.front` (app.activated) | helperlink.go | the helper's card (shell_notices.go), Home, permissions, Diagnostics, sessions |
 | `a.mgr` (`*session.Manager`), `a.sess` (the newest snapshot), `a.startSession(req)`, `a.startTranscribe(target, hold, try)`, `a.sessionBlocker(kind)`, `a.stopSession()`, `a.cancelSession()`, `a.toggleTranscribe()`, `a.pasteLast(target)`, `a.answer` + `openAnswer` / `insertAnswer` / `copyAnswer` / `closeAnswer` / `retryAnswer(lang)` / `followUpAnswer(hold)`, `a.showNotice`, `sessionProblemText(p)`, `a.syncHotkeys()` | session_link.go (the snapshots, notices), session_control.go (start, stop, paste the last), session_answer.go (the card's actions), session_hotkeys.go | the overlay, the feature pages' Try areas, the menu bar, helperlink.go |
-| `a.overlaySync()`, `a.ov` (mode, size, visible), `a.later(d, fn)` (timers; `laterHook` in tests), `overlayView`, `waveform` / `waveBars`, `overlayLoader`, `uitext.WorkingText(s)`, `kindIcon`, `uitext.KindTitle`, `cardNow`, `uitext.TargetLanguageLabel`, `noticeActionLabel` | overlay.go (state, sync), overlay_size.go, overlay_face.go, overlay_wave.go, overlay_card.go; the texts in internal/uitext (session.go) and session_text.go | session_link.go; the feature pages and History reuse the texts |
+| `a.overlaySync()`, `a.ov` (mode, size, visible), `a.later(d, fn)` (timers; `laterHook` in tests), `overlayView`, `waveform` / `layout.WaveBars`, `overlayLoader`, `uitext.WorkingText(s)`, `kindIcon`, `uitext.KindTitle`, `cardNow`, `uitext.TargetLanguageLabel`, `noticeActionLabel` | overlay.go (state, sync), overlay_size.go, overlay_face.go, overlay_wave.go, overlay_card.go; the texts in internal/uitext (session.go) and session_text.go | session_link.go; the feature pages and History reuse the texts |
 | `a.featurePage(c, feature)`, `a.fui(feature)` (each page's controls), `featureKind`, `uitext.HotkeyText`, `uitext.FeatureTitle` | feature_page.go; feature_keys.go, feature_services.go, feature_prompts.go; internal/uitext (keys.go: shortcuts' words) | pages.go (Transcribe, Translate, Rewrite) |
 | `a.historyChanged()` | history_page.go (history_detail.go: an entry's details; internal/uitext history.go: its words) | session_link.go, after an entry is kept or changed |
 | `a.aeBook` (`ruleBook`: the groups for sessions, goroutine-safe), `a.aeRules` + `a.setRules(r)`, `a.sceneConfig()`, `a.urlReads`, `a.frontChanged(app)`, `a.lastOther`, `a.previewApp()`, `a.refreshPreview(force)`, `a.previewMatch()` | appenhance.go | session_link.go (the manager's Scene), helperlink.go (app.activated), the App enhancement page |

@@ -1,40 +1,42 @@
-package main
-
-// The overlay's ink check: what a picture of the overlay's window shows,
-// measured from its pixels, against the face's layout (10-15: the pill's
-// icon side looked wider than its waveform's, which no frame check saw).
+// Package ink is the overlay's ink check: what a picture of the overlay's
+// window shows, measured from its pixels, against the face's layout
+// (10-15: the pill's icon side looked wider than its waveform's, which no
+// frame check saw).
 // The same check reads the Tester's pictures on Linux (overlay_test.go)
 // and the Mac's captures of the real window (overlay_check.go).
 //
 // The face is where the window is opaque (the shadow is faint); its ink
 // is what is bright on it: the icon, the bars, the text (the hairline
 // and the dark fill are not). Distances are in DIPs.
+package ink
 
 import (
 	"fmt"
 	"image"
 	"math"
+
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 )
 
-// ovInkWant is what the face should show.
-type ovInkWant struct {
-	w, h int // the face's size
+// Want is what the face should show.
+type Want struct {
+	W, H int // the face's size
 	// row: the pill's row is there (the icon, then the waveform or the
 	// loader); even: its ink is as far from the face's left edge as from
 	// its right (the waveform's: not the loader's, nor a notice's).
-	row, even bool
+	Row, Even bool
 	// text: a line of text under the row; scrolled: it was wider than
 	// the line, so it ends at the right padding and is cut at the left.
-	text, scrolled bool
+	Text, Scrolled bool
 	// card: the answer card: its ink starts at its left padding and
 	// ends above its bottom one, at most gap DIPs above it (no empty
 	// space under a short text; a long one scrolls to the padding).
-	card bool
-	gap  float64
+	Card bool
+	Gap  float64
 }
 
-// ovInk is what the picture shows, in DIPs from the face's top left.
-type ovInk struct {
+// Ink is what the picture shows, in DIPs from the face's top left.
+type Ink struct {
 	faceW, faceH float64
 	// The row's ink: the icon's (the first stroke) and the rest's, the
 	// left and right edges and the middle of each, top to bottom.
@@ -50,7 +52,7 @@ type ovInk struct {
 	headT, headB, rule float64
 }
 
-func (k ovInk) String() string {
+func (k Ink) String() string {
 	s := fmt.Sprintf("face %.1f×%.1f; header %.1f–%.1f, rule %.1f; ink: left %.1f, %.1f above the bottom; row: left %.1f, right %.1f, icon middle %.1f, waveform middle %.1f",
 		k.faceW, k.faceH, k.headT, k.headB, k.rule, k.inkL, k.faceH-k.inkB, k.iconL, k.faceW-k.restR, k.iconMid, k.restMid)
 	if k.textR > 0 {
@@ -69,7 +71,7 @@ const (
 
 // measureOverlayInk measures img, a picture of the overlay's window at
 // scale pixels a DIP, the face's row padY DIPs from its top.
-func measureOverlayInk(img image.Image, scale float64, padY float64, row, text bool) (ovInk, error) {
+func measureOverlayInk(img image.Image, scale float64, padY float64, row, text bool) (Ink, error) {
 	b := img.Bounds()
 	alpha := func(x, y int) uint32 { _, _, _, a := img.At(x, y).RGBA(); return a >> 8 }
 	bright := func(x, y int) bool {
@@ -90,9 +92,9 @@ func measureOverlayInk(img image.Image, scale float64, padY float64, row, text b
 		}
 	}
 	if x1 < x0 {
-		return ovInk{}, fmt.Errorf("no face")
+		return Ink{}, fmt.Errorf("no face")
 	}
-	var k ovInk
+	var k Ink
 	k.faceW, k.faceH = float64(x1+1-x0)/scale, float64(y1+1-y0)/scale
 	inset := int(math.Ceil(2 * scale)) // past the hairline
 	il, ib := math.MaxInt, -1
@@ -113,7 +115,7 @@ func measureOverlayInk(img image.Image, scale float64, padY float64, row, text b
 	// The row: its band, the columns that have ink in it, split at the
 	// first gap wider than 6 DIPs (the icon's slot, the gap, the bars'
 	// air: 12 or more; a glyph's own gaps are narrower).
-	rowTop, rowBottom := y0+int(math.Round(padY*scale)), y0+int(math.Round((padY+ovRowH)*scale))
+	rowTop, rowBottom := y0+int(math.Round(padY*scale)), y0+int(math.Round((padY+layout.RowH)*scale))
 	if !text {
 		rowBottom = y1 + 1 - inset
 	}
@@ -225,71 +227,71 @@ func measureCardHead(img image.Image, scale float64, x0, y0, x1, y1 int, bright 
 	return top, bottom, rule
 }
 
-// checkOverlayInk measures img and says what is wrong with it: the
+// Check measures img and says what is wrong with it: the
 // face's size, the row's sides, its middle, the text's sides.
-func checkOverlayInk(img image.Image, scale float64, want ovInkWant) (ovInk, []string) {
-	padY := float64(ovPillPadY)
-	if want.text {
-		padY = ovLivePadY
+func Check(img image.Image, scale float64, want Want) (Ink, []string) {
+	padY := float64(layout.PillPadY)
+	if want.Text {
+		padY = layout.LivePadY
 	}
-	k, err := measureOverlayInk(img, scale, padY, want.row, want.text)
+	k, err := measureOverlayInk(img, scale, padY, want.Row, want.Text)
 	if err != nil {
 		return k, []string{err.Error()}
 	}
 	var bad []string
 	failf := func(format string, args ...any) { bad = append(bad, fmt.Sprintf(format, args...)) }
-	if math.Abs(k.faceW-float64(want.w)) > ovInkSizeTol || math.Abs(k.faceH-float64(want.h)) > ovInkSizeTol {
-		failf("the face is %.1f×%.1f, not %d×%d", k.faceW, k.faceH, want.w, want.h)
+	if math.Abs(k.faceW-float64(want.W)) > ovInkSizeTol || math.Abs(k.faceH-float64(want.H)) > ovInkSizeTol {
+		failf("the face is %.1f×%.1f, not %d×%d", k.faceW, k.faceH, want.W, want.H)
 	}
-	if want.card {
-		if math.Abs(k.faceW-ovAnswerW) > ovInkSizeTol {
-			failf("the card is %.1f wide, not %d", k.faceW, ovAnswerW)
+	if want.Card {
+		if math.Abs(k.faceW-layout.AnswerW) > ovInkSizeTol {
+			failf("the card is %.1f wide, not %d", k.faceW, layout.AnswerW)
 		}
 		// The header between the card's top and the rule: as much room
 		// over its ink as under it (10-15).
 		switch {
 		case k.rule == 0:
 			failf("no rule under the header")
-		case math.Abs(k.rule-ovCardRuleY) > ovInkTol:
-			failf("the rule is %.1f from the top, not %d", k.rule, ovCardRuleY)
+		case math.Abs(k.rule-layout.CardRuleY) > ovInkTol:
+			failf("the rule is %.1f from the top, not %d", k.rule, layout.CardRuleY)
 		case math.Abs((k.headT+k.headB)/2-k.rule/2) > 1.5:
 			failf("the header's ink is %.1f under the top and %.1f over the rule", k.headT, k.rule-k.headB)
 		}
 		// The icon's glyph sits a little inside its slot.
-		if k.inkL < ovCardPadX-ovInkTol || k.inkL > ovCardPadX+4 {
-			failf("the card's ink starts %.1f from its left edge, not %d", k.inkL, ovCardPadX)
+		if k.inkL < layout.CardPadX-ovInkTol || k.inkL > layout.CardPadX+4 {
+			failf("the card's ink starts %.1f from its left edge, not %d", k.inkL, layout.CardPadX)
 		}
 		under := k.faceH - k.inkB
-		if under < ovCardPadY-ovInkTextTol || under > ovCardPadY+want.gap {
-			failf("the card's ink ends %.1f above its bottom edge, not %d to %.0f", under, ovCardPadY, ovCardPadY+want.gap)
+		if under < layout.CardPadY-ovInkTextTol || under > layout.CardPadY+want.Gap {
+			failf("the card's ink ends %.1f above its bottom edge, not %d to %.0f", under, layout.CardPadY, layout.CardPadY+want.Gap)
 		}
 	}
-	if !want.row {
+	if !want.Row {
 		return k, bad
 	}
 	left, right := k.iconL, k.faceW-k.restR
-	if want.even && math.Abs(left-right) > ovInkTol {
+	if want.Even && math.Abs(left-right) > ovInkTol {
 		failf("the row's ink is %.1f from the left edge, %.1f from the right", left, right)
 	}
 	if d := k.iconMid - k.restMid; math.Abs(d) > ovInkTol {
 		failf("the icon's middle is %.1f, the waveform's %.1f", k.iconMid, k.restMid)
 	}
-	if rowMid := padY + ovRowH/2; math.Abs(k.restMid-rowMid) > ovInkTol {
+	if rowMid := padY + layout.RowH/2; math.Abs(k.restMid-rowMid) > ovInkTol {
 		failf("the row's middle is %.1f, not %.1f", k.restMid, rowMid)
 	}
-	if !want.text {
+	if !want.Text {
 		return k, bad
 	}
 	tl, tr := k.textL, k.faceW-k.textR
 	switch {
-	case want.scrolled:
+	case want.Scrolled:
 		// The newest words end at the right padding; the oldest go under
 		// the left one, fading.
-		if math.Abs(tr-ovLivePadX) > ovInkTextTol || tl < ovLivePadX-ovInkTol {
-			failf("the scrolled text is %.1f from the left edge, %.1f from the right (%d)", tl, tr, ovLivePadX)
+		if math.Abs(tr-layout.LivePadX) > ovInkTextTol || tl < layout.LivePadX-ovInkTol {
+			failf("the scrolled text is %.1f from the left edge, %.1f from the right (%d)", tl, tr, layout.LivePadX)
 		}
-		if math.Abs(k.faceW-ovLiveMaxW) > ovInkSizeTol {
-			failf("the face with long text is %.1f wide, not %d", k.faceW, ovLiveMaxW)
+		if math.Abs(k.faceW-layout.LiveMaxW) > ovInkSizeTol {
+			failf("the face with long text is %.1f wide, not %d", k.faceW, layout.LiveMaxW)
 		}
 	default:
 		if math.Abs(tl-tr) > ovInkTol {
@@ -298,12 +300,12 @@ func checkOverlayInk(img image.Image, scale float64, want ovInkWant) (ovInk, []s
 		// As wide as the text and the padding (its ink a little narrower
 		// than its advance), or else as the row and the padding (the
 		// icon's ink a little inside its slot, the bars' in theirs).
-		byText := k.faceW-(k.textR-k.textL+2*ovLivePadX) <= 2*ovInkTextTol
-		byRow := left <= ovLivePadX+4 && right <= ovLivePadX+4
+		byText := k.faceW-(k.textR-k.textL+2*layout.LivePadX) <= 2*ovInkTextTol
+		byRow := left <= layout.LivePadX+4 && right <= layout.LivePadX+4
 		if !byText && !byRow {
 			failf("the face is %.1f wide, wider than its text (%.1f) and its row", k.faceW, k.textR-k.textL)
 		}
-		if tl < ovLivePadX-ovInkTol {
+		if tl < layout.LivePadX-ovInkTol {
 			failf("the text is cut: %.1f from the left edge", tl)
 		}
 	}

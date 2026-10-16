@@ -27,6 +27,9 @@ hotkey settings
 llm core
 logs core
 notify core
+overlay/ink overlay/layout
+overlay/layout session
+overlay/layout settings
 providers asr
 providers asr/aliyun
 providers asr/doubao

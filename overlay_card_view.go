@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/store"
 	"github.com/hehehai/Auralink/internal/uitext"
 )
@@ -20,18 +21,18 @@ func (a *app) overlayCard(c *ui.Context) {
 	v := a.cardNow()
 	msgH := 0
 	if v.msg != "" {
-		msgH = ovCardMsgGap + ovCardMsgH
+		msgH = layout.CardMsgGap + layout.CardMsgH
 	}
-	bodyH := float32(max(a.ov.h-ovCardChrome-msgH, 0))
-	// The border takes ovBorder of the padding (MyGo's border box).
-	ui.Column(c).Fill().Padding(ovCardPadTop-ovBorder, ovCardPadX-ovBorder, ovCardPadY-ovBorder).Children(func() {
-		ui.Row(c).Height(ovCardHeadH).Shrink(0).Gap(ovCardHeadGap).AlignItems(ui.Center).Children(func() {
+	bodyH := float32(max(a.ov.h-layout.CardChrome-msgH, 0))
+	// The border takes layout.Border of the padding (MyGo's border box).
+	ui.Column(c).Fill().Padding(layout.CardPadTop-layout.Border, layout.CardPadX-layout.Border, layout.CardPadY-layout.Border).Children(func() {
+		ui.Row(c).Height(layout.CardHeadH).Shrink(0).Gap(layout.CardHeadGap).AlignItems(ui.Center).Children(func() {
 			a.cardHeader(c, v)
 		})
-		ui.Box(c).Height(1).Shrink(0).Margin(ovCardRuleTop, 0, 0, 0).Background(ovCardRule)
+		ui.Box(c).Height(1).Shrink(0).Margin(layout.CardRuleTop, 0, 0, 0).Background(ovCardRule)
 		a.cardBody(c, v, bodyH)
 		if v.msg != "" {
-			ui.Row(c).Height(ovCardMsgH).Shrink(0).Margin(ovCardMsgGap, 0, 0, 0).Gap(6).AlignItems(ui.Center).Label(v.msg).Children(func() {
+			ui.Row(c).Height(layout.CardMsgH).Shrink(0).Margin(layout.CardMsgGap, 0, 0, 0).Gap(6).AlignItems(ui.Center).Label(v.msg).Children(func() {
 				ic, col := icons.InfoCircle, ovText2
 				if v.failed != nil {
 					ic, col = icons.DangerCircle, tok(c.Theme()).Danger
@@ -51,14 +52,14 @@ func (a *app) cardHeader(c *ui.Context, v cardView) {
 	if v.conversation {
 		ic = icons.VoxtTranscribe
 	}
-	ui.Icon(c, ic.Bold).Size(ovCardIcon, ovCardIcon).TextColor(ui.RGB(255, 255, 255)).Opacity(ovCardIconA(v)).Shrink(0).Label(uitext.KindTitle(v.kind))
+	ui.Icon(c, ic.Bold).Size(layout.CardIcon, layout.CardIcon).TextColor(ui.RGB(255, 255, 255)).Opacity(ovCardIconA(v)).Shrink(0).Label(uitext.KindTitle(v.kind))
 	if v.conversation {
 		// Voxt's: a small waveform in the title's place, moving while a
 		// follow-up records.
 		cardWave(c, v, a.overlayMotion(), a.overlayPhase())
 		ui.Spacer(c)
 	} else {
-		ui.Text(c, v.title).FontSize(ovCardTitleSize).FontWeight(600).TextColor(ui.RGB(255, 255, 255)).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
+		ui.Text(c, v.title).FontSize(layout.CardTitleSize).FontWeight(600).TextColor(ui.RGB(255, 255, 255)).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 		if v.busy {
 			// Voxt's spinner: an arc turning once in 0.9 s, 88 %.
 			ui.Icon(c, icons.VoxtSpinner.Linear).Size(12, 12).TextColor(ui.RGBA(255, 255, 255, 0.88)).Shrink(0).
@@ -129,7 +130,7 @@ func (v cardView) spinning() bool { return !v.conversation && v.busy }
 // AnswerHeaderActionButton): 24, white 8 % (16 % and a hairline under
 // the pointer); dim when it cannot. It reports a click.
 func cardIconButton(c *ui.Context, label, tip string, icon icons.Icon, enabled bool) bool {
-	b := ui.ButtonBase(c).Size(ovCardBtn, ovCardBtn).Radius(ovCardBtn / 2).Center().Shrink(0).Label(label).Disabled(!enabled)
+	b := ui.ButtonBase(c).Size(layout.CardBtn, layout.CardBtn).Radius(layout.CardBtn / 2).Center().Shrink(0).Label(label).Disabled(!enabled)
 	if tip != "" {
 		b.Tooltip(tip)
 	}
@@ -147,14 +148,14 @@ func cardIconButton(c *ui.Context, label, tip string, icon icons.Icon, enabled b
 		alpha = 0.42 * 0.92
 	}
 	return b.Children(func() {
-		ui.Icon(c, icon.Linear).Size(ovCardBtnIcon, ovCardBtnIcon).TextColor(ui.RGBA(255, 255, 255, alpha))
+		ui.Icon(c, icon.Linear).Size(layout.CardBtnIcon, layout.CardBtnIcon).TextColor(ui.RGBA(255, 255, 255, alpha))
 	}).Clicked()
 }
 
 // cardCapsule is the header's text button (Voxt's AnswerContinueButton):
 // 24 high, 11 semibold. It reports a click.
 func cardCapsule(c *ui.Context, label, tip string) bool {
-	b := ui.ButtonBase(c).Height(ovCardBtn).Padding(0, 10-ovBorder).Radius(ovCardBtn / 2).Center().Shrink(0).Label(label)
+	b := ui.ButtonBase(c).Height(layout.CardBtn).Padding(0, 10-layout.Border).Radius(layout.CardBtn / 2).Center().Shrink(0).Label(label)
 	if tip != "" {
 		b.Tooltip(tip)
 	}
@@ -174,7 +175,7 @@ func cardCapsule(c *ui.Context, label, tip string) bool {
 // into the card.
 func (a *app) cardLanguage(c *ui.Context, v cardView) {
 	open := a.answer.langOpen && v.canLang
-	b := ui.ButtonBase(c.Key("ov-card-lang")).Height(ovCardBtn).Padding(0, 10-ovBorder).Radius(ovCardBtn / 2).Shrink(0).
+	b := ui.ButtonBase(c.Key("ov-card-lang")).Height(layout.CardBtn).Padding(0, 10-layout.Border).Radius(layout.CardBtn / 2).Shrink(0).
 		Label(i18n.T("Translate into")).Disabled(!v.canLang).Checked(open)
 	line, bg := ui.RGBA(255, 255, 255, 0.12), ui.RGBA(255, 255, 255, 0.08)
 	switch {
@@ -200,7 +201,7 @@ func (a *app) cardLanguage(c *ui.Context, v cardView) {
 	b.Children(func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, uitext.TargetLanguageLabel(v.lang)).FontSize(11).FontWeight(600).TextColor(ui.RGBA(255, 255, 255, 0.92*alpha)).
-				SingleLine().Ellipsis("…").MaxWidth(ovCardLangMaxW).MinWidth(0)
+				SingleLine().Ellipsis("…").MaxWidth(layout.CardLangMaxW).MinWidth(0)
 			ui.Icon(c, chevron.Bold).Size(10, 10).TextColor(ui.RGBA(255, 255, 255, 0.72*alpha)).Shrink(0)
 		})
 	})
@@ -211,19 +212,19 @@ func (a *app) cardLanguage(c *ui.Context, v cardView) {
 // records, a quiet pattern otherwise.
 func cardWave(c *ui.Context, v cardView, motion bool, phase float64) {
 	const sx, sy = 0.84, 0.82
-	bars := waveBars(v.levels)
+	bars := layout.WaveBars(v.levels)
 	quiet := [...]float32{3.2, 3.9, 4.6, 5.1, 4.2, 3.5, 4.4, 4.9}
 	label := i18n.T("Input level")
-	ui.Row(c.Key("ov-card-wave")).Width(ovCardWaveW).Height(ovCardIcon).Shrink(0).Gap(waveBarGap * sx).AlignItems(ui.Center).Label(label).Children(func() {
+	ui.Row(c.Key("ov-card-wave")).Width(layout.CardWaveW).Height(layout.CardIcon).Shrink(0).Gap(layout.WaveBarGap * sx).AlignItems(ui.Center).Label(label).Children(func() {
 		for i, lv := range bars {
 			h := quiet[i%len(quiet)] * sy
 			if v.recording && v.heard {
-				h = (waveBarMinH + (waveBarMaxH-waveBarMinH)*float32(lv)) * sy
+				h = (layout.WaveBarMinH + (layout.WaveBarMaxH-layout.WaveBarMinH)*float32(lv)) * sy
 				if motion {
-					h += float32(waveIdle(i, lv, phase)) * sy
+					h += float32(layout.WaveIdle(i, lv, phase)) * sy
 				}
 			}
-			ui.Box(c).Width(waveBarW*sx).Height(h).Radius(waveBarR).Gradient(ui.RGBA(255, 255, 255, 0.98), ui.RGBA(255, 255, 255, 0.8), 180).Shrink(0)
+			ui.Box(c).Width(layout.WaveBarW*sx).Height(h).Radius(layout.WaveBarR).Gradient(ui.RGBA(255, 255, 255, 0.98), ui.RGBA(255, 255, 255, 0.8), 180).Shrink(0)
 		}
 	})
 }
@@ -245,8 +246,8 @@ func (a *app) cardBody(c *ui.Context, v cardView, bodyH float32) {
 	} else if v.conversation && st.Y >= st.MaxY-2 {
 		st.Y = math.MaxFloat32
 	}
-	ui.Scroll(c.Key("ov-card-body")).Height(bodyH).Shrink(0).Margin(ovCardRuleGap, 0, 0, 0).TrackScroll(st).Children(func() {
-		ui.Column(c).Padding(0, ovCardInset, 0, 0).Children(func() {
+	ui.Scroll(c.Key("ov-card-body")).Height(bodyH).Shrink(0).Margin(layout.CardRuleGap, 0, 0, 0).TrackScroll(st).Children(func() {
+		ui.Column(c).Padding(0, layout.CardInset, 0, 0).Children(func() {
 			for i, b := range cardBlocks(v) {
 				a.cardBlockView(c.Key(i), b)
 			}
@@ -260,8 +261,8 @@ func (a *app) cardBlockView(c *ui.Context, b cardBlock) {
 	case b.bubble:
 		a.cardBubbleView(c, b)
 	case b.problem:
-		ui.Row(c).Gap(ovProblemGap).AlignItems(ui.Start).Margin(b.gap, 0, 0, 0).Children(func() {
-			ui.Icon(c, icons.DangerCircle.Bold).Size(ovProblemIcon, ovProblemIcon).TextColor(tok(c.Theme()).Danger).Shrink(0)
+		ui.Row(c).Gap(layout.ProblemGap).AlignItems(ui.Start).Margin(b.gap, 0, 0, 0).Children(func() {
+			ui.Icon(c, icons.DangerCircle.Bold).Size(layout.ProblemIcon, layout.ProblemIcon).TextColor(tok(c.Theme()).Danger).Shrink(0)
 			ui.Text(c, b.text.text).FontSize(b.text.size).FontWeight(b.text.weight).TextColor(b.color).Grow(1).MinWidth(0)
 		})
 	default:
@@ -292,17 +293,17 @@ func (a *app) cardBubbleView(c *ui.Context, b cardBlock) {
 		}
 	}
 	ui.Row(c).Justify(justify).Margin(b.gap, 0, 0, 0).Children(func() {
-		col := ui.Column(c.Key("bubble")).Width(ovBubbleW).Shrink(0).Padding(ovBubblePadY-ovBorder, ovBubblePadX-ovBorder).Gap(ovBubbleTitleGap).
-			Radius(ovBubbleRadius).Background(bg).Border(1, line)
+		col := ui.Column(c.Key("bubble")).Width(layout.BubbleW).Shrink(0).Padding(layout.BubblePadY-layout.Border, layout.BubblePadX-layout.Border).Gap(layout.BubbleTitleGap).
+			Radius(layout.BubbleRadius).Background(bg).Border(1, line)
 		if b.user {
 			col.AlignItems(ui.End)
 		}
 		hover := !b.user && !b.live && col.Hovered()
 		col.Children(func() {
 			if b.title.text != "" {
-				ui.Text(c, b.title.text).FontSize(ovBubbleTitleSize).FontWeight(600).TextColor(ui.RGBA(255, 255, 255, titleA)).SingleLine().Ellipsis("…").MaxWidth(ovBubbleW - 2*ovBubblePadX)
+				ui.Text(c, b.title.text).FontSize(layout.BubbleTitleSize).FontWeight(600).TextColor(ui.RGBA(255, 255, 255, titleA)).SingleLine().Ellipsis("…").MaxWidth(layout.BubbleW - 2*layout.BubblePadX)
 			}
-			t := ui.Text(c, b.text.text).FontSize(ovBubbleTextSize).FontWeight(500).TextColor(ui.RGBA(255, 255, 255, textA))
+			t := ui.Text(c, b.text.text).FontSize(layout.BubbleTextSize).FontWeight(500).TextColor(ui.RGBA(255, 255, 255, textA))
 			if b.user {
 				t.TextAlign(ui.End)
 			}
@@ -315,7 +316,7 @@ func (a *app) cardBubbleView(c *ui.Context, b cardBlock) {
 				if copied {
 					label, ic = i18n.T("Copied"), icons.CopyCheck
 				}
-				cb := ui.ButtonBase(c.Key("copy")).Absolute().Top(8).Right(8).Height(22).Padding(0, 8-ovBorder).Radius(11).
+				cb := ui.ButtonBase(c.Key("copy")).Absolute().Top(8).Right(8).Height(22).Padding(0, 8-layout.Border).Radius(11).
 					Background(ui.RGBA(0, 0, 0, 0.74)).Border(1, ui.RGBA(255, 255, 255, 0.12)).Label(label)
 				if cb.Children(func() {
 					ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {

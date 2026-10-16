@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
@@ -37,12 +38,12 @@ func (a *app) overlayView(c *ui.Context) {
 	}
 	switch {
 	case motion && (a.ov.mode == ovRecording || a.ov.mode == ovWorking || a.ov.mode == ovAnswer && (a.cardRecording() || a.cardNow().spinning())):
-		c.After(ovFrame)
+		c.After(layout.Tick)
 	case a.ov.mode == ovRecording && a.prefs.Overlay.ShowTime:
 		c.After(250 * time.Millisecond) // the time
 	}
 	look := pillLook{time: a.prefs.Overlay.ShowTime, motion: motion, phase: a.overlayPhase(), w: a.ov.w}
-	ui.Column(c).Fill().Padding(ovPad).Children(func() {
+	ui.Column(c).Fill().Padding(layout.Pad).Children(func() {
 		o := a.prefs.Overlay
 		switch a.ov.mode {
 		case ovAnswer:
@@ -80,16 +81,11 @@ func faceRadius(o settings.Overlay, mode overlayMode, h int) float32 {
 	return radius
 }
 
-// faceAlpha is how opaque the face's fill is (Overlay.Opacity).
-func faceAlpha(o settings.Overlay) float32 {
-	return float32(min(max(o.Opacity, 0.5), 1))
-}
-
 // faceStyle gives e, the face, its look in mode, h DIPs high: the radius,
 // the translucent fill, the hairline and the shadow. Give it children.
 func faceStyle(e ui.Element, o settings.Overlay, mode overlayMode, h int) ui.Element {
-	return e.Fill().Radius(faceRadius(o, mode, h)).Background(ui.RGBA(22, 22, 26, faceAlpha(o))).
-		Border(1, ui.RGBA(255, 255, 255, 0.12)).Shadow(0, ovShadowY, ovShadowBlur, 0, ui.RGBA(0, 0, 0, ovShadowA))
+	return e.Fill().Radius(faceRadius(o, mode, h)).Background(ui.RGBA(22, 22, 26, layout.FaceAlpha(o))).
+		Border(1, ui.RGBA(255, 255, 255, 0.12)).Shadow(0, layout.ShadowY, layout.ShadowBlur, 0, ui.RGBA(0, 0, 0, layout.ShadowA))
 }
 
 // pillLook is how the pill draws: with the time, moving, at phase
@@ -108,20 +104,20 @@ type pillLook struct {
 // both centred, in the wider padding of Voxt's card with text.
 func overlayPill(c *ui.Context, s session.Snapshot, mode overlayMode, look pillLook) {
 	text := liveLineText(s)
-	// The face's border takes ovBorder of its padding (MyGo's border box).
-	col := ui.Column(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Padding(ovPillPadY-ovBorder, ovPillPadX-ovBorder)
+	// The face's border takes layout.Border of its padding (MyGo's border box).
+	col := ui.Column(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Padding(layout.PillPadY-layout.Border, layout.PillPadX-layout.Border)
 	if text != "" {
-		col.Padding(ovLivePadY-ovBorder, ovLivePadX-ovBorder).Gap(ovLiveGap)
+		col.Padding(layout.LivePadY-layout.Border, layout.LivePadX-layout.Border).Gap(layout.LiveGap)
 	}
 	col.Children(func() {
-		ui.Row(c).Height(ovRowH).Shrink(0).Gap(ovGap).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(ovIconSlot, ovRowH).Shrink(0).Center().Children(func() {
-				ui.Icon(c, overlayKindIcon(s.Kind).Bold).Size(ovIconSize, ovIconSize).TextColor(ovIcon).Shrink(0).Label(uitext.KindTitle(s.Kind))
+		ui.Row(c).Height(layout.RowH).Shrink(0).Gap(layout.Gap).AlignItems(ui.Center).Children(func() {
+			ui.Box(c).Size(layout.IconSlot, layout.RowH).Shrink(0).Center().Children(func() {
+				ui.Icon(c, overlayKindIcon(s.Kind).Bold).Size(layout.IconSize, layout.IconSize).TextColor(ovIcon).Shrink(0).Label(uitext.KindTitle(s.Kind))
 			})
 			if mode == ovRecording {
 				waveform(c, s.Levels, !s.HeardAt.IsZero(), look)
 				if look.time {
-					ui.Box(c).Size(ovTimeW, ovRowH).Shrink(0).Center().Children(func() {
+					ui.Box(c).Size(layout.TimeW, layout.RowH).Shrink(0).Center().Children(func() {
 						ui.Text(c, clock(s.Elapsed(time.Now()))).FontSize(12).Font("monospace").TextColor(ovText2).SingleLine().Shrink(0)
 					})
 				}
@@ -129,12 +125,12 @@ func overlayPill(c *ui.Context, s session.Snapshot, mode overlayMode, look pillL
 				overlayLoader(c, uitext.WorkingText(s), look)
 			}
 			if name := uitext.SceneShort(s); name != "" {
-				ui.Text(c, name).FontSize(ovSceneSize).TextColor(ovText2).SingleLine().Ellipsis("…").MaxWidth(ovSceneMaxW).MinWidth(0).Shrink(1).
+				ui.Text(c, name).FontSize(layout.SceneSize).TextColor(ovText2).SingleLine().Ellipsis("…").MaxWidth(layout.SceneMaxW).MinWidth(0).Shrink(1).
 					Label(i18n.T("App enhancement: %s", uitext.SceneLabel(s)))
 			}
 		})
 		if text != "" {
-			liveLine(c.Key("ov-live-"+s.ID), text, float32(max(look.w, ovPillW)-2*ovLivePadX), look.motion)
+			liveLine(c.Key("ov-live-"+s.ID), text, float32(max(look.w, layout.PillW)-2*layout.LivePadX), look.motion)
 		}
 	})
 }
@@ -152,7 +148,7 @@ func liveLineText(s session.Snapshot) string {
 // key is the session's: a new one starts where its text is, not sliding.
 func liveLine(c *ui.Context, text string, width float32, motion bool) {
 	measure := func(t string) float32 { w, _ := c.MeasureText(0, liveTextKey(t).span()); return w }
-	box := ui.Row(c).Width(width).Height(ovLineH).Shrink(0).AlignItems(ui.Center).Clip().Label(text)
+	box := ui.Row(c).Width(width).Height(layout.LineH).Shrink(0).AlignItems(ui.Center).Clip().Label(text)
 	// Centred under the row while it fits; else its end at the right edge.
 	target := width - measure(text)
 	if target > 0 {
@@ -162,20 +158,20 @@ func liveLine(c *ui.Context, text string, width float32, motion bool) {
 	if motion {
 		x = box.AnimateTo("x", target, ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut})
 	}
-	shown, at, spans := text, x, []ui.Span{{Text: text, Size: ovLiveSize, Weight: ovLiveWeight, Color: ovLiveColor}}
+	shown, at, spans := text, x, []ui.Span{{Text: text, Size: layout.LiveSize, Weight: layout.LiveWeight, Color: ovLiveColor}}
 	if x < 0 {
 		shown, at, spans = fadeSpans(text, -x, measure)
 		at = x + at
 	}
 	box.Children(func() {
-		ui.RichText(c, spans...).NoWrap().Shrink(0).FixedLineHeight(ovLineH).Translate(at, 0).Label(shown)
+		ui.RichText(c, spans...).NoWrap().Shrink(0).FixedLineHeight(layout.LineH).Translate(at, 0).Label(shown)
 	})
 }
 
 // fadeSpans are the part of text that shows when it is scrolled off DIPs
 // to the left, measure telling how wide a part of it is: the letters past
 // the edge, where the shown part starts (from the text's start), and its
-// spans: the letters in the ovFadeW after the edge fading in from it, the
+// spans: the letters in the layout.FadeW after the edge fading in from it, the
 // rest as ovText.
 func fadeSpans(text string, off float32, measure func(string) float32) (string, float32, []ui.Span) {
 	r := []rune(text)
@@ -192,15 +188,15 @@ func fadeSpans(text string, off float32, measure func(string) float32) (string, 
 	from := measure(string(r[:lo]))
 	var spans []ui.Span
 	i, start := lo, from-off
-	for ; i < len(r) && start < ovFadeW; i++ {
+	for ; i < len(r) && start < layout.FadeW; i++ {
 		end := measure(string(r[:i+1])) - off
 		mid := max(0, (start+end)/2)
-		a := min(mid/ovFadeW, 1)
-		spans = append(spans, ui.Span{Text: string(r[i]), Size: ovLiveSize, Weight: ovLiveWeight, Color: ui.RGBA(255, 255, 255, ovLiveAlpha*(0.1+0.9*a))})
+		a := min(mid/layout.FadeW, 1)
+		spans = append(spans, ui.Span{Text: string(r[i]), Size: layout.LiveSize, Weight: layout.LiveWeight, Color: ui.RGBA(255, 255, 255, ovLiveAlpha*(0.1+0.9*a))})
 		start = end
 	}
 	if i < len(r) {
-		spans = append(spans, ui.Span{Text: string(r[i:]), Size: ovLiveSize, Weight: ovLiveWeight, Color: ovLiveColor})
+		spans = append(spans, ui.Span{Text: string(r[i:]), Size: layout.LiveSize, Weight: layout.LiveWeight, Color: ovLiveColor})
 	}
 	return string(r[lo:]), from, spans
 }
@@ -254,17 +250,17 @@ func (a *app) overlayNotice(c *ui.Context) {
 	}
 	label := noticeActionLabel(n.action)
 	content := func() {
-		// Centred, as the pill's row: a notice narrower than ovNoticeW
-		// keeps its sides even. The border takes ovBorder of the padding.
-		ui.Row(c).Fill().Padding(0, ovPillPadX-ovBorder).Gap(ovGap).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+		// Centred, as the pill's row: a notice narrower than layout.NoticeW
+		// keeps its sides even. The border takes layout.Border of the padding.
+		ui.Row(c).Fill().Padding(0, layout.PillPadX-layout.Border).Gap(layout.Gap).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			ic, col := icons.DangerCircle, tok(t).Danger
 			if n.warn {
 				ic, col = icons.DangerTriangle, tok(t).Warning
 			}
-			ui.Box(c).Size(ovIconSlot, ovRowH).Shrink(0).Center().Children(func() {
-				ui.Icon(c, ic.Bold).Size(ovIconSize, ovIconSize).TextColor(col).Shrink(0)
+			ui.Box(c).Size(layout.IconSlot, layout.RowH).Shrink(0).Center().Children(func() {
+				ui.Icon(c, ic.Bold).Size(layout.IconSize, layout.IconSize).TextColor(col).Shrink(0)
 			})
-			ui.Text(c, n.text).FontSize(ovNoticeSize).TextColor(ovText).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
+			ui.Text(c, n.text).FontSize(layout.NoticeSize).TextColor(ovText).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 			if label != "" {
 				ui.Icon(c, icons.AltArrowRight.Linear).Size(14, 14).TextColor(ovText2).Shrink(0).Margin(0, 0, 0, -2)
 			}
@@ -277,7 +273,7 @@ func (a *app) overlayNotice(c *ui.Context) {
 	}
 	b := faceStyle(ui.ButtonBase(c.Key("ov-notice")), o, ovNotice, a.ov.h).Label(n.text + " · " + label)
 	if b.Hovered() {
-		b.Background(ui.RGBA(34, 34, 40, min(faceAlpha(o)+0.06, 1)))
+		b.Background(ui.RGBA(34, 34, 40, min(layout.FaceAlpha(o)+0.06, 1)))
 	}
 	if b.Children(content).Clicked() {
 		a.noticeAction(n.action)

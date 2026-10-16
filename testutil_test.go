@@ -23,6 +23,7 @@ import (
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/macx"
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/permission"
 )
 
@@ -293,5 +294,5 @@ func hudTester(view func(*ui.Context), w, h int) *ui.Tester {
 // cardTester is a tester of the overlay's window as large as the
 // highest answer card.
 func cardTester(a *app) *ui.Tester {
-	return hudTester(a.overlayView, ovAnswerW+2*ovPad, ovCardMaxH+2*ovPad)
+	return hudTester(a.overlayView, layout.AnswerW+2*layout.Pad, layout.CardMaxH+2*layout.Pad)
 }

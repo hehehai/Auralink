@@ -14,6 +14,8 @@ import (
 	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/i18n"
+	"github.com/hehehai/Auralink/internal/overlay/ink"
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
@@ -28,7 +30,7 @@ type cardStep struct {
 	name  string
 	apply func(a *app)
 	// What it should be: the text's height (0: one line, -1: all of
-	// it, ovCardBodyMax: scrolled), a line under it, the header's offer.
+	// it, layout.CardBodyMax: scrolled), a line under it, the header's offer.
 	body                                                   int
 	msg                                                    bool
 	insert, copy, followUp, stop, retry, lang, busy, convo bool
@@ -56,8 +58,8 @@ func cardSteps() []cardStep {
 		{name: "redone-long", apply: func(a *app) {
 			snap(a, session.Snapshot{ID: "t2", Kind: store.KindTranslate, State: session.Done, Card: true, Delivery: deliver.ReasonCard, Target: arc,
 				Selection: sel, TargetLanguage: "ja", Result: cardLong})
-		}, body: ovCardBodyMax, insert: true, copy: true, lang: true},
-		{name: "copied", apply: func(a *app) { a.answer.copied = true }, body: ovCardBodyMax, insert: true, copy: true, lang: true},
+		}, body: layout.CardBodyMax, insert: true, copy: true, lang: true},
+		{name: "copied", apply: func(a *app) { a.answer.copied = true }, body: layout.CardBodyMax, insert: true, copy: true, lang: true},
 		{name: "insert-failed", apply: func(a *app) {
 			a.answer.copied, a.answer.text = false, "goroutine 是由 Go 运行时管理的轻量级线程。"
 			a.answer.msg = uitext.DeliveryText(deliver.Result{Reason: deliver.ReasonNotFront}, arc)
@@ -102,28 +104,28 @@ func TestAnswerCardStates(t *testing.T) {
 				st.apply(a)
 				a.overlaySync()
 				v := a.cardNow()
-				if a.ov.mode != ovAnswer || !a.ov.shown || a.ov.passThrough || a.ov.w != ovAnswerW {
+				if a.ov.mode != ovAnswer || !a.ov.shown || a.ov.passThrough || a.ov.w != layout.AnswerW {
 					t.Fatalf("%s: %s shown %v pass %v %d wide", st.name, a.ov.mode, a.ov.shown, a.ov.passThrough, a.ov.w)
 				}
 				body, _ := a.cardBodyHeight(v)
-				_, line := guessText(ovSized{"x", ovCardTextSize, ovCardTextWeight, ovCardBodyW})
+				_, line := guessText(ovSized{"x", layout.CardTextSize, layout.CardTextWeight, layout.CardBodyW})
 				switch st.body {
 				case 0:
 					if body != int(line) {
 						t.Errorf("%s: the text is %d high, not a line (%v)", st.name, body, line)
 					}
-				case ovCardBodyMax:
-					if body != ovCardBodyMax {
-						t.Errorf("%s: the text is %d high, not %d", st.name, body, ovCardBodyMax)
+				case layout.CardBodyMax:
+					if body != layout.CardBodyMax {
+						t.Errorf("%s: the text is %d high, not %d", st.name, body, layout.CardBodyMax)
 					}
 				default:
-					if body <= int(line) || body > ovCardBodyMax {
+					if body <= int(line) || body > layout.CardBodyMax {
 						t.Errorf("%s: the text is %d high", st.name, body)
 					}
 				}
-				want := ovCardChrome + body
+				want := layout.CardChrome + body
 				if st.msg {
-					want += ovCardMsgGap + ovCardMsgH
+					want += layout.CardMsgGap + layout.CardMsgH
 				}
 				if a.ov.h != want || (v.msg != "") != st.msg {
 					t.Errorf("%s: %d high, want %d (line %q)", st.name, a.ov.h, want, v.msg)
@@ -154,15 +156,15 @@ func TestAnswerCardInk(t *testing.T) {
 		a.overlaySync()
 		img := renderOverlay(t, a)
 		v := a.cardNow()
-		k, bad := checkOverlayInk(img, 2, cardInkWant(ovInkWant{w: a.ov.w, h: a.ov.h}, v))
+		k, bad := ink.Check(img, 2, cardInkWant(ink.Want{W: a.ov.w, H: a.ov.h}, v))
 		for _, b := range bad {
 			t.Errorf("%s: %s", st.name, b)
 		}
 		t.Logf("%s: %v", st.name, k)
-		if st.body == 0 && !st.msg && a.ov.h > ovCardChrome+24 {
+		if st.body == 0 && !st.msg && a.ov.h > layout.CardChrome+24 {
 			t.Errorf("%s: one line of text, the card %d high", st.name, a.ov.h)
 		}
-		if scrolls := a.ov.cardScroll.MaxY > 0; scrolls != (st.body == ovCardBodyMax) && !v.conversation {
+		if scrolls := a.ov.cardScroll.MaxY > 0; scrolls != (st.body == layout.CardBodyMax) && !v.conversation {
 			t.Errorf("%s: scrolls %v (%v)", st.name, scrolls, a.ov.cardScroll.MaxY)
 		}
 		if dir := os.Getenv("AURALINK_INK"); dir != "" {
@@ -273,7 +275,7 @@ func TestAnswerCardInteraction(t *testing.T) {
 		t.Fatalf("no heading in %q", firstTexts(tt))
 	}
 	// Its Copy: 8 from the bubble's top right corner, 22 high.
-	tt.ClickAt(title.X-ovBubblePadX+ovBubbleW-8-10, title.Y-ovBubblePadY+8+11)
+	tt.ClickAt(title.X-layout.BubblePadX+layout.BubbleW-8-10, title.Y-layout.BubblePadY+8+11)
 	frames(tt)
 	if tt.Clipboard() != "Running late\n\nSorry, I am running about ten minutes late: please start without me." || a.ov.bubbleCopied == "" {
 		t.Errorf("bubble copied %q", tt.Clipboard())
@@ -306,16 +308,16 @@ func TestLanguageMenuPlace(t *testing.T) {
 			if !a.ov.lang.shown || a.ov.frame != card {
 				t.Fatalf("shown %v, card %+v (was %+v)", a.ov.lang.shown, a.ov.frame, card)
 			}
-			faceX, faceY := card.X+ovPad, card.Y+ovPad
-			capRight := faceX + ovAnswerW - ovCardPadX - 3*ovCardBtn - 3*ovCardHeadGap
-			if m.X+m.Width-ovPad != capRight || m.Width != ovLangW+2*ovPad || m.Height != langMenuHeight()+2*ovPad {
+			faceX, faceY := card.X+layout.Pad, card.Y+layout.Pad
+			capRight := faceX + layout.AnswerW - layout.CardPadX - 3*layout.CardBtn - 3*layout.CardHeadGap
+			if m.X+m.Width-layout.Pad != capRight || m.Width != ovLangW+2*layout.Pad || m.Height != langMenuHeight()+2*layout.Pad {
 				t.Errorf("menu %+v, the capsule's right edge %d", m, capRight)
 			}
 			switch {
-			case pos == "bottom" && m.Y+m.Height-ovPad != faceY-ovLangGap:
-				t.Errorf("bottom: the menu ends at %d, the card's top is %d", m.Y+m.Height-ovPad, faceY)
-			case pos == "top" && m.Y+ovPad != faceY+ovCardPadTop+ovCardHeadH+ovLangGap:
-				t.Errorf("top: the menu starts at %d", m.Y+ovPad)
+			case pos == "bottom" && m.Y+m.Height-layout.Pad != faceY-ovLangGap:
+				t.Errorf("bottom: the menu ends at %d, the card's top is %d", m.Y+m.Height-layout.Pad, faceY)
+			case pos == "top" && m.Y+layout.Pad != faceY+layout.CardPadTop+layout.CardHeadH+ovLangGap:
+				t.Errorf("top: the menu starts at %d", m.Y+layout.Pad)
 			}
 			if len(compose.TargetLanguages)*ovLangRowH+2*ovLangPad > ovLangMaxH && langMenuHeight() != ovLangMaxH {
 				t.Errorf("height %d", langMenuHeight())
@@ -372,16 +374,16 @@ func TestCardHeaderFits(t *testing.T) {
 				}
 				c.apply(a)
 				renderOverlay(t, a)
-				tt := hudTester(a.overlayView, a.ov.w+2*ovPad, a.ov.h+2*ovPad)
+				tt := hudTester(a.overlayView, a.ov.w+2*layout.Pad, a.ov.h+2*layout.Pad)
 				frames(tt)
-				right := float32(ovPad + ovAnswerW - ovCardPadX)
+				right := float32(layout.Pad + layout.AnswerW - layout.CardPadX)
 				prev := float32(-1)
 				for _, label := range c.actions {
 					r, ok := tt.Find(i18n.T(label))
 					if !ok {
 						t.Fatalf("no %q in %q", i18n.T(label), firstTexts(tt))
 					}
-					if r.X < prev || r.X+r.W > right+0.5 || r.H > ovCardBtn+0.5 {
+					if r.X < prev || r.X+r.W > right+0.5 || r.H > layout.CardBtn+0.5 {
 						t.Errorf("%q at %+v (after %v, the card's padding at %v)", label, r, prev, right)
 					}
 					prev = r.X + r.W
@@ -394,7 +396,7 @@ func TestCardHeaderFits(t *testing.T) {
 				}
 				if c.name == "translate" {
 					title, ok := tt.Find(i18n.T("Translation"))
-					if !ok || title.X+title.W > first.X-ovCardHeadGap+0.5 {
+					if !ok || title.X+title.W > first.X-layout.CardHeadGap+0.5 {
 						t.Errorf("the title %+v runs into the capsule at %v", title, first.X)
 					}
 				}
@@ -403,7 +405,7 @@ func TestCardHeaderFits(t *testing.T) {
 					if !ok {
 						t.Fatalf("no title in %q", firstTexts(tt))
 					}
-					if title.X+title.W > first.X-ovCardHeadGap+0.5 {
+					if title.X+title.W > first.X-layout.CardHeadGap+0.5 {
 						t.Errorf("the title %+v runs into %q at %v", title, c.actions[0], first.X)
 					}
 				}

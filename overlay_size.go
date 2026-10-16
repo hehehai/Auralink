@@ -11,6 +11,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/uitext"
 )
 
@@ -20,66 +21,33 @@ func (a *app) overlaySize(mode overlayMode) (w, h int, exact bool) {
 	switch mode {
 	case ovAnswer:
 		h, exact := a.cardHeight() // overlay_card.go
-		return ovAnswerW, h, exact
+		return layout.AnswerW, h, exact
 	case ovNotice:
 		if a.notice == nil {
-			return ovNoticeW, ovPillH, true
+			return layout.NoticeW, layout.PillH, true
 		}
 		tw, exact := a.ovTextWidth(noticeText(a.notice.text))
-		return noticeWidth(tw, a.notice.action != actionNone), ovPillH, exact
+		return layout.NoticeWidth(tw, a.notice.action != actionNone), layout.PillH, exact
 	case ovRecording, ovWorking:
 		scene, exact := float32(0), true
 		if name := uitext.SceneShort(a.sess); name != "" {
 			scene, exact = a.ovTextWidth(sceneText(name))
 		}
-		row := rowWidth(mode == ovRecording && a.prefs.Overlay.ShowTime, scene)
+		row := layout.RowWidth(mode == ovRecording && a.prefs.Overlay.ShowTime, scene)
 		text := liveLineText(a.sess)
 		if text == "" {
-			return row + 2*ovPillPadX, ovPillH, exact
+			return row + 2*layout.PillPadX, layout.PillH, exact
 		}
 		tw, known := a.ovTextWidth(liveTextKey(text))
-		w := liveWidth(row, tw)
+		w := layout.LiveWidth(row, tw)
 		if a.ov.live.id == a.sess.ID {
 			// Within a session the face only grows: a revised text, or the
 			// model's draft after the speech, does not make it jump back.
 			w = max(w, a.ov.live.w)
 		}
-		return w, ovLiveH, exact && known
+		return w, layout.LiveH, exact && known
 	}
-	return ovPillW, ovPillH, true
-}
-
-// rowWidth is the width of the pill's row: the icon and the waveform, the
-// time when it shows, the group's name when one matched (scene DIPs
-// wide, at most ovSceneMaxW; 0 for none).
-func rowWidth(showTime bool, scene float32) int {
-	w := ovRowW
-	if showTime {
-		w += ovGap + ovTimeW
-	}
-	if scene > 0 {
-		w += ovGap + int(math.Ceil(float64(min(scene, ovSceneMaxW))))
-	}
-	return w
-}
-
-// liveWidth is the face's width with live text text DIPs wide under a
-// row row DIPs wide: the wider of the two, the text at most
-// ovLiveTextW, and the padding (Voxt's).
-func liveWidth(row int, text float32) int {
-	line := int(math.Ceil(float64(min(text, ovLiveTextW))))
-	return max(row, line) + 2*ovLivePadX
-}
-
-// noticeWidth fits a notice's line, text DIPs wide: the pill's padding,
-// the icon, the text, the arrow of an action; at least ovNoticeW, at most
-// ovNoticeW2.
-func noticeWidth(text float32, action bool) int {
-	w := 2*ovPillPadX + ovIconSlot + ovGap + int(math.Ceil(float64(text)))
-	if action {
-		w += ovArrowW
-	}
-	return min(max(w, ovNoticeW), ovNoticeW2)
+	return layout.PillW, layout.PillH, true
 }
 
 // ovSized is a text the face's size depends on, as it draws: wrapped at
@@ -98,11 +66,13 @@ func (k ovSized) span() ui.Span {
 // ovMeasured is a text's size, measured.
 type ovMeasured struct{ w, h float32 }
 
-func liveTextKey(text string) ovSized { return ovSized{text, ovLiveSize, ovLiveWeight, 0} }
+func liveTextKey(text string) ovSized {
+	return ovSized{text, layout.LiveSize, layout.LiveWeight, 0}
+}
 
-func sceneText(name string) ovSized { return ovSized{name, ovSceneSize, 0, 0} }
+func sceneText(name string) ovSized { return ovSized{name, layout.SceneSize, 0, 0} }
 
-func noticeText(text string) ovSized { return ovSized{text, ovNoticeSize, 0, 0} }
+func noticeText(text string) ovSized { return ovSized{text, layout.NoticeSize, 0, 0} }
 
 // ovTextWidth is how wide k draws: as measured, or guessed (false)
 // until the overlay's view measured it.
