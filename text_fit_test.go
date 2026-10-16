@@ -30,8 +30,9 @@ var (
 
 // misfits returns those of strs, paragraph by paragraph, that break into
 // more lines when laid out at their own width, at any size and weight of
-// the type scale, with where.
-func misfits(t *testing.T, strs []string) map[string]string {
+// the type scale, with where: in lang, the language the app shows, which
+// MyGo lays text out in (showLanguage).
+func misfits(t *testing.T, strs []string, lang string) map[string]string {
 	t.Helper()
 	out := map[string]string{}
 	view := func(c *ui.Context) {
@@ -59,6 +60,7 @@ func misfits(t *testing.T, strs []string) map[string]string {
 		}
 	}
 	tt := ui.NewTester(view, 400, 200)
+	tt.SetLocale(lang)
 	tt.Frame()
 	return out
 }
@@ -76,7 +78,7 @@ func TestTextFitsItsOwnWidth(t *testing.T) {
 		"标题（可选）", "M4B (含章节)", "M4B · 含章节", "含章节的 M4B", "M4B (chapters)",
 		"已完成，共三章", "模型：Kokoro", "“角色”里配音色", "《海上来信》", "【测试】", "「引号」",
 	}
-	for s, where := range misfits(t, probe) {
+	for s, where := range misfits(t, probe, "zh-Hans") {
 		t.Errorf("%q breaks at its own width (%s)", s, where)
 	}
 	// The same through elements: a text that may wrap, unconstrained in a
@@ -101,6 +103,7 @@ func TestTextFitsItsOwnWidth(t *testing.T) {
 		}
 	}
 	tt := ui.NewTester(view, 1200, 900)
+	tt.SetLocale("zh-Hans")
 	tt.Frame()
 	tt.Frame()
 	tt.Frame()
@@ -148,7 +151,7 @@ func TestTranslationsFit(t *testing.T) {
 		strs := catalogues[name]
 		slices.Sort(strs)
 		strs = slices.Compact(strs)
-		bad := misfits(t, strs)
+		bad := misfits(t, strs, name)
 		keys := make([]string, 0, len(bad))
 		for s := range bad {
 			keys = append(keys, s)
