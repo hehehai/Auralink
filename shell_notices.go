@@ -141,6 +141,12 @@ func (a *app) checkHelper() {
 		return
 	}
 	st := a.helperStatus()
+	if st.Reason == helper.FailUpdated {
+		// Not the helper's fault: the update's card says what to do.
+		a.setProblem(problemHelper, "", nil)
+		a.appUpdated() // updates.go
+		return
+	}
 	if st.State != helper.Failed {
 		if st.State == helper.Ready {
 			a.setProblem(problemHelper, "", nil)
@@ -158,6 +164,8 @@ func helperFailText(st helper.Status) string {
 		return i18n.T("Helper missing")
 	case helper.FailProtocol:
 		return i18n.T("Helper out of date")
+	case helper.FailUpdated:
+		return i18n.T("Auralink was updated: restart it to finish.")
 	}
 	if st.State == helper.Stopped {
 		return i18n.T("Helper stopped")
@@ -168,8 +176,12 @@ func helperFailText(st helper.Status) string {
 // cardAction runs a card's action: restart the helper, or open its link.
 func (a *app) cardAction(n core.Notification) {
 	a.noticesOpen = false
-	if n.Link == linkRestartHelper {
+	switch n.Link {
+	case linkRestartHelper:
 		a.restartHelper()
+		return
+	case linkRelaunch:
+		a.relaunch() // updates.go
 		return
 	}
 	a.openURL(n.Link)
@@ -180,6 +192,8 @@ func cardActionLabel(link string) string {
 	switch link {
 	case linkRestartHelper:
 		return i18n.T("Restart the helper")
+	case linkRelaunch:
+		return i18n.T("Restart Auralink")
 	case "/providers":
 		return i18n.T("Open Model services")
 	}

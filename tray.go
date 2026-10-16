@@ -223,10 +223,13 @@ func (a *app) trayItems() []*mygo.MenuItem {
 			items = append(items, &mygo.MenuItem{Label: trayLabel(text), ToolTip: trayTip(text), Click: act(func() { a.copyRecent(text) })})
 		}
 	}
-	return append(items,
+	items = append(items,
 		mygo.Separator(),
 		&mygo.MenuItem{Label: i18n.T("Open Auralink"), Click: act(a.showMainWindow)},
 		&mygo.MenuItem{Label: i18n.T("Settings…"), Click: act(func() { a.showMainWindow(); a.navigate("/settings") })},
+	)
+	items = append(items, a.updateMenuItems(act)...) // updates.go
+	return append(items,
 		mygo.Separator(),
 		&mygo.MenuItem{Label: i18n.T("Quit Auralink"), Click: act(func() { a.quitting = true; mygo.App.Quit() })},
 	)

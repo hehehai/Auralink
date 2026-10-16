@@ -56,6 +56,8 @@ github.com/hehehai/Auralink
 │   │                     the built-in browsers, auto keys
 │   ├── appicons/         apps' icons for the lists that name apps: which are wanted, asked for,
 │   │                     there or missing; the PNGs on disk (a week fresh); fetching a batch
+│   ├── appbundle/        the version of the app bundle on disk (Info.plist), to tell an update      (leaf)
+│   │                     installed while the app runs (updates.go, helper.Config.Stale)
 │   └── dict/             the dictionary's rules: cleaning a term, hints for speech services,
 │                         CSV and text import and export, merging an import
 ├── helper/               the Swift helper (helper/README.md): Sources/, Tests/, Fixtures/, Support/
@@ -80,7 +82,7 @@ dsp ──▶ vad
 compose ──▶ lang              deliver ──▶ helper/proto      hotkey ──▶ helper/proto, settings
 appctx ──▶ helper/proto, hotkey, settings                    dict ──▶ store
 appicons ──▶ helper/proto
-core, settings, helper/proto, i18n, lang, secrets, netx, permission, macx, vad ──▶ (nothing internal)
+core, settings, helper/proto, i18n, lang, secrets, netx, permission, macx, vad, appbundle ──▶ (nothing internal)
 icons ──▶ mygo/ui
 ```
 
@@ -111,7 +113,7 @@ MyGo builds the root `main` package (`mygo dev`, `mygo build`, `ui.View`); views
    (wiring code, once)
 ```
 
-main.go wires, in order: the single-instance lock → `resolveDataDir` (finishes a pending move or erase of the data folder) → `openLibrary` (store migrated, bus, settings) → `newHelperHost` (finds the helper) → `newApp` → `connectShell` (log files, deep links) → `connectHelper` (the supervisor, its status and notifications). When MyGo is ready: the window, `startHelper`, the menu bar icon. On quit: the tray, the helper (`helper.shutdown`), the notifications and logs, then the database.
+main.go wires, in order: the single-instance lock → the updater plugin (`mygo.Use(native.New(…))`, updates.go; release builds only can update, docs/release.md) → `resolveDataDir` (finishes a pending move or erase of the data folder) → `openLibrary` (store migrated, bus, settings) → `newHelperHost` (finds the helper) → `newApp` → `connectShell` (log files, deep links) → `connectHelper` (the supervisor, its status and notifications) → `connectUpdates`. When MyGo is ready: the window, `startHelper`, the menu bar icon, `watchBundle` (an update installed while it runs). On quit: the tray, the helper (`helper.shutdown`), the notifications and logs, then the database.
 
 There is no job queue (plan §5): a session lives in memory, owned by one state machine (`internal/session`), and writes one history entry when it ends.
 
@@ -182,6 +184,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `a.tryPlace(kind, target)` (where a shortcut pressed while Auralink is in front runs as a try), `a.tryStarted`, `a.homeChanged()`, `readHome` (today's numbers and the recent results, off the main thread), `a.readinessList()`, `a.openHistoryEntry(e)` | home_page.go | sessionlink.go (`hotkeyFired`), history_page.go (`historyChanged`) |
 | `a.openOnboarding()`, `a.maybeOnboard()` (first start), `a.obSessionChanged(s)` (a step passes on its own session's result), `a.obOwns(id)`, `a.onboardingRow(c)` | onboarding.go | shell.go (`openWindow`), sessionlink.go, Settings → General, Home, ⌘K |
 | `floatingWindowOptions(…)`, `showFloating(w, x, y)` (non-activating windows, mygo patch 0003), `hudContent(view)` (their text unsmoothed, patch 0005), `activateTarget(pid)` (`macx.Activate`) | floating.go | the recording pill and the answer card (M3, M4) |
+| `a.upd` (`updateService`: MyGo's updater plugin; `fakeUpdates` in tests), `a.checkForUpdates()`, `a.updateMenuItems(act)`, `a.bundleStale` (`appbundle.Updated`), `a.appUpdated()` (the restart card), `a.relaunch()` (`appRelaunch`) | updates.go | the app menu, the menu bar, ⌘K, Settings → About, the helper's card (FailUpdated), Home |
 | `a.toast(msg)`, `a.notify(…)`, `a.post(fn)`, `a.async(fn)` | app.go, shell_notices.go | everyone |
 | `a.notices` (the centre's, newest first), `a.noticeStack(c)` (the cards at the foot of the sidebar; the rail's popover), `a.setProblem(id, code, n)` (a problem's card: shown once, withdrawn when solved, kept away this run once dismissed), `a.checkServices()`, `a.checkHelper()` | shell_notices.go | the sidebar, the rail; key reads and saves (providers_page.go), `settingsChanged`, `helperChanged` |
 | `a.keys` (`keyring`: the Keychain; memory in tests), `a.keyMasks`, `a.hasKey(account)`, `a.keysKnown`, `providerName(kind, p)`, `providerErrorText(err)` | providers_page.go | Model services page, the services' card; sessions read keys through `a.keys` off the main thread (`resolver`, sessionlink.go) |

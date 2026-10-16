@@ -47,6 +47,7 @@ func (a *app) commands() []command {
 	add("logs-panel", view, i18n.T("Show or hide the logs panel"), "Show or hide the logs panel", "⇧⌘L", true, func() { a.logsPanel = !a.logsPanel })
 	add("shortcuts", view, i18n.T("Keyboard shortcuts"), "Keyboard shortcuts", "?", true, func() { a.sheetOpen = true })
 	add("helper-restart", view, i18n.T("Restart the helper"), "Restart the helper", "", true, a.restartHelper)
+	add("check-updates", view, i18n.T("Check for Updates…"), "Check for Updates", "", a.upd != nil, a.checkForUpdates)
 	add("setup-guide", view, i18n.T("Open the setup guide"), "Open the setup guide onboarding", "", true, a.openOnboarding)
 
 	look := i18n.T("Appearance")
@@ -312,20 +313,21 @@ func (a *app) buildMenu() {
 			goItems = append(goItems, &mygo.MenuItem{Label: pageTitle(p.path), Accelerator: acc, Click: act(func() { a.navigate(p.path) })})
 		}
 	}
+	// Check for Updates… goes after About (updates.go).
+	appItems := append([]*mygo.MenuItem{{Role: mygo.RoleAbout, Label: i18n.T("About Auralink")}}, a.updateMenuItems(act)...)
 	mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
-		{Label: "Auralink", Submenu: []*mygo.MenuItem{
-			{Role: mygo.RoleAbout, Label: i18n.T("About Auralink")},
+		{Label: "Auralink", Submenu: append(appItems,
 			mygo.Separator(),
-			{Label: i18n.T("Settings…"), Accelerator: "CmdOrCtrl+,", Click: act(func() { a.navigate("/settings") })},
+			&mygo.MenuItem{Label: i18n.T("Settings…"), Accelerator: "CmdOrCtrl+,", Click: act(func() { a.navigate("/settings") })},
 			mygo.Separator(),
-			{Role: mygo.RoleServices, Label: i18n.T("Services")},
+			&mygo.MenuItem{Role: mygo.RoleServices, Label: i18n.T("Services")},
 			mygo.Separator(),
-			{Role: mygo.RoleHide, Label: i18n.T("Hide Auralink")},
-			{Role: mygo.RoleHideOthers, Label: i18n.T("Hide Others")},
-			{Role: mygo.RoleUnhide, Label: i18n.T("Show All")},
+			&mygo.MenuItem{Role: mygo.RoleHide, Label: i18n.T("Hide Auralink")},
+			&mygo.MenuItem{Role: mygo.RoleHideOthers, Label: i18n.T("Hide Others")},
+			&mygo.MenuItem{Role: mygo.RoleUnhide, Label: i18n.T("Show All")},
 			mygo.Separator(),
-			{Role: mygo.RoleQuit, Label: i18n.T("Quit Auralink")},
-		}},
+			&mygo.MenuItem{Role: mygo.RoleQuit, Label: i18n.T("Quit Auralink")},
+		)},
 		{Label: i18n.T("Edit"), Submenu: []*mygo.MenuItem{
 			{Role: mygo.RoleUndo, Label: i18n.T("Undo")},
 			{Role: mygo.RoleRedo, Label: i18n.T("Redo")},

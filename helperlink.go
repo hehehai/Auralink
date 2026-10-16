@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/hehehai/Auralink/internal/appbundle"
 	"github.com/hehehai/Auralink/internal/core"
 	"github.com/hehehai/Auralink/internal/helper"
 	"github.com/hehehai/Auralink/internal/helper/proto"
@@ -27,10 +28,14 @@ type helperHost struct {
 	bin, logDir string
 	env         []string
 	sup         helper.Supervisor
+	// stale reports that an update replaced the app on disk
+	// (helper.Config.Stale, updates.go); nil in tests.
+	stale func() bool
 }
 
 func newHelperHost(resources, logDir string) *helperHost {
-	return &helperHost{bin: helper.Find(resources), logDir: logDir}
+	return &helperHost{bin: helper.Find(resources), logDir: logDir,
+		stale: func() bool { return appbundle.Updated(resources, mygo.App.Version()) }}
 }
 
 // helperLink is the helper's view state.
@@ -54,7 +59,7 @@ func (a *app) connectHelper() {
 			version = mygo.App.Version()
 		}
 		h.sup = helper.New(helper.Config{
-			Bin: h.bin, AppVersion: version, LogDir: h.logDir, Bus: a.bus, Env: h.env,
+			Bin: h.bin, AppVersion: version, LogDir: h.logDir, Bus: a.bus, Env: h.env, Stale: h.stale,
 			Log:      a.logs.Append,
 			OnNotify: func(m proto.Message) { a.post(func() { a.helperNotified(m) }) },
 		})

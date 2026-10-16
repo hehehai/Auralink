@@ -26,6 +26,7 @@ import (
 //	homeState         home_page.go    Home: readiness, today, recent results
 //	onboardingState   onboarding.go   the setup guide
 //	audioState        settings_audio.go   Settings → Audio, the recording's sounds
+//	updateState       updates.go      the updater, an update installed while running
 //
 // Add fields to your area's struct, not here.
 type app struct {
@@ -52,6 +53,7 @@ type app struct {
 	homeState
 	onboardingState
 	audioState
+	updateState
 }
 
 func newApp(lib *library, h *helperHost) *app {

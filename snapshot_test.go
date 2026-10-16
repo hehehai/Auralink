@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"image/png"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/core"
 	"github.com/hehehai/Auralink/internal/helper"
 	"github.com/hehehai/Auralink/internal/i18n"
@@ -106,6 +108,10 @@ func TestSnapshots(t *testing.T) {
 				a.sys = &sysInfo{OS: "macOS 26.7", Chip: "Apple M2", Memory: 16 << 30, Cores: 8, Arch: "arm64"}
 			}
 			save("settings-" + s.id)
+			if s.id == "about" { // Updates, under the fold (updates.go)
+				scrollToText(tt, i18n.T("Updates"))
+				save("settings-about-updates")
+			}
 			if s.id == "overlay" { // its preview, under the controls
 				w, h := snapshotSize()
 				tt.Scroll(float32(w)*0.7, float32(h)*0.6, 0, 600)
@@ -151,6 +157,19 @@ func TestSnapshots(t *testing.T) {
 		save("rail")
 		a.setRail(false)
 
+		// An update installed while Auralink runs (updates.go): its card,
+		// and Settings → About.
+		a.clearNotices()
+		fs.set(helper.Status{State: helper.Failed, Reason: helper.FailUpdated, Err: "Auralink was updated"})
+		save("sidebar-notices-update")
+		a.navigate("/settings/about")
+		scrollToText(tt, i18n.T("Updates"))
+		save("settings-about-updated")
+		a.settingsOpen = false
+		a.bundleUpdated = false
+		a.setProblem(problemUpdate, "", nil)
+		fs.Start(context.Background())
+
 		// The recording overlay, state by state (overlay_test.go).
 		overlayShots(t, a, out, suffix, run.dark)
 
@@ -158,6 +177,15 @@ func TestSnapshots(t *testing.T) {
 		// (onboarding_test.go), then Home ready (home_page_test.go).
 		onboardingShots(a, tt, save)
 		homeShots(a, tt, save)
+	}
+}
+
+// scrollToText scrolls the page or the settings until s is near the top.
+func scrollToText(tt *ui.Tester, s string) {
+	frames(tt)
+	if r, ok := tt.Find(s); ok {
+		w, h := snapshotSize()
+		tt.Scroll(float32(w)*0.6, float32(h)*0.5, 0, r.Y-float32(h)*0.2)
 	}
 }
 

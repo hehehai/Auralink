@@ -268,8 +268,11 @@ func (a *app) readinessList() []readiness {
 	// The shortcut.
 	out = append(out, a.shortcutReadiness())
 	// The helper.
-	switch st := a.helperStatus(); st.State {
-	case helper.Ready, helper.Starting:
+	switch st := a.helperStatus(); {
+	case st.State == helper.Ready, st.State == helper.Starting:
+	case st.Reason == helper.FailUpdated:
+		out = append(out, readiness{key: "home-helper", title: i18n.T("Helper"), kind: noticeWarn,
+			text: helperFailText(st), action: i18n.T("Restart Auralink"), fix: a.relaunch})
 	default:
 		out = append(out, readiness{key: "home-helper", title: i18n.T("Helper"), kind: noticeError,
 			text: helperFailText(st), action: i18n.T("Restart the helper"), fix: a.restartHelper})

@@ -310,6 +310,8 @@ func (a *app) aboutSettings(c *ui.Context) {
 		ui.Link(c, i18n.T("Licence"), "https://creativecommons.org/licenses/by/4.0/").FontSize(px(t, fsCaption))
 	})
 
+	a.updateSettingsSection(c) // updates.go
+
 	sectionTitle(c, i18n.T("Self-check"))
 	settingRow(c, "about-check", i18n.T("Check Auralink"), i18n.T("The library, the helper, the data folder, the network, the Keychain and the permissions."), func() {
 		if a.selfChecking {
