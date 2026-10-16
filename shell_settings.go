@@ -124,6 +124,9 @@ func (a *app) settingsChanged(old, new settings.Settings) {
 	if old.General.MenuBar != new.General.MenuBar {
 		a.applyTray() // tray.go
 	}
+	if old.Updates.BetaOn(a.version) != new.Updates.BetaOn(a.version) {
+		a.applyBeta() // updates.go
+	}
 	if !reflect.DeepEqual(old.AppEnhancement, new.AppEnhancement) {
 		a.syncTrees() // appenhance.go
 	}

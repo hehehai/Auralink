@@ -23,6 +23,7 @@ package settings
 import (
 	"context"
 	"encoding/json"
+	"strings"
 )
 
 // Version is the schema version Defaults writes. Bump it when a field's
@@ -45,6 +46,7 @@ type Settings struct {
 	AppEnhancement AppEnhancement `json:"appEnhancement"`
 	Dictionary     Dictionary     `json:"dictionary"`
 	Setup          Setup          `json:"setup"`
+	Updates        Updates        `json:"updates,omitzero"`
 }
 
 // General: languages and how the app stays around.
@@ -332,6 +334,27 @@ type Setup struct {
 	// result once, or the history had one: Home stops offering its Try
 	// area. It stays when the history is cleared.
 	Tried bool `json:"tried,omitempty"`
+}
+
+// Updates: what the updater offers (Settings → About → Updates). Its
+// other preferences (automatic checks and installs) are the updater
+// plugin's, in its own updater.json.
+type Updates struct {
+	// Beta offers beta versions (GitHub prereleases) too. Nil until the
+	// user chooses: then on while the running version is a beta (BetaOn),
+	// so that a beta's users get the next one. No migration: older
+	// documents have none.
+	Beta *bool `json:"beta,omitempty"`
+}
+
+// BetaOn reports whether updates include betas for the app of version
+// running: the user's choice, else whether version is a pre-release
+// (0.1.0-beta.1).
+func (u Updates) BetaOn(running string) bool {
+	if u.Beta != nil {
+		return *u.Beta
+	}
+	return strings.Contains(running, "-")
 }
 
 // Defaults returns the settings of a fresh install. The shortcuts are
