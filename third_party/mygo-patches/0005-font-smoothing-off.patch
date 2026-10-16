@@ -16,15 +16,14 @@ every glyph of such a window in the Flat shade (Painter.shadeOf), whatever
 its color; thickened glyphs stay thick. The text system and its glyph
 cache are shared by all windows, and its keys hold the shade, so Flat
 glyphs are cached apart from the shaded ones and the other windows' text
-is unchanged (TestFontSmoothingPerWindow, TestFlatCachedApart). Other
+is unchanged (TestFlatCachedApart). Other
 platforms do not smooth fonts this way and draw Flat as other text.
-
 diff --git a/internal/text/text_test.go b/internal/text/text_test.go
-index c2c1926..4746e5a 100644
+index 787a875..1efcdff 100644
 --- a/internal/text/text_test.go
 +++ b/internal/text/text_test.go
-@@ -769,3 +769,38 @@ func TestDecorate(t *testing.T) {
- 		}
+@@ -882,3 +882,38 @@ func TestSetLanguage(t *testing.T) {
+ 		t.Error("the same language made a new generation")
  	}
  }
 +
@@ -63,10 +62,10 @@ index c2c1926..4746e5a 100644
 +	}
 +}
 diff --git a/ui/glyphs.go b/ui/glyphs.go
-index 51d6bd0..8bd5b3f 100644
+index 082ad1b..8733b28 100644
 --- a/ui/glyphs.go
 +++ b/ui/glyphs.go
-@@ -85,7 +85,7 @@ func Shape(s string, f Font) []Glyph {
+@@ -88,7 +88,7 @@ func Shape(s string, f Font) []Glyph {
  func (p *Painter) Glyphs(glyphs []Glyph, x, y float32, c Color) {
  	sys := p.rt.text
  	s := p.scale
@@ -75,7 +74,7 @@ index 51d6bd0..8bd5b3f 100644
  	c = c.Alpha(p.opacity)
  	color := c.scene()
  	baseline := sys.Baseline(y * s)
-@@ -158,7 +158,7 @@ func (p *Painter) TextLine(l *text.Layout, x, y float32, color func(cluster int)
+@@ -161,7 +161,7 @@ func (p *Painter) TextLine(l *text.Layout, x, y float32, color func(cluster int)
  			continue
  		}
  		c := color(g.Cluster)
@@ -85,11 +84,11 @@ index 51d6bd0..8bd5b3f 100644
  		if !gi.OK {
  			continue
 diff --git a/ui/headless.go b/ui/headless.go
-index 0ab60fb..04ab4e1 100644
+index eb22e7c..8849acd 100644
 --- a/ui/headless.go
 +++ b/ui/headless.go
-@@ -233,6 +233,14 @@ func (t *Tester) SetPreferences(p Preferences) {
- 	t.settle()
+@@ -425,6 +425,14 @@ func (t *Tester) SetDirection(d Direction) {
+ 	t.Frame()
  }
  
 +// SetFontSmoothing turns font smoothing on or off for the window's text,
@@ -104,10 +103,10 @@ index 0ab60fb..04ab4e1 100644
  func (t *Tester) Frame() { t.h.requested.Store(true); t.settle() }
  
 diff --git a/ui/paint.go b/ui/paint.go
-index a41ad5e..18c6d58 100644
+index e94601d..06ba457 100644
 --- a/ui/paint.go
 +++ b/ui/paint.go
-@@ -574,7 +574,7 @@ func (p *Painter) textForeground(l *text.Layout, x, y float32, color Color, ts t
+@@ -682,7 +682,7 @@ func (p *Painter) textForeground(l *text.Layout, x, y float32, color Color, ts t
  	sys := p.rt.text
  	s := p.scale
  	deco := decoration{underline: ts.underline, wavy: ts.wavy, strike: ts.strike, color: ts.decoColor, thick: ts.decoThick}
@@ -116,7 +115,7 @@ index a41ad5e..18c6d58 100644
  	start := int32(len(p.s.Glyphs))
  	var run *glyphRun
  	if sys.JoinsGlyphs() && !p.inlineTransforms() {
-@@ -597,7 +597,7 @@ func (p *Painter) textForeground(l *text.Layout, x, y float32, color Color, ts t
+@@ -705,7 +705,7 @@ func (p *Painter) textForeground(l *text.Layout, x, y float32, color Color, ts t
  			glyphColor, glyphShade := color, shade
  			if sp != nil {
  				if glyphColor = sp.color(sp.at(g.Cluster), color); glyphColor != color {
@@ -125,7 +124,7 @@ index a41ad5e..18c6d58 100644
  				}
  			}
  			gi := sys.Glyph(g.Font, g.ID, s, pen, glyphShade, p.opaque && !p.inlineTransforms())
-@@ -632,6 +632,16 @@ func (p *Painter) textForeground(l *text.Layout, x, y float32, color Color, ts t
+@@ -740,6 +740,16 @@ func (p *Painter) textForeground(l *text.Layout, x, y float32, color Color, ts t
  	}
  }
  
@@ -143,13 +142,13 @@ index a41ad5e..18c6d58 100644
  // antialiased edges share pixels, which the text system joins where the
  // system's text stack draws them joined (System.JoinsGlyphs).
 diff --git a/ui/runtime.go b/ui/runtime.go
-index 5367f6e..741a8b6 100644
+index ca0803d..779634a 100644
 --- a/ui/runtime.go
 +++ b/ui/runtime.go
-@@ -91,6 +91,9 @@ type engine struct {
- 	scene           scene.Scene
- 	painter         Painter
- 	glyphRun        glyphRun
+@@ -120,6 +120,9 @@ type engine struct {
+ 	// afterInputs whose containers are still building.
+ 	waitingInputs, waitingActions []int
+ 
 +	// unsmoothed draws the window's text without font smoothing
 +	// (Content.FontSmoothing).
 +	unsmoothed bool
@@ -157,10 +156,10 @@ index 5367f6e..741a8b6 100644
  	measured     [8]measuredSpans
  	nextMeasured int
 diff --git a/ui/window.go b/ui/window.go
-index 7277b36..fc45404 100644
+index ce2cb22..78da246 100644
 --- a/ui/window.go
 +++ b/ui/window.go
-@@ -18,6 +18,22 @@ import (
+@@ -19,6 +19,22 @@ import (
  // mygo.WindowOptions.Content. Create it with View.
  type Content struct {
  	view func(*context)
@@ -183,7 +182,7 @@ index 7277b36..fc45404 100644
  }
  
  // View returns the content of a window whose user interface view builds,
-@@ -41,6 +57,7 @@ func RegisterFont(data []byte, family string) error {
+@@ -76,6 +92,7 @@ func FontFamilies() []FontFamily {
  func (v *Content) AttachContent(conn *surface.Conn) {
  	h := &windowHost{conn: conn}
  	rt := newRuntime(v.view, h)

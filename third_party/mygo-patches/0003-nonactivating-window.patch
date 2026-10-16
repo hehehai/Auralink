@@ -5,24 +5,30 @@ recording pill, its answer card) must take clicks on its buttons without
 activating its app: activation moves the keyboard focus (and the caret)
 away from the target app, and ⌘V would then paste into the wrong window.
 AppKit honours NSWindowStyleMaskNonactivatingPanel only on an NSPanel,
-and the window server learns it only at init; MyGo makes every window a
-MyGoWindow (an NSWindow), and swapping the class of a live window
-(object_setClass, as tauri-nspanel does) proved unreliable: after the
-first click, clicks stopped reaching the app at all.
+and the window server learns it only at init; swapping the class of a
+live window (object_setClass, as tauri-nspanel does) proved unreliable:
+after the first click, clicks stopped reaching the app at all.
+
+MyGo 0.5.0's WindowOptions.Panel creates such a panel (MyGoPanel) for
+launchers, but one that takes the keyboard when shown, focused or clicked
+(canBecomeKeyWindow), as Spotlight's: a click on it would take the keys
+from the app the user dictates into. NonActivating is the panel that never
+does.
 
 The platform options already carry Focusable (false gives Windows
 WS_EX_NOACTIVATE; flyouts use it), so the public option maps onto it:
-the macOS backend creates a MyGoPanel (never key, never main, floating,
-not hidden when its app deactivates) with the style bit at init, and
-tracks the mouse over it always, not only while its app is active, so
-hover works while another app is in front. Linux ignores the option.
+the macOS backend creates a MyGoNonactivatingPanel (never key, never main,
+floating, not hidden when its app deactivates) with the style bit at init,
+and tracks the mouse over it always, not only while its app is active, so
+hover works while another app is in front. With Panel as well, it is this
+panel. Linux ignores the option.
 
 Measured on macOS 26.7 (Auralink's M0 spike S3): a click on such a panel
 reaches the button 7 times out of 7 while NSApp stays inactive and the
 target app keeps its key window and caret.
 
 diff --git a/internal/darwin/surface.go b/internal/darwin/surface.go
-index 1145539..4e7407d 100644
+index ddfca65..6e960fd 100644
 --- a/internal/darwin/surface.go
 +++ b/internal/darwin/surface.go
 @@ -156,7 +156,12 @@ func (w *window) createSurface(content NSRect) {
@@ -40,22 +46,26 @@ index 1145539..4e7407d 100644
  	send(s.view, "addTrackingArea:", uintptr(s.tracking))
  	if respondsTo(s.view, "displayLinkWithTarget:selector:") {
 diff --git a/internal/darwin/window.go b/internal/darwin/window.go
-index 6cc546a..0b16c29 100644
+index e77de0a..3639bd7 100644
 --- a/internal/darwin/window.go
 +++ b/internal/darwin/window.go
-@@ -130,9 +130,21 @@ func (w *window) create() {
- 		content = msgRectForRect(class("NSWindow"), sel("contentRectForFrameRect:styleMask:"), size, style)
+@@ -135,7 +135,13 @@ func (w *window) create() {
  		content.Origin = NSPoint{}
  	}
--	w.win = msgInitWindow(send(class("MyGoWindow"), "alloc"), sel("initWithContentRect:styleMask:backing:defer:"),
-+	cls := "MyGoWindow"
-+	if !o.Focusable {
+ 	cls := "MyGoWindow"
+-	if o.Panel {
++	switch {
++	case !o.Focusable:
 +		// WindowOptions.NonActivating: the style must be there at init,
 +		// for the window server to know the window never activates.
-+		cls = "MyGoPanel"
++		cls = "MyGoNonactivatingPanel"
 +		style |= styleNonactivatingPanel
-+	}
-+	w.win = msgInitWindow(send(class(cls), "alloc"), sel("initWithContentRect:styleMask:backing:defer:"),
++	case o.Panel:
+ 		// The nonactivating style must be there from the start: the window
+ 		// server only learns that the window never activates its app from
+ 		// the style it is created with.
+@@ -145,6 +151,11 @@ func (w *window) create() {
+ 	w.win = msgInitWindow(send(class(cls), "alloc"), sel("initWithContentRect:styleMask:backing:defer:"),
  		content, style, nsBackingStoreBuffered, false)
  	send(w.win, "setReleasedWhenClosed:", 0)
 +	if !o.Focusable {
@@ -66,14 +76,14 @@ index 6cc546a..0b16c29 100644
  	w.delegate = alloc("MyGoWindowDelegate")
  	send(w.win, "setDelegate:", uintptr(w.delegate))
  	send(w.win, "setTitle:", uintptr(nsString(o.Title)))
-@@ -1308,6 +1320,14 @@ func registerWindowClasses() {
- 		method("selectKeyViewPrecedingView:", selectKeyView("MyGoWindow", true)),
+@@ -1399,6 +1410,14 @@ func registerWindowClasses() {
+ 		method("selectKeyViewPrecedingView:", selectKeyView("MyGoPanel", true)),
  	})
  
 +	// A non-activating window (WindowOptions.NonActivating) is a panel
 +	// that never becomes the key or the main window: clicks reach its
 +	// content and leave the app in front, and its first responder alone.
-+	classDef("MyGoPanel", "NSPanel", nil, []objc.MethodDef{
++	classDef("MyGoNonactivatingPanel", "NSPanel", nil, []objc.MethodDef{
 +		method("canBecomeKeyWindow", func(self id, _ objc.SEL) bool { return false }),
 +		method("canBecomeMainWindow", func(self id, _ objc.SEL) bool { return false }),
 +	})
@@ -82,7 +92,7 @@ index 6cc546a..0b16c29 100644
  	// keyboard, and never the main window: its parent stays it.
  	classDef("MyGoFlyout", "NSPanel", nil, []objc.MethodDef{
 diff --git a/window.go b/window.go
-index 69b2dd8..82eb71d 100644
+index 137fbd9..fcd1784 100644
 --- a/window.go
 +++ b/window.go
 @@ -117,6 +117,15 @@ type WindowOptions struct {
@@ -101,7 +111,7 @@ index 69b2dd8..82eb71d 100644
  	// AutoHideMenuBar keeps the window's menu bar out of sight until the
  	// user presses Alt or F10, and hides it again once they leave it
  	// (Linux, Windows). Its keyboard shortcuts work all along.
-@@ -471,7 +480,7 @@ func (w *Window) platformOptions(o *WindowOptions) *platform.WindowOptions {
+@@ -496,7 +505,7 @@ func (w *Window) platformOptions(o *WindowOptions) *platform.WindowOptions {
  		Minimizable:    !o.DisableMinimize,
  		Maximizable:    !o.DisableMaximize,
  		Closable:       !o.DisableClose,

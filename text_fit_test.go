@@ -13,12 +13,14 @@ import (
 )
 
 // Single-line text gets the width it measures and is laid out again at
-// that width; on macOS (MyGo 0.4.8, Core Text) a few strings then break
-// early and end in "…", as "M4B（含章节）" did in the audiobook's Format
+// that width; on macOS (MyGo 0.4.8, Core Text) a few strings then broke
+// early and ended in "…", as "M4B（含章节）" did in the audiobook's Format
 // control: Core Text spaces a bracket apart from a letter of another script
-// and, between runs of two fonts, the measured width leaves that room out
-// (AudioSmith research/mygo-coretext-truncation.md; third_party/mygo-patches 0001). textFits tells whether a text
-// keeps to one line at its own width, the test of that.
+// and, between runs of two fonts, the measured width left that room out
+// (AudioSmith research/mygo-coretext-truncation.md). MyGo 0.5.0 counts
+// that room (penAdvances); long lines still need third_party/mygo-patches
+// 0001. textFits tells whether a text keeps to one line at its own width,
+// the test of that.
 
 // textFitSizes are the type scale's sizes and the weights views use.
 var (
@@ -64,7 +66,7 @@ func misfits(t *testing.T, strs []string) map[string]string {
 // TestTextFitsItsOwnWidth: the strings that showed "…" on the Mac, and
 // elements built as views build them — a single-line text and a
 // segmented control unconstrained in a row — keep to one line. On the
-// Mac with MyGo 0.4.8 the first three fail, unless MyGo carries the fix.
+// Mac with MyGo 0.4.8 the first three failed, unless MyGo carried the fix.
 func TestTextFitsItsOwnWidth(t *testing.T) {
 	if os.Getenv("AURALINK_TEXTFIT_PROBE") == "" {
 		t.Skip("probe of MyGo's text engine; set AURALINK_TEXTFIT_PROBE=1 (meaningful on macOS)")

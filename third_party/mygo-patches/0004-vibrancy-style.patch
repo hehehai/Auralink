@@ -16,9 +16,8 @@ behind-window blur everywhere), and can show it in the dark appearance
 whatever the app's (a HUD that stays dark over light and dark content).
 The effect view keeps its insets as the window resizes (autoresizing).
 Other platforms ignore it: a Windows system backdrop fills the window.
-
 diff --git a/internal/darwin/objc.go b/internal/darwin/objc.go
-index 84ef535..bc1c1f6 100644
+index f67e1cf..21f7e63 100644
 --- a/internal/darwin/objc.go
 +++ b/internal/darwin/objc.go
 @@ -45,6 +45,8 @@ var (
@@ -30,7 +29,7 @@ index 84ef535..bc1c1f6 100644
  	msgRectIDUint    func(obj id, sel objc.SEL, r NSRect, a id, n uint)
  	msgInitIDPoint   func(obj id, sel objc.SEL, a id, p NSPoint) id
  	msgInitWindow    func(obj id, sel objc.SEL, r NSRect, style uint, backing uint, deferFlag bool) id
-@@ -137,6 +139,8 @@ func load() {
+@@ -143,6 +145,8 @@ func load() {
  		purego.RegisterFunc(&msgSetPoint, msgSendAddr)
  		purego.RegisterFunc(&msgInitRect, msgSendAddr)
  		purego.RegisterFunc(&msgInitRectID, msgSendAddr)
@@ -40,10 +39,10 @@ index 84ef535..bc1c1f6 100644
  		purego.RegisterFunc(&msgInitIDPoint, msgSendAddr)
  		purego.RegisterFunc(&msgInitWindow, msgSendAddr)
 diff --git a/internal/darwin/window.go b/internal/darwin/window.go
-index 0b16c29..6b155f3 100644
+index 3639bd7..c2f2996 100644
 --- a/internal/darwin/window.go
 +++ b/internal/darwin/window.go
-@@ -58,7 +58,9 @@ type window struct {
+@@ -59,7 +59,9 @@ type window struct {
  	delegate id
  	ucc      id
  	effect   id
@@ -54,7 +53,7 @@ index 0b16c29..6b155f3 100644
  	// flyout is how a flyout (WindowOptions.Flyout) was placed last, at
  	// flyoutSize.
  	flyout     platform.Flyout
-@@ -863,11 +865,61 @@ func (w *window) SetVibrancy(material string) {
+@@ -905,11 +907,61 @@ func (w *window) SetVibrancy(material string) {
  			// Behind the page and a docked inspector.
  			send(w.view, "addSubview:positioned:relativeTo:", uintptr(w.effect), ^uintptr(0), 0) // NSWindowBelow
  			send(w.web, "setValue:forKey:", uintptr(nsBool(false)), uintptr(nsString("drawsBackground")))
@@ -117,21 +116,21 @@ index 0b16c29..6b155f3 100644
  
  // SetAutoHideMenu does nothing: the menu bar belongs to the application.
 diff --git a/internal/fake/fake.go b/internal/fake/fake.go
-index 5445ee5..2c3cfbc 100644
+index d2385df..be967f7 100644
 --- a/internal/fake/fake.go
 +++ b/internal/fake/fake.go
-@@ -990,3 +990,6 @@ func (s *Surface) Accessibility() (*platform.AccessTree, int) {
- 	defer s.mu.Unlock()
- 	return s.access, s.accessN
+@@ -1333,3 +1333,6 @@ func (b *Backend) SetSecretError(err error) {
+ 	defer b.mu.Unlock()
+ 	b.secretError = err
  }
 +
 +// SetVibrancyStyle does nothing: the fake shows no material.
 +func (w *Window) SetVibrancyStyle(platform.VibrancyStyle) {}
 diff --git a/internal/linux/window.go b/internal/linux/window.go
-index e4ab303..3d677b8 100644
+index 6165d78..c1b6ac3 100644
 --- a/internal/linux/window.go
 +++ b/internal/linux/window.go
-@@ -1603,3 +1603,6 @@ func initWindowCallbacks() {
+@@ -1665,3 +1665,6 @@ func initWindowCallbacks() {
  		return 0 // CAIRO_STATUS_SUCCESS
  	})
  }
@@ -139,10 +138,10 @@ index e4ab303..3d677b8 100644
 +// SetVibrancyStyle does nothing: Linux has no material.
 +func (w *window) SetVibrancyStyle(platform.VibrancyStyle) {}
 diff --git a/internal/platform/platform.go b/internal/platform/platform.go
-index d5a6883..aa4e9ff 100644
+index ab9f488..3f025d2 100644
 --- a/internal/platform/platform.go
 +++ b/internal/platform/platform.go
-@@ -41,6 +41,15 @@ type TitleBar struct{ Height, Left, Right int }
+@@ -47,6 +47,15 @@ type TitleBar struct{ Height, Left, Right int }
  // Color is an 8-bit RGBA color.
  type Color struct{ R, G, B, A uint8 }
  
@@ -158,7 +157,7 @@ index d5a6883..aa4e9ff 100644
  // Backend is implemented by every native backend.
  type Backend interface {
  	// Name identifies the backend, for example "darwin/wkwebview".
-@@ -318,6 +327,9 @@ type Window interface {
+@@ -436,6 +445,9 @@ type Window interface {
  	SetIgnoreMouseEvents(v bool)
  	SetContentProtection(v bool)
  	SetVibrancy(material string)
@@ -169,10 +168,10 @@ index d5a6883..aa4e9ff 100644
  	// launcher entry: state is "" (none), "normal", "indeterminate",
  	// "paused" or "error", value between 0 and 1.
 diff --git a/internal/web/window.go b/internal/web/window.go
-index a60bb78..e85f6d5 100644
+index aa28075..24a2387 100644
 --- a/internal/web/window.go
 +++ b/internal/web/window.go
-@@ -231,3 +231,6 @@ func (w *window) PrintToPDF(_ platform.PDFOptions, cb func([]byte, error)) { cb(
+@@ -235,3 +235,6 @@ func (w *window) PrintToPDF(_ platform.PDFOptions, cb func([]byte, error)) { cb(
  func (w *window) CallAsyncFunction(_ string, cb func(string, error)) {
  	cb("", errUnsupported)
  }
@@ -180,24 +179,24 @@ index a60bb78..e85f6d5 100644
 +// SetVibrancyStyle does nothing: a page shows no material.
 +func (w *window) SetVibrancyStyle(platform.VibrancyStyle) {}
 diff --git a/internal/windows/window.go b/internal/windows/window.go
-index 212cc3a..0e5ec34 100644
+index 88ce63b..de2cea2 100644
 --- a/internal/windows/window.go
 +++ b/internal/windows/window.go
-@@ -982,6 +982,9 @@ func (w *window) SetVibrancy(material string) {
- 	procInvalidateRect(w.hwnd)
- }
+@@ -1015,6 +1015,9 @@ func (w *window) SetVibrancy(material string) {
+ // menu bar: flyouts and panels show none.
+ func (w *window) hasAppMenu() bool { return w.opts.Flyout == nil && !w.opts.Panel }
  
 +// SetVibrancyStyle does nothing: a system backdrop fills the window.
 +func (w *window) SetVibrancyStyle(platform.VibrancyStyle) {}
 +
  func (w *window) SetMenu(m *platform.Menu) {
  	w.ownMenu = m != nil
- 	if m == nil && w.b.appMenu != nil {
+ 	if m == nil && w.hasAppMenu() {
 diff --git a/window.go b/window.go
-index 82eb71d..4a8e5d3 100644
+index fcd1784..9e0fddf 100644
 --- a/window.go
 +++ b/window.go
-@@ -903,6 +903,27 @@ func (w *Window) SetVibrancy(v Vibrancy) {
+@@ -995,6 +995,27 @@ func (w *Window) SetVibrancy(v Vibrancy) {
  	w.Invalidate()
  }
  
