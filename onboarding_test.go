@@ -1,12 +1,14 @@
 package main
 
 import (
-	"github.com/hehehai/Auralink/internal/settings"
+	"math"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/helper/proto"
+	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/session"
+	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
 )
 
@@ -224,4 +226,59 @@ func onboardingShots(a *app, tt *ui.Tester, save func(string)) {
 		save("onboarding-" + itoa(step+1) + "-" + name)
 	}
 	a.ob.open = false
+}
+
+// TestOnboardingDialogSize: 600×440 in the default window, smaller than
+// the settings dialog with a margin all round in the smallest, and
+// obMaxW × obMaxH in a large one.
+func TestOnboardingDialogSize(t *testing.T) {
+	th := ui.LightTheme()
+	for _, c := range []struct{ w, h, dw, dh float32 }{
+		{windowWidth, windowHeight, obMaxW, obMaxH},
+		{windowMinWidth, windowMinHeight, obMaxW, 374},
+		{1600, 1000, obMaxW, obMaxH},
+	} {
+		dw, dh := onboardingDialogSize(th, c.w, c.h)
+		if math.Abs(float64(dw-c.dw)) > 0.5 || math.Abs(float64(dh-c.dh)) > 0.5 {
+			t.Errorf("%v×%v: %v×%v, want %v×%v", c.w, c.h, dw, dh, c.dw, c.dh)
+		}
+		sw, sh := settingsDialogSize(th, c.w, c.h)
+		if dw > sw || dh > sh {
+			t.Errorf("%v×%v: %v×%v, larger than the settings dialog's %v×%v", c.w, c.h, dw, dh, sw, sh)
+		}
+		if mx, my := (c.w-dw)/2, (c.h-dh)/2; mx < 24 || my < 24 {
+			t.Errorf("%v×%v: margins %v, %v", c.w, c.h, mx, my)
+		}
+	}
+}
+
+// TestOnboardingStepsOneLine: the breadcrumbs keep to one line, clear of
+// ×, with every try step checked, in the default and smallest windows.
+func TestOnboardingStepsOneLine(t *testing.T) {
+	for _, lang := range []string{"en", "zh-Hans"} {
+		for _, size := range [][2]int{{windowWidth, windowHeight}, {windowMinWidth, windowMinHeight}} {
+			a, tt := obTester(t)
+			if lang != "en" {
+				a.updateSettings(func(s *settings.Settings) { s.General.Language = lang })
+			}
+			tt.SetSize(size[0], size[1])
+			for _, step := range []int{obTranscribe, obTranslate, obRewrite} {
+				a.ob.passed[step] = true
+			}
+			for _, step := range []int{obWelcome, obMore} {
+				a.ob.step = step
+				frames(tt)
+				titles := obStepTitles()
+				first, ok1 := tt.Find(titles[0])
+				last, ok2 := tt.Find(titles[len(titles)-1])
+				x, ok3 := tt.Find(i18n.T("Close the guide"))
+				if !ok1 || !ok2 || !ok3 {
+					t.Fatalf("%s %v: steps or × not found in %q", lang, size, tt.Texts())
+				}
+				if math.Abs(float64(first.Y-last.Y)) > 1 || last.X+last.W > x.X {
+					t.Errorf("%s %v step %d: %q at %+v, %q at %+v, × at %+v", lang, size, step, titles[0], first, titles[len(titles)-1], last, x)
+				}
+			}
+		}
+	}
 }
