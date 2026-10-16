@@ -54,6 +54,13 @@ type Updates struct {
 	// Deltas is how many earlier versions get a delta update: a smaller
 	// download holding only what changed (default 3, 0 for none).
 	Deltas *int `json:"deltas"`
+	// Prereleases are published on GitHub beside the releases, for apps
+	// that offer them to the users who opt in (Updater.SetPrereleases):
+	// -upload makes the draft of a version with a pre-release part, such
+	// as 1.3.0-beta.1, a prerelease, which never becomes the latest
+	// release; and builds make delta updates from the newest prerelease
+	// too, so that both channels get one.
+	Prereleases bool `json:"prereleases"`
 }
 
 // deltas returns how many earlier versions get a delta update.
@@ -95,6 +102,9 @@ func (u *Updates) validate() error {
 		if err := u.S3.validate(); err != nil {
 			return err
 		}
+	}
+	if u.Prereleases && u.GitHub == "" {
+		return errors.New("updates.prereleases needs github: prereleases are GitHub's")
 	}
 	if u.Deltas != nil && *u.Deltas < 0 {
 		return fmt.Errorf("updates.deltas is %d, not a number of versions", *u.Deltas)
@@ -276,27 +286,51 @@ func writeSigned(path string, key ed25519.PrivateKey, write func(io.Writer) erro
 // writeDeltas makes delta updates to the app of target in stage from the
 // n versions before it, as Sparkle does: the version of the published
 // manifest of target and those it lists as previous, whose archives it
-// downloads. It adds them to m, with the archives the next version makes
-// deltas from, and returns the files written. Deltas only save downloads,
-// so a version without one is skipped with a message.
+// downloads; with updates.prereleases also the newest prerelease's and
+// those it lists, the published version of each channel first. It adds
+// them to m, with the archives the next version makes deltas from, and
+// returns the files written. Deltas only save downloads, so a version
+// without one is skipped with a message.
 func writeDeltas(c *Config, key ed25519.PrivateKey, stage, target string, entries []string, m *update.Manifest, n int) ([]string, error) {
-	published, err := fetchManifest(c.updateFeed(target))
-	if err != nil {
-		if errors.Is(err, errNotPublished) {
+	var heads, rest []update.Archive
+	feed := c.updateFeed(target)
+	published, err := fetchManifest(feed, update.ResolveFeed)
+	switch {
+	case err == nil:
+		heads = append(heads, update.Archive{Version: published.Version, URL: published.URL, Size: published.Size, Signature: published.Signature})
+		rest = append(rest, published.Previous...)
+	case errors.Is(err, errNotPublished):
+		if !c.Updates.Prereleases {
 			logf("No delta updates for %s: no version is published yet", target)
-		} else {
-			warnf("No delta updates for %s: %v", target, err)
+			return nil, nil
 		}
+	default:
+		warnf("No delta updates for %s: %v", target, err)
 		return nil, nil
 	}
+	if c.Updates.Prereleases {
+		pre, err := fetchManifest(feed, update.ResolvePrereleaseFeed)
+		switch {
+		case err == nil:
+			heads = append(heads, update.Archive{Version: pre.Version, URL: pre.URL, Size: pre.Size, Signature: pre.Signature})
+			rest = append(rest, pre.Previous...)
+		case errors.Is(err, errNotPublished) && len(heads) == 0:
+			logf("No delta updates for %s: no version is published yet", target)
+			return nil, nil
+		case !errors.Is(err, errNotPublished):
+			warnf("No delta updates from the prereleases for %s: %v", target, err)
+		}
+	}
+	slices.SortStableFunc(heads, func(a, b update.Archive) int { return update.Compare(b.Version, a.Version) })
+	slices.SortStableFunc(rest, func(a, b update.Archive) int { return update.Compare(b.Version, a.Version) })
 	var bases []update.Archive
-	for _, a := range append([]update.Archive{{Version: published.Version, URL: published.URL, Size: published.Size, Signature: published.Signature}}, published.Previous...) {
+	for _, a := range append(heads, rest...) {
 		if update.Compare(a.Version, c.Version) < 0 && !slices.ContainsFunc(bases, func(b update.Archive) bool { return b.Version == a.Version }) {
 			bases = append(bases, a)
 		}
 	}
 	if len(bases) == 0 {
-		logf("No delta updates for %s: the published version is %s", target, published.Version)
+		logf("No delta updates for %s: the published version is %s", target, heads[0].Version)
 		return nil, nil
 	}
 	bases = bases[:min(len(bases), n)]
@@ -374,9 +408,10 @@ func writeDelta(key ed25519.PrivateKey, base update.Archive, work, path, version
 
 var errNotPublished = errors.New("not published")
 
-// fetchManifest downloads a published manifest, from its feed.
-func fetchManifest(feed string) (*update.Manifest, error) {
-	u, err := update.ResolveFeed(context.Background(), feed, func(_ context.Context, u string) (io.ReadCloser, error) {
+// fetchManifest downloads a published manifest, from its feed as resolve
+// finds it.
+func fetchManifest(feed string, resolve func(context.Context, string, update.Getter) (string, error)) (*update.Manifest, error) {
+	u, err := resolve(context.Background(), feed, func(_ context.Context, u string) (io.ReadCloser, error) {
 		resp, err := updateGet(u, 30*time.Second)
 		if err != nil {
 			return nil, err

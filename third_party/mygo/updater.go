@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo/internal/update"
@@ -56,6 +57,15 @@ var Updater = &UpdaterModule{}
 // ErrUpdatesDisabled is returned by Check for builds without updates:
 // development builds, and builds of apps without updates in mygo.config.ts.
 var ErrUpdatesDisabled = errors.New("mygo: updates are not enabled for this build")
+
+// ErrNotPublished is wrapped by the error of Check when the feed has no
+// release yet: none at all, or on GitHub none that is not a prerelease
+// while the app does not take prereleases. There is nothing newer to
+// install; an update window says the app is up to date.
+var ErrNotPublished = update.ErrNotPublished
+
+// prereleases is whether Check offers prereleases (SetPrereleases).
+var prereleases atomic.Bool
 
 // Update is a newer version of the app, found by Updater.Check.
 type Update struct {
@@ -97,15 +107,64 @@ func (u *UpdaterModule) Check(ctx context.Context) (*Update, error) {
 	if !u.Enabled() {
 		return nil, ErrUpdatesDisabled
 	}
-	return checkUpdate(ctx, packageUpdateFeed, packageUpdateKey, App.Version())
+	return checkUpdate(ctx, packageUpdateFeed, packageUpdateKey, App.Version(), prereleases.Load())
 }
 
-func checkUpdate(ctx context.Context, feed, key, current string) (*Update, error) {
-	feed, err := update.ResolveFeed(ctx, feed, httpGet)
+// SetPrereleases makes Check offer prereleases too, such as 1.3.0-beta.1,
+// or only releases (the default): a beta channel that users opt into, in
+// apps whose updates are GitHub releases. Prereleases are the releases
+// marked so on GitHub (`mygo build -upload` marks those of versions with a
+// pre-release part when updates.prereleases is set); Check then offers the
+// highest version among the releases that are not drafts, a release or a
+// prerelease, through the GitHub API (60 requests an hour for each
+// address: one a check). When the API fails, it checks the latest release
+// as without prereleases, and returns its update, or the API's error.
+// Updates never go back: with prereleases turned off, an app running a
+// prerelease waits for a release newer than it. The choice lasts while
+// the app runs; apps keep the user's in their settings and set it when
+// they start. Other feeds have no prereleases and ignore it.
+func (u *UpdaterModule) SetPrereleases(on bool) { prereleases.Store(on) }
+
+// Prereleases reports whether Check offers prereleases (SetPrereleases).
+func (u *UpdaterModule) Prereleases() bool { return prereleases.Load() }
+
+func checkUpdate(ctx context.Context, feed, key, current string, pre bool) (*Update, error) {
+	if !pre {
+		return checkFeed(ctx, feed, key, current, update.ResolveFeed)
+	}
+	up, err := checkFeed(ctx, feed, key, current, update.ResolvePrereleaseFeed)
+	var apiErr *githubAPIError
+	if !errors.As(err, &apiErr) {
+		return up, err
+	}
+	if !isLatestFeed(feed) {
+		return nil, err
+	}
+	// The latest release's manifest needs no API.
+	up, lerr := checkFeed(ctx, feed, key, current, update.ResolveFeed)
+	if up != nil || lerr != nil && !errors.Is(lerr, ErrNotPublished) {
+		return up, lerr
+	}
+	return nil, err
+}
+
+func isLatestFeed(feed string) bool {
+	_, _, ok := update.LatestFeed(feed)
+	return ok
+}
+
+// checkFeed checks the manifest that resolve finds from feed.
+func checkFeed(ctx context.Context, feed, key, current string, resolve func(context.Context, string, update.Getter) (string, error)) (*Update, error) {
+	feed, err := resolve(ctx, feed, httpGet)
 	if err != nil {
 		return nil, fmt.Errorf("mygo: checking for updates: %w", err)
 	}
 	body, err := httpGet(ctx, feed)
+	var status *httpStatusError
+	if errors.As(err, &status) && status.code == http.StatusNotFound && isLatestFeed(feed) {
+		// GitHub has no latest release yet: only prereleases, or none.
+		return nil, fmt.Errorf("mygo: checking for updates: %w: %w", ErrNotPublished, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("mygo: checking for updates: %w", err)
 	}
@@ -386,13 +445,48 @@ func httpGet(ctx context.Context, rawURL string) (io.ReadCloser, error) {
 	req.Header.Set("User-Agent", "MyGo/"+Version+" "+App.Name()+"/"+App.Version())
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		if strings.HasPrefix(rawURL, update.GitHubAPI+"/") {
+			return nil, &githubAPIError{err}
+		}
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		return nil, fmt.Errorf("GET %s: %s", rawURL, resp.Status)
+		err := error(&httpStatusError{url: rawURL, status: resp.Status, code: resp.StatusCode})
+		if strings.HasPrefix(rawURL, update.GitHubAPI+"/") {
+			err = &githubAPIError{err}
+			if (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests) && resp.Header.Get("X-RateLimit-Remaining") == "0" {
+				err = &githubAPIError{rateLimitError(resp.Header.Get("X-RateLimit-Reset"))}
+			}
+		}
+		return nil, err
 	}
 	return resp.Body, nil
+}
+
+// httpStatusError is a response of httpGet other than 200 OK.
+type httpStatusError struct {
+	url, status string
+	code        int
+}
+
+func (e *httpStatusError) Error() string { return "GET " + e.url + ": " + e.status }
+
+// githubAPIError is the failure of a request to the GitHub API, which
+// checks for prereleases fall back from (checkUpdate).
+type githubAPIError struct{ err error }
+
+func (e *githubAPIError) Error() string { return e.err.Error() }
+func (e *githubAPIError) Unwrap() error { return e.err }
+
+// rateLimitError says that the GitHub API takes no more requests from this
+// address until reset, its X-RateLimit-Reset (Unix seconds).
+func rateLimitError(reset string) error {
+	msg := "GitHub takes no more requests from this network for now (60 an hour)"
+	if s, err := strconv.ParseInt(reset, 10, 64); err == nil {
+		msg += "; try again after " + time.Unix(s, 0).Local().Format("15:04")
+	}
+	return errors.New(msg)
 }
 
 func isLoopback(host string) bool {

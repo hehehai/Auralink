@@ -38,7 +38,8 @@ mkdir -p "$out"
 chmod -R u+w "$out"
 for p in "$PATCHES"/*.patch; do
   [[ -e "$p" ]] || continue
-  (cd "$out" && git apply --whitespace=nowarn "$p") || { echo "patch $(basename "$p") does not apply to mygo $version" >&2; exit 1; }
+  # Hunks of the parts left out (a patch's docs) stay upstream with them.
+  (cd "$out" && git apply --whitespace=nowarn --exclude='website/*' --exclude='docs/*' --exclude='examples/*' --exclude='.github/*' "$p") || { echo "patch $(basename "$p") does not apply to mygo $version" >&2; exit 1; }
 done
 # Tests and their data stay upstream (some hold sample credentials that
 # look real to secret scanners); so do git's settings for the module.

@@ -191,6 +191,7 @@ func used() *updater {
 var (
 	enabled        = mygo.Updater.Enabled
 	check          = checkRelease
+	updaterCheck   = mygo.Updater.Check
 	relaunch       = mygo.App.Relaunch
 	appVersion     = mygo.App.Version
 	locale         = mygo.App.Locale
@@ -209,7 +210,12 @@ type release struct {
 }
 
 func checkRelease(ctx context.Context) (*release, error) {
-	up, err := mygo.Updater.Check(ctx)
+	up, err := updaterCheck(ctx)
+	if errors.Is(err, mygo.ErrNotPublished) {
+		// Nothing is published yet, or only prereleases while the app
+		// takes none: there is nothing newer.
+		return nil, nil
+	}
 	if err != nil || up == nil {
 		return nil, err
 	}

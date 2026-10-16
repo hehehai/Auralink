@@ -159,6 +159,12 @@ export interface UpdatesConfig {
   changelog?: string;
   /** How many earlier versions get a delta update, a smaller download of what changed (default: `3`; `0` for none). */
   deltas?: number;
+  /**
+   * With `github`: versions with a pre-release part, such as `1.3.0-beta.1`, are uploaded as
+   * prereleases, and deltas are made from the newest prerelease too, for apps that offer a beta
+   * channel (`mygo.Updater.SetPrereleases`).
+   */
+  prereleases?: boolean;
 }
 
 /**
