@@ -186,6 +186,7 @@ CI runs gofmt, the Go tests (also under the race detector) and MyGo vet on Linux
 - [docs/helper-protocol.md](docs/helper-protocol.md): the helper's protocol.
 - [AGENTS.md](AGENTS.md): the rules for changes (strings, threading, the helper protocol).
 - [CHANGELOG.md](CHANGELOG.md): changes by version.
+- [CONTRIBUTING.md](CONTRIBUTING.md): how to send a change, and the CLA.
 
 ## Acknowledgements
 
@@ -194,6 +195,14 @@ CI runs gofmt, the Go tests (also under the race detector) and MyGo vet on Linux
 - [MyGo](https://github.com/egoist/mygo): native macOS UI from Go, without cgo (MIT).
 - [Solar](https://www.figma.com/community/file/1166831539721848736) icons by 480 Design, under CC BY 4.0.
 
+## Contributing
+
+Issues and pull requests are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) says how, and how to sign the [Contributor License Agreement](CLA.md) (one comment on your first pull request).
+
 ## Licence
 
-Apache License 2.0 ([LICENSE](LICENSE)). Third-party material and its licences are listed in [NOTICE](NOTICE).
+Copyright (C) 2026 actnow and the Auralink contributors. Auralink is free software under the [GNU Affero General Public License, version 3 or later](LICENSE) (AGPL-3.0-or-later).
+
+In short: you may use, study, change and share Auralink. If you distribute it, changed or not, you pass on the same freedoms: the source, under the same licence. The AGPL adds one condition to the GPL: if you change Auralink and let people use your changed version over a network, you offer them its source too. Auralink is a desktop app, so using it on your Mac, as it is, asks nothing of you.
+
+Contributions come in under the [CLA](CLA.md): contributors keep their copyright and give actnow the right to license their work under other terms as well. Versions up to v0.1.0-beta.1 were released under the Apache License 2.0. Third-party material and its licences are listed in [NOTICE](NOTICE).

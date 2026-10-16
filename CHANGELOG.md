@@ -2,6 +2,16 @@
 
 All notable changes to Auralink. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). Each version's section is what the update window shows: English first, then the same in Chinese under matching headings (docs/release.md).
 
+## [Unreleased]
+
+### Changed
+
+- Auralink's licence is now the GNU Affero General Public License, version 3 or later (AGPL-3.0-or-later; it was the Apache License 2.0 up to 0.1.0-beta.1). Contributions come in under a Contributor License Agreement (CLA.md). Settings → About shows the copyright and the licence, with links to the licence, the source code and the third-party notices.
+
+### 变更
+
+- Auralink 的许可改为 GNU Affero 通用公共许可证第 3 版或更高版本（AGPL-3.0-or-later；0.1.0-beta.1 及以前是 Apache License 2.0），新增贡献者许可协议（CLA.md）。设置 → 诊断与关于显示版权和许可，并链接到许可全文、源代码和第三方声明。
+
 ## [0.1.0-beta.1] - 2026-10-16
 
 The first version, a beta: voice input for macOS on remote models. It updates to the next beta and to the release that follows (Settings → About → Beta updates).

@@ -32,8 +32,20 @@ import (
 	"github.com/hehehai/Auralink/internal/uitext"
 )
 
-// issuesURL is where bugs are reported.
-const issuesURL = "https://github.com/hehehai/Auralink/issues/new"
+// The project's addresses: issuesURL is where bugs are reported; the
+// licence, the source and the third-party notices are linked from
+// Settings → About.
+const (
+	repoURL    = "https://github.com/hehehai/Auralink"
+	issuesURL  = repoURL + "/issues/new"
+	licenceURL = repoURL + "/blob/main/LICENSE"
+	noticeURL  = repoURL + "/blob/main/NOTICE"
+)
+
+// copyrightHolder is who holds Auralink's copyright (NOTICE, README,
+// mygo.json's copyright and the CLA name it too; the CLA's §1 is where its
+// legal name goes).
+const copyrightHolder = "actnow"
 
 // aboutState is the Diagnostics page's state.
 type aboutState struct {
@@ -305,7 +317,15 @@ func (a *app) aboutSettings(c *ui.Context) {
 			ui.Text(c, r[1]).Selectable()
 		}
 	})
-	caption(c, i18n.T("Auralink is open source under the Apache License 2.0. Parts of it come from AudioSmith."))
+	// The "appropriate legal notices" an interactive program shows under the
+	// GNU AGPL (§0, §5 d): the copyright, no warranty, the licence.
+	caption(c, i18n.T("Copyright © 2026 %s and the Auralink contributors.", copyrightHolder))
+	caption(c, i18n.T("Auralink is free software under the GNU Affero General Public License, version 3 or later, and comes with no warranty. Parts of it come from AudioSmith."))
+	ui.Row(c.Key("about-licence")).Gap(px(t, sp3)).AlignItems(ui.Center).Wrap().Children(func() {
+		ui.Link(c.Key("about-licence-agpl"), i18n.T("Licence"), licenceURL).FontSize(px(t, fsCaption))
+		ui.Link(c.Key("about-licence-source"), i18n.T("Source code"), repoURL).FontSize(px(t, fsCaption))
+		ui.Link(c.Key("about-licence-notices"), i18n.T("Third-party notices"), noticeURL).FontSize(px(t, fsCaption))
+	})
 	ui.Row(c.Key("about-icons")).Gap(px(t, 6)).AlignItems(ui.Center).Wrap().Children(func() {
 		caption(c, i18n.T("Icons: Solar by 480 Design, under CC BY 4.0 (@iconify-json/solar %s).", icons.SolarVersion))
 		ui.Link(c, i18n.T("Licence"), "https://creativecommons.org/licenses/by/4.0/").FontSize(px(t, fsCaption))

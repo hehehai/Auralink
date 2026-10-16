@@ -186,6 +186,7 @@ CI 在 Linux 上跑 gofmt、Go 测试（含 race 检测）和 MyGo vet，在 mac
 - [docs/helper-protocol.md](docs/helper-protocol.md)：辅助进程的协议。
 - [AGENTS.md](AGENTS.md)：修改代码要遵守的规则（界面文字、线程、辅助进程协议）。
 - [CHANGELOG.md](CHANGELOG.md)：各版本的更新记录。
+- [CONTRIBUTING.md](CONTRIBUTING.md)：怎么提交改动，以及 CLA。
 
 ## 致谢
 
@@ -194,6 +195,14 @@ CI 在 Linux 上跑 gofmt、Go 测试（含 race 检测）和 MyGo vet，在 mac
 - [MyGo](https://github.com/egoist/mygo)：用 Go 写原生 macOS 界面，不用 cgo（MIT 许可）。
 - 480 Design 的 [Solar](https://www.figma.com/community/file/1166831539721848736) 图标，以 CC BY 4.0 授权。
 
+## 参与贡献
+
+欢迎提 issue 和 PR：做法见 [CONTRIBUTING.md](CONTRIBUTING.md)，其中也说明了怎么签[贡献者许可协议](CLA.md)（在第一个 PR 里评论一句即可）。
+
 ## 许可证
 
-Apache License 2.0（[LICENSE](LICENSE)）。第三方素材及其许可见 [NOTICE](NOTICE)。
+Copyright (C) 2026 actnow and the Auralink contributors。Auralink 是自由软件，以 [GNU Affero 通用公共许可证第 3 版或更高版本](LICENSE)（AGPL-3.0-or-later）发布。
+
+简单说：你可以使用、研究、修改和分享 Auralink。发布它（无论改没改）时，要把同样的自由传下去：附上源码，并使用同一许可。AGPL 在 GPL 之外只多一条：如果你修改了 Auralink，并让别人通过网络使用你的修改版，也要向他们提供源码。Auralink 是桌面应用，在自己的 Mac 上照常使用，没有任何额外要求。
+
+贡献按 [CLA](CLA.md) 接收：贡献者保留版权，并授权 actnow 也可以用其他协议发布其贡献。v0.1.0-beta.1 及以前的版本以 Apache License 2.0 发布。第三方素材及其许可见 [NOTICE](NOTICE)。

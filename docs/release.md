@@ -126,7 +126,7 @@ gh run watch -R hehehai/Auralink
    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $v" helper/Support/Info.plist   # macOS
    ```
    app 的 `CFBundleShortVersionString` 是完整版本号（`0.1.0-beta.2`，更新比较用它）；`CFBundleVersion` 由 MyGo 写成数字部分（`0.1.0`，补丁 0007，Apple 要求只含数字和点）。
-2. **写 CHANGELOG.md**：在最上面加一节 `## [0.1.0-beta.2] - 2026-11-02`（标题里的版本号必须和 mygo.json 完全一样，包括 `-beta.2`），英文在前，中文在后，小标题一一对应：
+2. **写 CHANGELOG.md**：把最上面的 `## [Unreleased]` 改成 `## [0.1.0-beta.2] - 2026-11-02`（没有 Unreleased 就在最上面加一节；标题里的版本号必须和 mygo.json 完全一样，包括 `-beta.2`），英文在前，中文在后，小标题一一对应：
    ```markdown
    ## [0.1.0-beta.2] - 2026-11-02
 

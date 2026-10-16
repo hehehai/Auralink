@@ -12,6 +12,8 @@
 //     and why), and every import of one internal package by another listed
 //     in imports.txt, so that a new dependency shows in review.
 //   - TestLongFuncs: reports (t.Log, go test -v) functions over 150 lines.
+//   - TestNotice: every module go.mod requires is named in NOTICE with its
+//     version and has its licence text in LICENSES/ (AGENTS.md, "Licence").
 //
 // Each failure says how to fix it.
 package archtest
