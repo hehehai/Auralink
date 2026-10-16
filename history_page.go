@@ -117,11 +117,18 @@ func (a *app) loadHistory() {
 	})
 }
 
-// historyChanged runs when a session kept (or changed) an entry: the page
-// reads the history again now when it shows, else when it shows next.
+// historyChanged runs when the history changed (an entry kept, changed
+// or deleted, a try ended): the observers of onHistory (events.go) hear
+// of it.
 func (a *app) historyChanged() {
-	a.homeChanged()    // home_page.go: today's numbers, the recent results
-	a.loadTrayRecent() // tray.go: the menu bar's recent results
+	for _, fn := range a.onHistory {
+		fn()
+	}
+}
+
+// historyReload reads the history again now when the page shows, else
+// when it shows next.
+func (a *app) historyReload() {
 	if a.currentPage() == "history" {
 		a.loadHistory()
 		return

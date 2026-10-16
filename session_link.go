@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -213,8 +212,9 @@ func (a *app) sessionChanged(s session.Snapshot) {
 	}
 	was := a.sess
 	a.sess = s
-	a.obSessionChanged(s) // onboarding.go: a try of the setup guide passes
-	a.playCue(was, s)     // settings_audio.go: the start and stop sounds
+	for _, fn := range a.onSession { // events.go: the setup guide, the sounds
+		fn(was, s)
+	}
 	if s.ID != was.ID {
 		a.notice = nil
 	}
@@ -223,19 +223,20 @@ func (a *app) sessionChanged(s session.Snapshot) {
 	}
 	if s.State.Live() != was.State.Live() {
 		a.syncHotkeys()
-		a.buildTrayMenu() // tray.go: Start or Stop
 	}
-	a.overlaySync() // overlay.go
+	for _, fn := range a.afterSession { // events.go: the menu bar, the overlay
+		fn(was, s)
+	}
 }
 
 // sessionEnded opens the answer card or shows a notice, and refreshes the
 // history.
 func (a *app) sessionEnded(s session.Snapshot) {
-	if s.State == session.Done && strings.TrimSpace(s.Result) != "" {
-		a.markTried() // home_try.go: Home stops offering its Try area
+	for _, fn := range a.onSessionEnd { // events.go: Home
+		fn(s)
 	}
 	if s.Try {
-		a.historyChanged() // history_page.go (a try keeps nothing, but the page may show it)
+		a.historyChanged() // a try keeps nothing, but the pages may show it
 		return
 	}
 	switch {
