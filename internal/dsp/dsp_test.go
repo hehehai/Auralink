@@ -308,10 +308,13 @@ func TestExtremes(t *testing.T) {
 }
 
 // TestTenMinutesFast: ten minutes of audio take well under a second or
-// two, as a file and as a stream.
+// two, as a file and as a stream (not timed under the race detector).
 func TestTenMinutesFast(t *testing.T) {
 	if testing.Short() {
 		t.Skip("short")
+	}
+	if raceOn {
+		t.Skip("timings mean nothing under the race detector")
 	}
 	s := loadSample(t)
 	var x []float64
