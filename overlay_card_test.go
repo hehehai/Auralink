@@ -44,7 +44,9 @@ func cardSteps() []cardStep {
 			Selection: sel, TargetLanguage: "zh-Hans", Result: result, Draft: draft}
 	}
 	return []cardStep{
-		{name: "short", apply: func(a *app) { snap(a, tr(session.Done, "goroutine 是由 Go 运行时管理的轻量级线程。", "goroutine 是由 Go 运行时管理的轻量级线程。")) },
+		{name: "short", apply: func(a *app) {
+			snap(a, tr(session.Done, "goroutine 是由 Go 运行时管理的轻量级线程。", "goroutine 是由 Go 运行时管理的轻量级线程。"))
+		},
 			insert: true, copy: true, lang: true},
 		{name: "redo", apply: func(a *app) {
 			a.answer.redo, a.answer.redoLang = "t2", "ja"

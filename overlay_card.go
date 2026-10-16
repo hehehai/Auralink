@@ -50,7 +50,7 @@ const (
 	// widest, Insert, Copy, Close). Voxt's card fills its 560 window
 	// (measured on the Mac, 10-15); the user found it too wide, then 480
 	// too (10-15, third round).
-	ovAnswerW = 440
+	ovAnswerW  = 440
 	ovCardPadX = 18
 	ovCardPadY = 16 // under the text (Voxt's)
 	// The header: ovCardPadTop over it, ovCardRuleTop under it to the
@@ -62,7 +62,8 @@ const (
 	ovCardHeadGap = 12 // between the header's items
 	ovCardRuleTop = 12 // the header to the rule
 	ovCardRuleGap = 10 // the rule to the text
-	ovCardRuleY   = ovCardPadTop + ovCardHeadH + ovCardRuleTop // where the rule is
+	// Where the rule is.
+	ovCardRuleY   = ovCardPadTop + ovCardHeadH + ovCardRuleTop
 	ovCardBodyMax = 220
 	ovCardInset   = 10 // the text's right inset: the scroller's room
 	ovCardBodyW   = ovAnswerW - 2*ovCardPadX - ovCardInset
@@ -80,7 +81,7 @@ const (
 	ovCardBtn        = 24
 	ovCardBtnIcon    = 15
 	ovCardLangMaxW   = 128 // the language's name in its capsule, at most (Voxt 92: "Simplified Chinese" did not fit)
-	ovCardWaveW      = 96 // a conversation's waveform
+	ovCardWaveW      = 96  // a conversation's waveform
 
 	// A conversation's bubbles.
 	ovBubbleW         = 340
@@ -537,7 +538,7 @@ func cardWave(c *ui.Context, v cardView, motion bool, phase float64) {
 	bars := waveBars(v.levels)
 	quiet := [...]float32{3.2, 3.9, 4.6, 5.1, 4.2, 3.5, 4.4, 4.9}
 	label := i18n.T("Input level")
-	ui.Row(c.Key("ov-card-wave")).Width(ovCardWaveW).Height(ovCardIcon).Shrink(0).Gap(waveBarGap*sx).AlignItems(ui.Center).Label(label).Children(func() {
+	ui.Row(c.Key("ov-card-wave")).Width(ovCardWaveW).Height(ovCardIcon).Shrink(0).Gap(waveBarGap * sx).AlignItems(ui.Center).Label(label).Children(func() {
 		for i, lv := range bars {
 			h := quiet[i%len(quiet)] * sy
 			if v.recording && v.heard {

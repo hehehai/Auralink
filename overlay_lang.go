@@ -155,7 +155,7 @@ func (a *app) langMenuView(c *ui.Context) {
 			Border(1, ui.RGBA(255, 255, 255, 0.12)).Shadow(0, ovShadowY, ovShadowBlur, 0, ui.RGBA(0, 0, 0, ovShadowA)).
 			Label(i18n.T("Translate into")).Children(func() {
 			ui.Scroll(c.Key("ov-lang-scroll")).Fill().TrackScroll(&a.ov.lang.scroll).Children(func() {
-				ui.Column(c).Padding(ovLangPad-ovBorder).Children(func() {
+				ui.Column(c).Padding(ovLangPad - ovBorder).Children(func() {
 					for _, code := range compose.TargetLanguages {
 						a.langMenuRow(c, code, code == cur)
 					}
@@ -168,7 +168,7 @@ func (a *app) langMenuView(c *ui.Context) {
 // langMenuRow is one language: its name, a check when it is the card's.
 func (a *app) langMenuRow(c *ui.Context, code string, chosen bool) {
 	name := targetLanguageLabel(code)
-	b := ui.ButtonBase(c.Key("ov-lang-" + code)).Height(ovLangRowH).Padding(0, 10).Radius(8).Label(name).Checked(chosen)
+	b := ui.ButtonBase(c.Key("ov-lang-"+code)).Height(ovLangRowH).Padding(0, 10).Radius(8).Label(name).Checked(chosen)
 	if b.Hovered() {
 		b.Background(ui.RGBA(255, 255, 255, 0.08))
 	}

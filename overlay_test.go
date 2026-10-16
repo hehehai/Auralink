@@ -452,12 +452,12 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 				}
 			})
 			// The window's material: what is under the face, blurred.
-			ui.Box(c).Absolute().Left(ovPad).Top(float32(ovPad+menuDY)).Right(ovPad).Bottom(ovPad).Radius(radius).Material(glass.Blur{Radius: 8})
+			ui.Box(c).Absolute().Left(ovPad).Top(float32(ovPad + menuDY)).Right(ovPad).Bottom(ovPad).Radius(radius).Material(glass.Blur{Radius: 8})
 			// Positioned too, to paint over the blur.
 			ui.Box(c).Absolute().Left(0).Top(float32(menuDY)).Right(0).Bottom(0).Children(func() { a.overlayView(c) })
 			if menuDY > 0 {
 				m := a.ov.lang.frame
-				ui.Box(c).Absolute().Left(float32(m.X-a.ov.frame.X)).Top(0).Width(float32(m.Width)).Height(float32(m.Height)).Children(func() { a.langMenuView(c) })
+				ui.Box(c).Absolute().Left(float32(m.X - a.ov.frame.X)).Top(0).Width(float32(m.Width)).Height(float32(m.Height)).Children(func() { a.langMenuView(c) })
 			}
 		}, w, h)
 		tt.SetScale(2)
@@ -664,6 +664,9 @@ func TestOverlayInk(t *testing.T) {
 		{"notice", session.Snapshot{State: session.Failed, Problem: &session.Problem{Code: session.ProblemASR, Err: &asr.Error{Kind: asr.KindAuth}}}, false, ovInkWant{h: 48, row: true}, 0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			if strings.HasSuffix(c.name, "-zh") {
+				requireCJKFont(t)
+			}
 			a, _, _ := newTestApp(t)
 			a.measureHook = nil // the view measures
 			a.prefs.Overlay.ShowTime = c.time

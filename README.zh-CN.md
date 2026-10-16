@@ -85,7 +85,7 @@ AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .   # 每个页面的�
 cd helper && swift test              # Swift 辅助进程（在 Mac 上）：协议类型对同一份 fixtures、热键识别器
 ```
 
-CI 在 Linux 上跑 Go 这一侧，在 macOS 上跑 Swift 辅助进程的测试。需要权限、界面和真实服务的部分，按 [docs/manual-test.md](docs/manual-test.md) 手动验证。
+在 Linux 上，浮窗中文文字的像素检查需要 CJK 字体（Ubuntu 装 `fonts-noto-cjk`，CI 也装这个）。CI 在 Linux 上跑 Go 这一侧，在 macOS 上跑 Swift 辅助进程的测试。需要权限、界面和真实服务的部分，按 [docs/manual-test.md](docs/manual-test.md) 手动验证。
 
 更新记录见 [CHANGELOG.md](CHANGELOG.md)。
 

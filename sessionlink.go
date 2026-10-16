@@ -83,8 +83,8 @@ type answerCard struct {
 	why string
 	// problem: the session failed (the card shows why, and Try again);
 	// input is what it worked on, for Try again and another language.
-	problem *session.Problem
-	input   session.TextInput
+	problem  *session.Problem
+	input    session.TextInput
 	lang     string // Translate's target
 	langOpen bool   // the language menu shows (overlay_lang.go)
 	// turns are a Rewrite conversation so far, the shown answer last

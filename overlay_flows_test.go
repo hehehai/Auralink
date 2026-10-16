@@ -205,7 +205,9 @@ func overlayFlows() []ovFlowCase {
 			tr.text = "shorter"
 			first := a.sess.ID
 			a.followUpAnswer("") // Continue
-			f.run("the follow-up's recording", func() bool { return a.sess.ID != first && a.sess.State == session.Recording && a.sess.HeardAt.After(a.sess.StartedAt) })
+			f.run("the follow-up's recording", func() bool {
+				return a.sess.ID != first && a.sess.State == session.Recording && a.sess.HeardAt.After(a.sess.StartedAt)
+			})
 			time.Sleep(400 * time.Millisecond)
 			a.stopSession() // Done
 			f.run("the follow-up's end", func() bool { return a.sess.ID != first && a.sess.State.Ended() })

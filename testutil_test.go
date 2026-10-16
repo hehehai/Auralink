@@ -8,6 +8,8 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -147,6 +149,24 @@ func newTestAppIn(t *testing.T, dir string) (*app, *fakeSupervisor, *ui.Tester) 
 	a.startHelper()
 	t.Cleanup(a.quit)
 	return a, fs, ui.NewTester(a.view, windowWidth, windowHeight)
+}
+
+// requireCJKFont fails a test that measures Chinese text's pixels when
+// Linux has no font for it: Pango then draws nothing ("no ink"), which
+// reads as a layout bug. CI installs fonts-noto-cjk (.github/workflows/ci.yml);
+// a Mac always has one.
+func requireCJKFont(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS != "linux" {
+		return
+	}
+	if _, err := exec.LookPath("fc-list"); err != nil {
+		return // no fontconfig tools to ask: the ink check tells
+	}
+	out, err := exec.Command("fc-list", ":lang=zh", "family").Output()
+	if err == nil && len(strings.TrimSpace(string(out))) == 0 {
+		t.Fatal("no font for Chinese (fc-list :lang=zh finds none): install one, e.g. fonts-noto-cjk, as CI does")
+	}
 }
 
 // frames runs the tester a few frames, so state set in one shows.
