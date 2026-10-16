@@ -39,12 +39,20 @@ fi
 cd "$ROOT/helper"
 log="$(mktemp)"
 trap 'rm -f "$log"' EXIT
+# Linked again each time: Support/Info.plist goes in at link time
+# (Package.swift), and swift build does not see it change.
+rm -f .build/arm64-apple-macosx/release/auralink-helper
 if ! swift build -c release --arch arm64 ${SWIFT_BUILD_JOBS:+-j "$SWIFT_BUILD_JOBS"} >"$log" 2>&1; then
   grep -E "error:" "$log" | sort -u | head -40 >&2 || cat "$log" >&2
   echo "swift build failed" >&2
   exit 1
 fi
 grep -E "warning:" "$log" | sort -u || true
+embedded="$(grep -a -A1 '<key>CFBundleShortVersionString</key>' .build/arm64-apple-macosx/release/auralink-helper | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p' | head -1)"
+if [[ "$embedded" != "$helper_version" ]]; then
+  echo "the helper was linked with version ${embedded:-none}, not $helper_version" >&2
+  exit 1
+fi
 mkdir -p "$OUT"
 cp -f .build/arm64-apple-macosx/release/auralink-helper "$OUT/auralink-helper"
 codesign --force --sign "$IDENTITY" --entitlements Support/helper.entitlements --options runtime "$OUT/auralink-helper"
