@@ -4,7 +4,7 @@ The screenshots, the hero and the animations in the README are captured on a rea
 
 ## The demo build
 
-`demo.go`, `demo_replay.go` and `demo_data.go` (built only with `-tags demo`) and the hooks in `demo_hooks.go` (nil in every other build). The demo app:
+`demo.go` and `demo_data.go` (built only with `-tags demo`), `internal/demo` (the recorded and replayed service traffic, the keys) and the hooks in `demo_hooks.go` (nil in every other build). The demo app:
 
 - is its own app: bundle ID `dev.hehehai.auralink.demo`, built in its own mirror (`MAC_DIR=code/Auralink-demo`), refusing to run as `dev.hehehai.auralink`;
 - keeps its data, logs and cache in `$AURALINK_DEMO_DIR` (and runs with `HOME` there), and its keys in a file (`$AURALINK_DEMO_KEYS`: `STEPFUN_API_KEY`, `DEEPSEEK_API_KEY`), never the Keychain; Model services shows no part of them;

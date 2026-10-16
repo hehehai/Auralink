@@ -16,6 +16,7 @@ asr/openai netx
 compose lang
 datadir store/sqlitestore
 deliver helper/proto
+demo permission
 dict store
 dsp vad
 helper core

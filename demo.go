@@ -24,22 +24,19 @@ package main
 //     (AURALINK_HELPER_CAPTURE_FILE), so no microphone is asked for.
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/hehehai/Auralink/internal/demo"
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/hotkey"
 	"github.com/hehehai/Auralink/internal/permission"
@@ -104,7 +101,7 @@ func demoSetup() {
 	if demoDir == "" || !filepath.IsAbs(demoDir) {
 		demoFatal("AURALINK_DEMO_DIR must name the demo's folder (absolute)")
 	}
-	if id := bundleID(); id == realBundleID {
+	if id := demo.BundleID(); id == realBundleID {
 		demoFatal("a demo build must not be %s", realBundleID)
 	}
 	for name, sub := range map[mygo.PathName]string{mygo.PathUserData: "data", mygo.PathLogs: "logs", mygo.PathCache: "cache"} {
@@ -114,95 +111,26 @@ func demoSetup() {
 		}
 		mygo.App.SetPath(name, p)
 	}
-	keys := demoKeyring{m: map[string]string{}}
+	keys := demo.Keyring{M: map[string]string{}}
 	if f := os.Getenv("AURALINK_DEMO_KEYS"); f != "" {
-		env := readEnvFile(f)
+		env := demo.ReadEnvFile(f)
 		if v := env["STEPFUN_API_KEY"]; v != "" {
-			keys.m["asr.stepfun"], keys.m["llm.stepfun"] = v, v
+			keys.M["asr.stepfun"], keys.M["llm.stepfun"] = v, v
 		}
 		if v := env["DEEPSEEK_API_KEY"]; v != "" {
-			keys.m["llm.deepseek"] = v
+			keys.M["llm.deepseek"] = v
 		}
 	}
 	newKeyring = func() keyring { return &keys }
-	demoRec = &replay{dir: filepath.Join(demoDir, "replay"), calls: filepath.Join(demoDir, "calls.log"), base: http.DefaultTransport}
+	demoRec = &demo.Replay{Dir: filepath.Join(demoDir, "replay"), Calls: filepath.Join(demoDir, "calls.log"), Base: http.DefaultTransport}
 	demoHTTP = &http.Client{Transport: demoRec}
 }
-
-// bundleID reads the running bundle's identifier ("" outside a bundle).
-func bundleID() string {
-	exe, err := os.Executable()
-	if err != nil {
-		return ""
-	}
-	b, err := os.ReadFile(filepath.Join(filepath.Dir(filepath.Dir(exe)), "Info.plist"))
-	if err != nil {
-		return ""
-	}
-	m := regexp.MustCompile(`<key>CFBundleIdentifier</key>\s*<string>([^<]*)</string>`).FindSubmatch(b)
-	if m == nil {
-		return ""
-	}
-	return string(m[1])
-}
-
-// readEnvFile reads NAME=value lines (keys.env).
-func readEnvFile(path string) map[string]string {
-	out := map[string]string{}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return out
-	}
-	sc := bufio.NewScanner(bytes.NewReader(b))
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		k, v, ok := strings.Cut(strings.TrimPrefix(line, "export "), "=")
-		if ok {
-			out[strings.TrimSpace(k)] = strings.Trim(strings.TrimSpace(v), `"'`)
-		}
-	}
-	return out
-}
-
-// demoKeyring holds the demo's keys in memory.
-type demoKeyring struct {
-	mu sync.Mutex
-	m  map[string]string
-}
-
-func (k *demoKeyring) Get(acc string) (string, error) {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	return k.m[acc], nil
-}
-
-func (k *demoKeyring) Set(acc, _, v string) error {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	if v == "" {
-		delete(k.m, acc)
-	} else {
-		k.m[acc] = v
-	}
-	return nil
-}
-
-// ---- commands ----
-
-// demoPermSys reports the microphone granted while the helper records a
-// file.
-type demoPermSys struct{ permission.System }
-
-func (d demoPermSys) Microphone() permission.State { return permission.Granted }
 
 // demoControl watches $AURALINK_DEMO_DIR/ctl for commands: files named
 // <n>.cmd, run in name order, each answered with <n>.ok (or .err).
 func demoControl(a *app) {
 	if os.Getenv("AURALINK_HELPER_CAPTURE_FILE") != "" {
-		a.permSys = demoPermSys{permission.Native()}
+		a.permSys = demo.PermSys{System: permission.Native()}
 	}
 	dir := filepath.Join(demoDir, "ctl")
 	os.MkdirAll(dir, 0o755)
@@ -254,7 +182,7 @@ func demoCommand(a *app, line string) string {
 	case "esc":
 		a.hotkeyFired(proto.HotkeyEventParams{Binding: proto.HotkeyEscape, Phase: proto.PhaseTrigger})
 	case "take": // take <name>: the services' requests are recorded or played back under it
-		demoRec.setTake(arg(1))
+		demoRec.SetTake(arg(1))
 	case "nav": // nav /history, /settings/audio
 		a.navigate(arg(1))
 	case "close-settings":
@@ -318,3 +246,7 @@ func demoCommand(a *app, line string) string {
 	}
 	return "ok " + line
 }
+
+// ---- record and replay ----
+
+var demoRec *demo.Replay
