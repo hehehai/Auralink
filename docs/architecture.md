@@ -75,6 +75,8 @@ github.com/hehehai/Auralink
 │   │                     i18n, no MyGo; the one internal package that imports i18n
 │   ├── datadir/          where the data folder is: location.json, a move or an erase finished at the
 │   │                     start (Resolve, before the library opens), copying and checking a tree
+│   ├── recordings/       the history's recordings as files (the History settings dialog): their size,
+│   │                     moving them to another folder (copy, check, switch, then delete), exporting them
 │   ├── dict/             the dictionary's rules: cleaning a term, hints for speech services,
 │   │                     CSV and text import and export, merging an import
 │   ├── actnow/           Auralink in the ActNow family (the family's spec v1.0.3, phase 1, over
@@ -96,7 +98,7 @@ Arrows point to what a package may import. No cycles. Leaves import nothing inte
 
 ```
 main ──▶ every internal package
-store ──▶ core                 store/sqlitestore ──▶ core, store      datadir ──▶ store/sqlitestore    overlay/layout ──▶ session (Bars), settings (Overlay)    overlay/ink ──▶ overlay/layout
+store ──▶ core                 store/sqlitestore ──▶ core, store      datadir ──▶ store/sqlitestore    recordings ──▶ datadir, store    overlay/layout ──▶ session (Bars), settings (Overlay)    overlay/ink ──▶ overlay/layout
 uitext ──▶ i18n and the domain's types (appctx, asr, compose, core, deliver, dict, helper, helper/proto, hotkey, lang, llm, permission, providers, session, settings, store)
 helper ──▶ core, helper/proto  helper/helpertest ──▶ helper/proto
 notify, logs ──▶ core
@@ -175,7 +177,9 @@ Rewrite:   textio.selection while recording; the instruction (+ the selection) �
    one streaming chat (60 s; Rewrite without a selection: JSON {title, content}) ─▶ Draft
    Translate: compose.Untranslated? ─▶ once more with the Strict layer
    fails ─▶ failed, in the card with Try again (retryAnswer: StartRequest.Text)
-   history entry (+ audio/<id>.wav) ─▶ the end snapshot
+   history entry (+ audio/<id>.wav; for 7 days after a failed recognition) ─▶ the end snapshot
+Retry (History): session.Manager.Retry beside any session, one at a time: the entry's recording ─▶ prepare (dsp, vad)
+   ─▶ one upload, or one stream at 4× speed ─▶ the feature's language model ─▶ the entry updated in place (nothing pasted)
 snapshots ─▶ a.post ─▶ sessionChanged ─▶ (events.go, in order) the setup guide, the start and stop sounds;
                                          hotkey.configure {active}; the menu bar (its menu and recording icon), the overlay;
                                          at the end: Home, the card or a notice, then onHistory (Home, the menu bar, History)
@@ -211,7 +215,8 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `a.mgr` (`*session.Manager`), `a.sess` (the newest snapshot), `a.startSession(req)`, `a.startTranscribe(target, hold, try)`, `a.sessionBlocker(kind)`, `a.stopSession()`, `a.cancelSession()`, `a.toggleTranscribe()`, `a.pasteLast(target)`, `a.answer` + `openAnswer` / `insertAnswer` / `copyAnswer` / `closeAnswer` / `retryAnswer(lang)` / `followUpAnswer(hold)`, `a.showNotice`, `sessionProblemText(p)`, `a.syncHotkeys()` | session_link.go (the snapshots, notices), session_control.go (start, stop, paste the last), session_answer.go (the card's actions), session_hotkeys.go | the overlay, the feature pages' Try areas, the menu bar, helperlink.go |
 | `a.overlaySync()`, `a.ov` (mode, size, visible), `a.later(d, fn)` (timers; `laterHook` in tests), `overlayView`, `waveform` / `layout.WaveBars`, `overlayLoader`, `uitext.WorkingText(s)`, `kindIcon`, `uitext.KindTitle`, `cardNow`, `uitext.TargetLanguageLabel`, `noticeActionLabel` | overlay.go (state, sync), overlay_size.go, overlay_face.go, overlay_wave.go, overlay_card.go; the texts in internal/uitext (session.go) and session_text.go | session_link.go; the feature pages and History reuse the texts |
 | `a.featurePage(c, feature)`, `a.fui(feature)` (each page's controls), `featureKind`, `uitext.HotkeyText`, `uitext.FeatureTitle` | feature_page.go; feature_keys.go, feature_services.go, feature_prompts.go; internal/uitext (keys.go: shortcuts' words) | pages.go (Transcribe, Translate, Rewrite) |
-| `a.historyChanged()`; `a.entryMenu(c, row, e, keys, details)` (an entry's context menu: Copy, Show details, Delete; ⌘C and ⌫ on a focused row), `a.askDeleteEntry(id)` + `historyDeleteDialog` | history_page.go (history_detail.go: an entry's details and Delete; history_menu.go: the context menu; internal/uitext history.go: its words) | session_link.go, after an entry is kept or changed; Home's recent results (the menu, the Delete dialog) |
+| `a.historyChanged()`; `a.entryMenu(c, row, e, keys, details)` (an entry's context menu: Copy, Copy the recognised text, Show details, Show the recording in Finder, Retry or Transcribe again, Delete; ⌘C and ⌫ on a focused row), `a.askDeleteEntry(id)` + `historyDeleteDialog` | history_page.go (history_detail.go: an entry's details and Delete; history_menu.go: the context menu; internal/uitext history.go: its words) | session_link.go, after an entry is kept or changed; Home's recent results (the menu, the Delete dialog) |
+| `a.histSet` (the History settings dialog: `historySettingsDialog`, `showHistorySettings()`), `a.applyAudioDir()` (the recordings folder, or the default while it is missing), `a.moveRecordings(dir)`, `a.exportRecordings(dir, shown)`, `a.recordingsChanged()`; `a.pruneHistory()` (the automatic clean-up), `a.askCleanup(next)`, `a.expireRecordings()` (recordings kept for a retry, hourly); `a.retryEntry(e)`, `a.retryFromNotice(id)`, `a.hist.retry` (`session.Manager.Retry`, one at a time) | history_settings.go, history_settings_ops.go (internal/recordings), history_cleanup.go, history_retry.go (from VoxtNew) | History's search row and rows, the details, the menu; Settings → Privacy and Storage; events.go (onHistory: the clean-up); settingsChanged; main.go; the overlay's notice (`actionRetry`) |
 | `a.aeBook` (`ruleBook`: the groups for sessions, goroutine-safe), `a.aeRules` + `a.setRules(r)`, `a.sceneConfig()`, `a.urlReads`, `a.frontChanged(app)`, `a.lastOther`, `a.previewApp()`, `a.refreshPreview(force)`, `a.previewMatch()` | appenhance.go | session_link.go (the manager's Scene), helperlink.go (app.activated), the App enhancement page |
 | `uitext.SourceText(source, pattern)` | internal/uitext (history.go) | History's details, App enhancement's preview |
 | `a.loadDict()`, `a.openTerm(term)`, `chooseImportFile`, `chooseExportFile` (test seams) | dictionary_page.go | the Dictionary page |
@@ -238,7 +243,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | What | Where |
 |---|---|
 | Database: history (+ `history_fts`; `rule_source` since migration 2), dictionary terms, documents (`settings:app`, `appctx:rules`, `notifications`) | `~/Library/Application Support/Auralink/auralink.db` (WAL; `auralink.db.bak-<v>` before each migration) |
-| Recordings kept with history entries | `…/Auralink/audio/<id>.wav` (only with Settings → Privacy → Keep the recordings) |
+| Recordings kept with history entries | `…/Auralink/audio/<id>.wav`, or the folder chosen in History settings (`settings.History.AudioDir`; the default one while it is missing): with Keep the recordings, and for 7 days after a failed recognition (`audio_until`, migration 5) |
 | Data folder location | `…/Auralink/location.json` when the user moved it (Settings → Storage); `move.json`, `reset.json` while a move or an erase waits for the next start |
 | Apps' icons (App enhancement's lists) | `~/Library/Caches/Auralink/icons/<bundle id>-64.png`, drawn by the helper (`app.icons`), redrawn after a week (`internal/appicons`) |
 | Logs | `~/Library/Logs/Auralink/auralink.log` (app, rotated at 5 MB) and `helper.log` (the helper's stderr) |

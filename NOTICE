@@ -36,6 +36,19 @@ VoxtNew log selection
   (LICENSES/Apache-2.0.txt). It has been modified: import paths, names
   and sample lines are Auralink's.
 
+VoxtNew history
+  The history's recordings folder, export, automatic clean-up and Retry
+  (internal/recordings; history_settings.go, history_settings_ops.go,
+  history_cleanup.go, history_retry.go; internal/session/retry.go; the
+  store's history_retention.go and migration 005; internal/settings
+  history.go; the additions to history_menu.go; and their tests) are
+  adapted from VoxtNew (https://github.com/hehehai/sglang-omni, VoxtNew/,
+  commits f380cdcf, ba6b8047, 9fa88583, 359ca490, 4d5d5f62, 6443e13a and
+  78e24f3b), Copyright 2026 ActNow and the SGLang-Omni Team, licensed under
+  the Apache License 2.0 (LICENSES/Apache-2.0.txt). It has been modified:
+  import paths and names are Auralink's, the local models are gone, and a
+  retry streams the recording to a streaming service.
+
 Voxt overlay preview background
   assets/overlay-preview-background.png, the desktop picture behind the
   overlay's preview in Settings → Overlay style, is taken unchanged from
