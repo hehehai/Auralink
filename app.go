@@ -29,6 +29,7 @@ import (
 //	audioState        settings_audio.go   Settings → Audio, the recording's sounds
 //	muteState         mute_link.go    the system's output, muted while recording
 //	updateState       updates.go      the updater, an update installed while running
+//	familyState       family.go       the ActNow family: the other apps, shared settings
 //
 // Add fields to your area's struct, not here.
 type app struct {
@@ -59,6 +60,7 @@ type app struct {
 	audioState
 	muteState
 	updateState
+	familyState
 }
 
 func newApp(lib *library, h *helperHost) *app {
@@ -108,6 +110,7 @@ func (a *app) quit() {
 	a.closeOverlay()  // overlay.go
 	a.closeTray()
 	a.closeMute() // mute_link.go: the output back before the helper goes
+	a.closeFamily()
 	a.stopHelper()
 	a.closeShell()
 }

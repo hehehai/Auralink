@@ -77,6 +77,10 @@ github.com/hehehai/Auralink
 │   │                     start (Resolve, before the library opens), copying and checking a tree
 │   ├── dict/             the dictionary's rules: cleaning a term, hints for speech services,
 │   │                     CSV and text import and export, merging an import
+│   ├── actnow/           Auralink in the ActNow family (the family's spec v1.0.3, phase 1, over
+│   │                     github.com/hehehai/actnowkit): its manifest (capabilities, shortcuts in the
+│   │                     family's spelling, links), the shared settings it follows, the vendors of its
+│   │                     services' keys, shortcut conflicts; the one internal package importing actnowkit
 │   ├── archtest/         tests of the code's structure only: file sizes, import layering ("Code structure rules")
 │   └── tools/            developer commands (standard library only): snapcmp (snapshot comparison),
 │                         declhash (pure-move check)
@@ -102,7 +106,7 @@ session ──▶ appctx, asr, compose, core, deliver, dict, dsp, helper/proto, 
 dsp ──▶ vad
 compose ──▶ lang              deliver ──▶ helper/proto      hotkey ──▶ helper/proto, settings
 appctx ──▶ helper/proto, hotkey, settings                    dict ──▶ store
-appicons ──▶ helper/proto        outmute ──▶ helper/proto
+appicons ──▶ helper/proto        outmute ──▶ helper/proto       actnow ──▶ helper/proto, hotkey, settings (+ actnowkit)
 core, settings, helper/proto, i18n, lang, secrets, netx, permission, macx, vad, appbundle ──▶ (nothing internal)
 icons ──▶ mygo/ui
 ```
@@ -143,7 +147,7 @@ MyGo builds the root `main` package (`mygo dev`, `mygo build`, `ui.View`); views
    (wiring code, once)
 ```
 
-main.go wires, in order: the single-instance lock → the updater plugin (`mygo.Use(native.New(…))`, updates.go; release builds only can update, docs/release.md) → `datadir.Resolve` (finishes a pending move or erase of the data folder) → `openLibrary` (store migrated, bus, settings) → `newHelperHost` (finds the helper) → `newApp` → `connectShell` (log files, deep links) → `connectHelper` (the supervisor, its status and notifications) → `connectUpdates`. When MyGo is ready: the window, `applyBeta` (Beta updates, before the first check), `startHelper`, the menu bar icon, `watchBundle` (an update installed while it runs). On quit: the tray, the helper (`helper.shutdown`), the notifications and logs, then the database.
+main.go wires, in order: the single-instance lock → the updater plugin (`mygo.Use(native.New(…))`, updates.go; release builds only can update, docs/release.md) → `datadir.Resolve` (finishes a pending move or erase of the data folder) → `openLibrary` (store migrated, bus, settings) → `newHelperHost` (finds the helper) → `newApp` → `connectShell` (log files, deep links) → `connectHelper` (the supervisor, its status and notifications) → `connectUpdates`. When MyGo is ready: the window, `applyBeta` (Beta updates, before the first check), `connectFamily` (family.go, on a goroutine: the ActNow family's directory, Auralink's manifest, the other apps, the watch; §7), `startHelper`, the menu bar icon, `watchBundle` (an update installed while it runs). On quit: the tray, the family's watch, the helper (`helper.shutdown`), the notifications and logs, then the database.
 
 There is no job queue (plan §5): a session lives in memory, owned by one state machine (`internal/session`), and writes one history entry when it ends.
 
@@ -217,6 +221,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `a.openOnboarding()`, `a.maybeOnboard()` (first start), `a.obSessionChanged(s)` (a step passes on its own session's result), `a.obOwns(id)`, `a.onboardingRow(c)` | onboarding.go (onboarding_view.go: the dialog; onboarding_steps.go: the steps) | shell.go (`openWindow`), session_link.go, Settings → General, Home, ⌘K |
 | `floatingWindowOptions(…)`, `showFloating(w, x, y)` (non-activating windows, mygo patch 0003), `hudContent(view)` (their text unsmoothed, patch 0005), `activateTarget(pid)` (`macx.Activate`) | floating.go | the recording pill and the answer card (M3, M4) |
 | `a.upd` (`updateService`: MyGo's updater plugin; `fakeUpdates` in tests), `a.checkForUpdates()`, `a.updateMenuItems(act)`, `a.bundleStale` (`appbundle.Updated`), `a.appUpdated()` (the restart card), `a.relaunch()` (`appRelaunch`) | updates.go | the app menu, the menu bar, ⌘K, Settings → About, the helper's card (FailUpdated), Home |
+| `a.fam` (`*familyLink`: the family directory and Auralink in it; nil outside the family), `a.famFound` (the family apps), `a.famShared`, `a.connectFamily()`, `a.familyRefresh()`, `a.syncManifest()`, `a.stampShortcuts(old)` | family.go | main.go, `settingsChanged`, the window's activation (tray.go) |
 | `a.toast(msg)`, `a.notify(…)`, `a.post(fn)`, `a.async(fn)` | app.go, shell_notices.go | everyone |
 | `a.onSession`, `a.afterSession`, `a.onSessionEnd`, `a.onHistory` (observers, in order; `connectEvents` lists them all), published by `sessionChanged` / `sessionEnded` (session_link.go) and `historyChanged` (history_page.go) | events.go | the setup guide, the sounds, the menu bar, the overlay, Home, History: an area that cares about sessions or the history adds itself there, instead of the publisher calling it |
 | `a.notices` (the centre's, newest first), `a.noticeStack(c)` (the cards at the foot of the sidebar; the rail's popover), `a.setProblem(id, code, n)` (a problem's card: shown once, withdrawn when solved, kept away this run once dismissed), `a.checkServices()`, `a.checkHelper()` | shell_notices.go | the sidebar, the rail; key reads and saves (providers_page.go), `settingsChanged`, `helperChanged` |
@@ -235,6 +240,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | Apps' icons (App enhancement's lists) | `~/Library/Caches/Auralink/icons/<bundle id>-64.png`, drawn by the helper (`app.icons`), redrawn after a week (`internal/appicons`) |
 | Logs | `~/Library/Logs/Auralink/auralink.log` (app, rotated at 5 MB) and `helper.log` (the helper's stderr) |
 | Secrets | the login Keychain, service "Auralink": `asr.<provider>`, `llm.<provider>` |
+| The ActNow family (shared with the other ActNow apps; §7) | `~/Library/Application Support/ActNow/` (`$ACTNOW_FAMILY_DIR` in tests): Auralink writes `apps/<bundle id>.json` |
 | Helper | `Auralink.app/Contents/Resources/helper/auralink-helper` (or `$AURALINK_HELPER`) |
 
 ## 5. What came from AudioSmith, and how it changed
@@ -284,3 +290,11 @@ Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services,
 | README media | [scripts/readme-media](../scripts/readme-media/README.md) | the demo build (`-tags demo`, demo.go: its own bundle ID, data and keys, driven by command files; demo_data.go: the sample data; internal/demo: the services' answers recorded and replayed, the keys in memory) on a Mac: window shots, takes in TextEdit over a backdrop, then `post.sh` on Linux into docs/images and docs/media |
 | By hand on a Mac | [manual-test.md](manual-test.md) | what needs permissions, a GUI and real services: about 35 minutes, in order |
 | Text fit | `AURALINK_TEXTFIT_PROBE=1` / `AURALINK_TEXTFIT_AUDIT=1 go test -run 'TestTextFits|TestTranslationsFit' .` | meaningful on macOS (Core Text) |
+
+## 7. The ActNow family
+
+Auralink is one of the ActNow apps (AudioSmith, Dicta, VoxtNew, Pik): the family's spec (v1.0.3, the website project's `docs/family/actnow-family-spec.md`) lets them find each other and share what can be shared, through files under `~/Library/Application Support/ActNow` and Darwin notifications. Auralink uses the spec's reference implementation, [actnowkit](https://github.com/hehehai/actnowkit) v0.2.0 (Apache-2.0); its own rules are in `internal/actnow`, the wiring in `family*.go`; docs/behavior.md §11 says what it does of the spec and why.
+
+- **Start** (`connectFamily`, after the window opens, on a goroutine): find Auralink's bundle (outside one, and in the demo build, Auralink stays out of the family) → `Ensure` the directory → `CleanAllTemps` → write the manifest → `Discover` the apps and read the shared settings → `Watch` apps, settings and credentials. Results come back through `a.post`; failures are logged, nothing waits for them.
+- **Again**: on a notification and when Auralink becomes active, the apps and settings are read again; the manifest is written again when the shortcuts or the update channel change.
+- **Tests** use a temporary family directory (`conformance.New`, which sets `ACTNOW_FAMILY_DIR`) and a test bundle id; `newFamily` is the seam. The real directory and the real Keychain are never touched by tests.

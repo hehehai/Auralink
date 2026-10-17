@@ -195,5 +195,10 @@ func (a *app) connectWindowLife() {
 		}
 	})
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
-	mygo.App.OnDidBecomeActive(func() { a.post(a.recheckPermissions) })
+	mygo.App.OnDidBecomeActive(func() {
+		a.post(func() {
+			a.recheckPermissions()
+			a.familyRefresh() // family.go: notifications are only hints
+		})
+	})
 }

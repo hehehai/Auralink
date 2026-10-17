@@ -96,6 +96,7 @@ func main() {
 	mygo.App.WhenReady(func() {
 		a.openWindow()        // shell.go
 		a.applyBeta()         // updates.go: betas or not, before the first check
+		a.connectFamily()     // family.go: the ActNow family's directory, manifest, other apps
 		a.startHelper()       // helperlink.go
 		a.openTray()          // tray.go: the menu bar icon, close to the menu bar
 		a.connectWindowLife() // tray.go

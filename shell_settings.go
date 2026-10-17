@@ -133,14 +133,16 @@ func (a *app) settingsChanged(old, new settings.Settings) {
 		a.applyTray() // tray.go
 	}
 	if old.Updates.BetaOn(a.version) != new.Updates.BetaOn(a.version) {
-		a.applyBeta() // updates.go
+		a.applyBeta()    // updates.go
+		a.syncManifest() // family.go: the update channel
 	}
 	if !reflect.DeepEqual(old.AppEnhancement, new.AppEnhancement) {
 		a.syncTrees() // appenhance.go
 	}
 	if !reflect.DeepEqual(old.Features, new.Features) {
-		a.syncHotkeys()   // session_hotkeys.go
-		a.buildTrayMenu() // the shortcuts it shows
+		a.syncHotkeys()                // session_hotkeys.go
+		a.buildTrayMenu()              // the shortcuts it shows
+		a.stampShortcuts(old.Features) // family.go: the manifest's shortcuts
 	}
 	if old.General.LaunchAtLogin != new.General.LaunchAtLogin && new.General.LaunchAtLogin != a.loginIs && a.hasMenu {
 		on := new.General.LaunchAtLogin

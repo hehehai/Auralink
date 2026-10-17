@@ -47,6 +47,10 @@ func init() {
 	demoStart = demoSetup
 	demoLibrary = demoSeed
 	demoReady = demoControl
+	// The demo stays out of the ActNow family: its takes switch the
+	// language and its keys are pretend ones, which the user's other
+	// ActNow apps must not follow.
+	newFamily = nil
 	demoPerms = func(r *proto.PermissionsResult) {
 		// The helper records a file: the microphone is not needed.
 		if os.Getenv("AURALINK_HELPER_CAPTURE_FILE") != "" {

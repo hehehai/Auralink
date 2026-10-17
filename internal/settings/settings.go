@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 )
 
 // Version is the schema version Defaults writes. Bump it when a field's
@@ -47,6 +48,31 @@ type Settings struct {
 	Dictionary     Dictionary     `json:"dictionary"`
 	Setup          Setup          `json:"setup"`
 	Updates        Updates        `json:"updates,omitzero"`
+	// Family is Auralink's place in the ActNow family (internal/actnow).
+	Family Family `json:"family,omitzero"`
+}
+
+// Family is what Auralink keeps of its own about the ActNow family of
+// apps (the family's spec, phase 1: internal/actnow). The family's shared
+// files are elsewhere ($FAMILY); these are Auralink's choices about them.
+type Family struct {
+	// Follow says, by shared setting ("general.language",
+	// "network.proxy"), whether Auralink uses the family's value; a
+	// missing key follows (a new install follows everything).
+	Follow map[string]bool `json:"follow,omitempty"`
+	// Migrated: Auralink's first start with the family merged these
+	// settings into the family's (once).
+	Migrated bool `json:"migrated,omitempty"`
+	// Differs are the shared settings the family had another value of
+	// then: their row says so until the user answers.
+	Differs []string `json:"differs,omitempty"`
+	// KeysSince is when each shortcut's keys were set, by its id in the
+	// manifest ("transcribe", "pasteLast"): of two apps on the same
+	// keys, the later one says so.
+	KeysSince map[string]time.Time `json:"keysSince,omitempty"`
+	// Prompted are the shortcut conflicts already announced (their
+	// shortcuts.Conflict.Key()): each is announced once.
+	Prompted []string `json:"prompted,omitempty"`
 }
 
 // General: languages and how the app stays around.

@@ -125,6 +125,11 @@ func clone(s Settings) Settings {
 	f.Translate.Hotkeys = slices.Clone(f.Translate.Hotkeys)
 	f.Rewrite.Hotkeys = slices.Clone(f.Rewrite.Hotkeys)
 	s.AppEnhancement.Browsers = slices.Clone(s.AppEnhancement.Browsers)
+	fam := &s.Family
+	fam.Follow = maps.Clone(fam.Follow)
+	fam.Differs = slices.Clone(fam.Differs)
+	fam.KeysSince = maps.Clone(fam.KeysSince)
+	fam.Prompted = slices.Clone(fam.Prompted)
 	return s
 }
 
@@ -183,6 +188,14 @@ func normalize(s Settings) Settings {
 	}
 	s.Providers.ASR = normalizeProviders(s.Providers.ASR)
 	s.Providers.LLM = normalizeProviders(s.Providers.LLM)
+	fam := &s.Family
+	fam.Differs, fam.Prompted = uniq(fam.Differs), uniq(fam.Prompted)
+	if len(fam.Follow) == 0 {
+		fam.Follow = nil
+	}
+	if len(fam.KeysSince) == 0 {
+		fam.KeysSince = nil
+	}
 	return s
 }
 

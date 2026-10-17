@@ -45,6 +45,20 @@ var mygoOther = map[string]string{
 	"overlay/layout": "github.com/egoist/mygo",
 }
 
+// The ActNow family's shared code (github.com/hehehai/actnowkit): only
+// package main and familyPackages use it, so that the family protocol
+// stays at the edge of the domain; its conformance kit is for tests;
+// its runtime package goes by the name famruntime, as the standard
+// library has a runtime too.
+const (
+	actnowkit      = "github.com/hehehai/actnowkit"
+	actnowkitTests = actnowkit + "/conformance"
+	actnowkitRun   = actnowkit + "/runtime"
+	actnowkitRunAs = "famruntime"
+)
+
+var familyPackages = []string{"actnow"}
+
 // forbidden are imports that break the layering, and why.
 var forbidden = []struct {
 	from, to []string
@@ -161,6 +175,18 @@ func TestImports(t *testing.T) {
 			if path == i18nPath && from != "main" && from != "i18n" && !matchAny(textPackages, from) {
 				failf("%s imports i18n (%s): only %s may make the UI's words. Return a code or an error, "+
 					"and let package main or internal/uitext say it.", from, f.path, strings.Join(textPackages, ", "))
+			}
+			if path == actnowkit || strings.HasPrefix(path, actnowkit+"/") {
+				switch {
+				case from != "main" && !matchAny(familyPackages, from):
+					failf("%s imports %s (%s): only package main and %s use actnowkit. Put what the family needs in internal/actnow.",
+						from, path, f.path, strings.Join(familyPackages, ", "))
+				case path == actnowkitTests || strings.HasPrefix(path, actnowkitTests+"/"):
+					failf("%s imports %s (%s): actnowkit's conformance kit is for tests (_test.go files) only.", from, path, f.path)
+				case path == actnowkitRun && (spec.Name == nil || spec.Name.Name != actnowkitRunAs):
+					failf("%s imports %s (%s) without a name: import it as %s, beside the standard library's runtime.", from, path, f.path, actnowkitRunAs)
+				}
+				continue
 			}
 			if strings.HasPrefix(path, "github.com/egoist/mygo") && from != "main" {
 				if want, ok := mygoOther[from]; !ok || want != path {
