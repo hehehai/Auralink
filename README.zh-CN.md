@@ -12,7 +12,7 @@ Auralink 是一个精简的 macOS 语音输入 app。在任意 App 里按下快�
 
 Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重写：保留 Voxt 的听写、翻译和改写，只用远程模型，去掉了会议、文件转录、笔记和本地模型。界面和工程沿用 [AudioSmith](https://github.com/hehehai/AudioSmith)。
 
-> **状态：0.1.0-beta.2，beta 版。** 下面的功能都已完成并通过测试。在 [actnow.dev](https://actnow.dev/download/auralink) 下载（需要先登录）；产品页是 [actnow.dev/auralink](https://actnow.dev/auralink)，[更新日志](https://actnow.dev/auralink/changelog)和[价格](https://actnow.dev/pricing)（一次性购买）也在官网。app 图标目前还是占位的。
+> **状态：0.1.0-beta.2，beta 版。** 下面的功能都已完成并通过测试。在 [actnow.dev](https://actnow.dev/download/auralink) 下载（需要先登录）；产品页是 [actnow.dev/auralink](https://actnow.dev/auralink)，[更新日志](https://actnow.dev/auralink/changelog)和[价格](https://actnow.dev/pricing)（一次性购买）也在官网。
 
 <sub>截图和录屏：Auralink 0.1.0-beta.1，macOS 26，演示数据；语音识别用阶跃星辰，语言模型用 DeepSeek。</sub>
 
@@ -84,6 +84,7 @@ Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重
 | 首页 | 历史 | 菜单栏 |
 |---|---|---|
 | ![首页：今日统计和最近结果](docs/images/zh/home.png) | ![历史：按功能分类的结果和一条记录的详情](docs/images/zh/history.png) | ![菜单栏图标的菜单](docs/images/zh/menu.png) |
+<!-- TODO(ActNow brand icons): retake zh/menu.png: the menu bar icon is now Auralink's own symbol (internal/trayicon). -->
 
 ### 更新
 
