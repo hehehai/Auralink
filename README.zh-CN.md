@@ -202,5 +202,3 @@ CI 在 Linux 上跑 gofmt、Go 测试（含 race 检测）和 MyGo vet，在 mac
 ## 许可证
 
 Copyright (c) 2026 actnow。保留所有权利。Auralink 是专有软件，在 [actnow.dev](https://actnow.dev/pricing) 销售，许可条款见 [LICENSE](LICENSE)（以英文为准）。第三方素材及其许可见 [NOTICE](NOTICE)，两者都随 app 一起分发。
-
-之前的版本曾以开源许可公开：截至提交 7d1c9a7（v0.1.0-beta.1）为 Apache License 2.0，截至提交 748cf55 为 GNU AGPL 3.0 或更高版本。按这些许可取得的副本仍适用当时的许可；0.1.0-beta.2 起的版本是专有的。

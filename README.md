@@ -202,5 +202,3 @@ CI runs gofmt, the Go tests (also under the race detector) and MyGo vet on Linux
 ## Licence
 
 Copyright (c) 2026 actnow. All rights reserved. Auralink is proprietary software, sold at [actnow.dev](https://actnow.dev/pricing): see [LICENSE](LICENSE). Third-party material and its licences are listed in [NOTICE](NOTICE), and both ship inside the app.
-
-Earlier versions were published as open source: up to commit 7d1c9a7 (v0.1.0-beta.1) under the Apache License 2.0, and up to commit 748cf55 under the GNU AGPL 3.0 or later. Copies received under those licences keep them; versions from 0.1.0-beta.2 on are proprietary.
