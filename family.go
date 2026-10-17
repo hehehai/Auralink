@@ -71,7 +71,7 @@ var newFamily = func() *familyLink {
 		return nil
 	}
 	dir := family.Default()
-	return &familyLink{dir: dir, self: self, sys: actnow.System, creds: &credentials.Store{Family: dir, BundleID: self.BundleID}}
+	return &familyLink{dir: dir, self: self, sys: registry.DefaultSystem, creds: &credentials.Store{Family: dir, BundleID: self.BundleID}}
 }
 
 // familyRead is what a read of the family found.

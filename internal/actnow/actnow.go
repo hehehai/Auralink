@@ -67,5 +67,5 @@ func FindSelf() (s Self, ok bool) {
 	if err != nil || a.ID != AppID {
 		return Self{}, false
 	}
-	return Self{BundleID: id, Path: path, TeamID: teamID()}, true
+	return Self{BundleID: id, Path: path, TeamID: registry.TeamID()}, true
 }
