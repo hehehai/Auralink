@@ -292,8 +292,8 @@ func (a *app) keyField(c *ui.Context, acc, mask string) {
 		ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
 			ph := i18n.T("Paste the key")
 			switch {
-			case mask != "" && !d.removeKey && d.fam.ref != "":
-				ph = i18n.T("Shared with other ActNow apps: %s · paste a new one to replace it", mask)
+			case mask != "" && !d.removeKey && d.fam.ref != "" && len(d.fam.users) > 0:
+				ph = i18n.T("Shared with %s: %s · paste a new one to replace it", strings.Join(d.fam.users, ", "), mask)
 			case mask != "" && !d.removeKey:
 				ph = i18n.T("Saved: %s · paste a new one to replace it", mask)
 			}

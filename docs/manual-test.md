@@ -581,13 +581,13 @@ MAC_DIR=code/Auralink-ov scripts/mac.sh --pull build/overlay-check     # 把结�
   2. 不重启，切到 AudioSmith 看它的代理设置。
   3. 在 AudioSmith 把代理改回“自动”，切回 Auralink（激活窗口）。
   4. 在 Auralink 点“仅为此 app 单独设置”，再把代理改成“不使用”；去 AudioSmith 看。
-  5. 在 Auralink 点“与其他 ActNow app 使用相同设置”。
+  5. 在 Auralink 点“与 AudioSmith 使用相同设置”。
   6. 设置 → 通用 → 界面语言重复第 1、2 步（改成另一种语言）。
 - **应看到**：
-  - 第 1 步：代理一行下面是“应用于所有 ActNow app · 仅为此 app 单独设置”；`settings.json` 的 `network.proxy` 变成 `http://127.0.0.1:7890`，`updatedBy` 是 `dev.hehehai.auralink`。
+  - 第 1 步：代理一行下面是“与 AudioSmith 共用 · 仅为此 app 单独设置”；`settings.json` 的 `network.proxy` 变成 `http://127.0.0.1:7890`，`updatedBy` 是 `dev.hehehai.auralink`。
   - 第 2 步：AudioSmith 的代理也是 `http://127.0.0.1:7890`（收到通知立即变，或者切过去时变）。
   - 第 3 步：Auralink 的代理变回“自动”，下面的说明（“请求直接连接 / 经过 …”）跟着变。
-  - 第 4 步：下面变成“仅用于 Auralink · 与其他 ActNow app 使用相同设置”；AudioSmith 不变。
+  - 第 4 步：下面变成“仅用于 Auralink · 与 AudioSmith 使用相同设置”；AudioSmith 不变。
   - 第 5 步：Auralink 改用 AudioSmith 当前的代理。
   - 第 6 步：两个 app 的界面语言一起变。
 - **不对时看**：`settings.json` 的 `rev`、`updatedBy`；Auralink 日志里 `family: network.proxy follows the family`。
@@ -628,7 +628,7 @@ MAC_DIR=code/Auralink-ov scripts/mac.sh --pull build/overlay-check     # 把结�
   3. 退出，用备份恢复家族目录：`rm -rf ~/Library/Application\ Support/ActNow && cp -R /tmp/ActNow-backup ~/Library/Application\ Support/ActNow`。
 - **应看到**：
   - 第 1 步：Auralink 正常；改完后 `futureThing` 还在，`rev` 是 101。
-  - 第 2 步：代理一行下面是“另一个 ActNow app 更新了共享格式，请更新本 app 后再修改这些设置。”；改代理只影响 Auralink，`settings.json` 一个字节都没变。
+  - 第 2 步：代理一行下面是“AudioSmith 更新了共享格式，请更新 Auralink 后再修改这些设置。”（名字是改了 `schema` 之前最后写 `settings.json` 的 app；是 Auralink 自己时写装了的其他 app）；改代理只影响 Auralink，`settings.json` 一个字节都没变。
 
 ---
 

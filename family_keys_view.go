@@ -69,7 +69,10 @@ func (a *app) sharedKeyNotes(c *ui.Context, name, mask string) {
 		}, func() { f.askRemove, d.removeKey = false, false })
 		return
 	}
-	if a.famReadOnly || d.removeKey || (!typed && mask == "") {
+	// The checkbox only when another ActNow app is installed (user
+	// 10-17); alone, the key is shared or not as the checkbox's default
+	// says (spec §8.3), unseen.
+	if a.famReadOnly || d.removeKey || (!typed && mask == "") || !a.familyOthers() {
 		return
 	}
 	ui.Row(c.Key("prov-share")).Gap(px(t, 6)).AlignItems(ui.Center).Children(func() {

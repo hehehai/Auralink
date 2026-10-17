@@ -84,7 +84,7 @@ func TestFamilySettingsFirstStart(t *testing.T) {
 	// The row says so; "Use theirs" takes the family's language.
 	a.navigate("/settings/general")
 	frames(tt)
-	if !has(tt, "Other ActNow apps use a different app language.") {
+	if !has(tt, "AudioSmith uses a different app language.") {
 		t.Fatalf("no notice: %q", firstTexts(tt))
 	}
 	click(t, tt, "Use theirs")
@@ -110,7 +110,7 @@ func TestFamilySettingsFollow(t *testing.T) {
 	drain()
 	a.navigate("/settings/network")
 	frames(tt)
-	if !has(tt, "Applies to all ActNow apps") {
+	if !has(tt, "Shared with AudioSmith") {
 		t.Fatalf("no family note: %q", firstTexts(tt))
 	}
 	a.setShared(asettings.KeyProxy, "127.0.0.1:7890")
@@ -143,7 +143,7 @@ func TestFamilySettingsFollow(t *testing.T) {
 		t.Errorf("Auralink's own proxy went to the family: %q", v)
 	}
 	// Following again takes the family's.
-	click(t, tt, "Use the same setting as other ActNow apps")
+	click(t, tt, "Use the same setting as AudioSmith")
 	drain()
 	if p := a.settings.Get().Network.Proxy; p != "socks5://127.0.0.1:1080" || !actnow.Follows(a.prefs, asettings.KeyProxy) {
 		t.Errorf("follows again: %q %+v", p, a.prefs.Family)
@@ -159,7 +159,7 @@ func TestFamilySettingsQuiet(t *testing.T) {
 	drain()
 	a.navigate("/settings/network")
 	frames(tt)
-	if has(tt, "Applies to all ActNow apps") {
+	if has(tt, "Shared with") {
 		t.Error("a family note without another ActNow app")
 	}
 	future, err := conformance.File("settings-v2.json")
@@ -178,6 +178,46 @@ func TestFamilySettingsQuiet(t *testing.T) {
 	drain()
 	if data, _ := os.ReadFile(fx.Family.SettingsFile()); string(data) != string(future) {
 		t.Error("the newer format was written")
+	}
+}
+
+// TestFamilySettingsAlone: with no other ActNow app installed, the rows
+// say nothing of the family even when Auralink keeps a value of its own
+// or the family's differs (user 10-17); Auralink still keeps both. Once
+// AudioSmith is installed, the rows name it.
+func TestFamilySettingsAlone(t *testing.T) {
+	fx := withFamily(t)
+	setFamily(t, fx, asettings.KeyLanguage, "zh-Hans")
+	a, _, tt := newTestApp(t)
+	a.updateSettings(func(s *settings.Settings) { s.General.Language = "en" })
+	drain := joinFamily(t, a)
+	drain()
+	a.ownShared(asettings.KeyProxy)
+	drain()
+	s := a.settings.Get()
+	if actnow.Follows(s, asettings.KeyLanguage) || !actnow.Differs(s, asettings.KeyLanguage) || actnow.Follows(s, asettings.KeyProxy) {
+		t.Fatalf("family %+v", s.Family)
+	}
+	for _, page := range []string{"/settings/general", "/settings/network"} {
+		a.navigate(page)
+		frames(tt)
+		for _, text := range []string{"Only for Auralink", "AudioSmith", "uses a different", "Use the same setting", "Use theirs", "ActNow"} {
+			if has(tt, text) {
+				t.Errorf("%s: %q without another ActNow app", page, text)
+			}
+		}
+	}
+	fx.Register(audioSmith)
+	a.familyRefresh()
+	drain()
+	frames(tt)
+	if !has(tt, "Only for Auralink") || !has(tt, "Use the same setting as AudioSmith") {
+		t.Errorf("AudioSmith installed: %q", firstTexts(tt))
+	}
+	a.navigate("/settings/general")
+	frames(tt)
+	if !has(tt, "AudioSmith uses a different app language.") {
+		t.Errorf("no notice naming AudioSmith: %q", firstTexts(tt))
 	}
 }
 

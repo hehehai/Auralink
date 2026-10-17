@@ -13,6 +13,8 @@ package main
 import (
 	"context"
 	"log"
+	"slices"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/actnow"
@@ -113,24 +115,42 @@ func (a *app) ownShared(key string) {
 }
 
 // sharedShown reports whether a shared setting's row speaks of the
-// family: in the family, when another ActNow app is installed, Auralink
-// keeps a setting of its own, or the family's differs.
-func (a *app) sharedShown(key string) bool {
-	if a.fam == nil {
-		return false
-	}
-	return a.familyOthers() || !actnow.Follows(a.prefs, key) || actnow.Differs(a.prefs, key)
+// family: only when a release of another ActNow app is installed on this
+// Mac (user 10-17). Alone, Auralink still follows or keeps its own value
+// and remembers what differs; it just says nothing of apps that are not
+// there.
+func (a *app) sharedShown(string) bool {
+	return a.fam != nil && a.familyOthers()
 }
 
 // familyOthers reports whether another ActNow app (a release, spec §6.3)
 // is installed on this Mac.
-func (a *app) familyOthers() bool {
+func (a *app) familyOthers() bool { return len(a.familyOtherNames()) > 0 }
+
+// familyOtherNames are the names of the other ActNow apps installed on
+// this Mac (releases, spec §6.3), sorted: what the family's notes name in
+// place of "other ActNow apps".
+func (a *app) familyOtherNames() []string {
+	var out []string
 	for _, f := range a.famFound {
 		if f.Installed && f.Variant == family.Release && f.App.ID != actnow.AppID {
-			return true
+			out = append(out, a.appNames([]string{f.BundleID})...)
 		}
 	}
-	return false
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// sharedSource names the app the family's shared settings come from: the
+// one that wrote them last, when that is another app, else the other
+// apps installed.
+func (a *app) sharedSource() string {
+	if by := a.famShared.UpdatedBy; by != "" && (a.fam == nil || by != a.fam.self.BundleID) {
+		if _, _, err := family.ParseBundleID(by); err == nil {
+			return strings.Join(a.appNames([]string{by}), ", ")
+		}
+	}
+	return strings.Join(a.familyOtherNames(), ", ")
 }
 
 // sharedNote goes under a shared setting's row (spec §9.3, §9.4): whether
@@ -142,10 +162,11 @@ func (a *app) sharedNote(c *ui.Context, key string) {
 	}
 	t := c.Theme()
 	follows := actnow.Follows(a.prefs, key)
+	others := strings.Join(a.familyOtherNames(), ", ")
 	if actnow.Differs(a.prefs, key) && !follows {
-		text := i18n.T("Other ActNow apps use a different proxy.")
+		text := i18n.T("%s uses a different proxy.", a.sharedSource())
 		if key == asettings.KeyLanguage {
-			text = i18n.T("Other ActNow apps use a different app language.")
+			text = i18n.T("%s uses a different app language.", a.sharedSource())
 		}
 		notice(c, "shared-differs-"+key, noticeInfo, text, "", func() {
 			if ui.Button(c.Key("shared-theirs-"+key), i18n.T("Use theirs")).Clicked() {
@@ -157,15 +178,15 @@ func (a *app) sharedNote(c *ui.Context, key string) {
 	ui.Row(c.Key("shared-" + key)).Wrap().GapX(px(t, sp2)).GapY(px(t, 2)).AlignItems(ui.Center).Children(func() {
 		switch {
 		case a.famReadOnly:
-			caption(c, i18n.T("Another ActNow app updated the shared format. Update this app to change these settings."))
+			caption(c, i18n.T("%s updated the shared format. Update Auralink to change these settings.", a.sharedSource()))
 		case follows:
-			caption(c, i18n.T("Applies to all ActNow apps"))
+			caption(c, i18n.T("Shared with %s", others))
 			if ui.Link(c.Key("shared-own-"+key), i18n.T("Use a different setting for this app"), "").FontSize(px(t, fsCaption)).Clicked() {
 				a.ownShared(key)
 			}
 		default:
 			caption(c, i18n.T("Only for Auralink"))
-			if ui.Link(c.Key("shared-follow-"+key), i18n.T("Use the same setting as other ActNow apps"), "").FontSize(px(t, fsCaption)).Clicked() {
+			if ui.Link(c.Key("shared-follow-"+key), i18n.T("Use the same setting as %s", others), "").FontSize(px(t, fsCaption)).Clicked() {
 				a.followShared(key)
 			}
 		}

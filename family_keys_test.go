@@ -102,6 +102,7 @@ func llmSetup(a *app, id string) settings.Provider {
 // read it.
 func TestFamilyKeySave(t *testing.T) {
 	fx, sec := withFamilyKeys(t)
+	fx.Register(audioSmith)
 	a, _, tt := newTestApp(t)
 	drain := joinFamily(t, a)
 	fakeTests(t, nil)
@@ -138,6 +139,28 @@ func TestFamilyKeySave(t *testing.T) {
 	drain()
 	if a.keys.(*memKeyring).m["asr.aliyun"] != "sk-dashscope-000000abcd" || sec.item("dashscope") != "" {
 		t.Errorf("own %v, shared %q", a.keys.(*memKeyring).m, sec.item("dashscope"))
+	}
+}
+
+// TestFamilyKeyAlone: with no other ActNow app installed, the dialog has
+// no sharing checkbox (user 10-17); a new key is still the family's, as
+// the checkbox's default says, for the apps installed later.
+func TestFamilyKeyAlone(t *testing.T) {
+	fx, sec := withFamilyKeys(t)
+	a, _, tt := newTestApp(t)
+	drain := joinFamily(t, a)
+	fakeTests(t, nil)
+	a.openProviderDialog(providers.LLM, "deepseek")
+	drain()
+	a.provDlg.key = "sk-deepseek-0000001234"
+	frames(tt)
+	if has(tt, "Let other ActNow apps on this Mac use this key") {
+		t.Fatalf("a sharing checkbox without another ActNow app: %q", firstTexts(tt))
+	}
+	click(t, tt, "Save")
+	drain()
+	if sec.item("deepseek") != "sk-deepseek-0000001234" || !slices.Equal(users(t, fx, "deepseek"), []string{testBundleID}) {
+		t.Errorf("shared %q", sec.item("deepseek"))
 	}
 }
 
@@ -270,6 +293,7 @@ func TestFamilyKeyCancelAndDelete(t *testing.T) {
 // shared item holds it, read back, and the old one stays.
 func TestFamilyKeyLegacy(t *testing.T) {
 	fx, sec := withFamilyKeys(t)
+	fx.Register(audioSmith)
 	a, _, tt := newTestApp(t)
 	a.keys.Set("llm.deepseek", "", "sk-old-00000000beef")
 	a.updateSettings(func(s *settings.Settings) {
