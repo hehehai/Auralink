@@ -1,6 +1,6 @@
 {
   "fill": {
-    "solid": "srgb:0.45098,0.34118,0.96471,1.00000"
+    "solid": "srgb:0.35294,0.30196,1.00000,1.00000"
   },
   "groups": [
     {
@@ -23,6 +23,23 @@
       "translucency": {
         "enabled": false,
         "value": 0.5
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "bg.svg",
+          "name": "background",
+          "glass": false
+        }
+      ],
+      "shadow": {
+        "kind": "none",
+        "opacity": 0
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
       }
     }
   ],
