@@ -26,10 +26,32 @@ func TestTrayIcons(t *testing.T) {
 			t.Errorf("size %v", r)
 		}
 		// A template image: black, only its alpha counts.
+		alpha := func(x, y int) uint32 { _, _, _, a := img.At(x, y).RGBA(); return a >> 8 }
 		for y := 0; y < trayicon.Size; y++ {
 			for x := 0; x < trayicon.Size; x++ {
 				if r, g, b, a := img.At(x, y).RGBA(); a > 0 && r|g|b != 0 {
 					t.Fatalf("pixel %d,%d is not black", x, y)
+				}
+				// No faint noise, which macOS tints into specks.
+				if a := alpha(x, y); a > 0 && a <= 8 {
+					t.Errorf("pixel %d,%d: stray alpha %d", x, y, a)
+				}
+			}
+		}
+		// No pinhole: a pixel inside the shape (every neighbour nearly
+		// opaque) is opaque too, or the menu bar shows a dot through it.
+		for y := 1; y < trayicon.Size-1; y++ {
+			for x := 1; x < trayicon.Size-1; x++ {
+				inside := true
+				for dy := -1; dy <= 1; dy++ {
+					for dx := -1; dx <= 1; dx++ {
+						if (dx != 0 || dy != 0) && alpha(x+dx, y+dy) < 200 {
+							inside = false
+						}
+					}
+				}
+				if a := alpha(x, y); inside && a < 200 {
+					t.Errorf("pixel %d,%d: a pinhole (alpha %d)", x, y, a)
 				}
 			}
 		}

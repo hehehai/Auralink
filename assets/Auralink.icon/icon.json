@@ -1,9 +1,6 @@
 {
   "fill": {
-    "linear-gradient": [
-      "srgb:0.50980,0.41176,0.97647,1.00000",
-      "srgb:0.27843,0.18039,0.73725,1.00000"
-    ]
+    "solid": "srgb:0.45098,0.34118,0.96471,1.00000"
   },
   "groups": [
     {
@@ -24,10 +21,9 @@
         "opacity": 0.5
       },
       "translucency": {
-        "enabled": true,
-        "value": 0.2
-      },
-      "specular": true
+        "enabled": false,
+        "value": 0.5
+      }
     }
   ],
   "supported-platforms": {
