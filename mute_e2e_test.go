@@ -19,10 +19,19 @@ import (
 )
 
 // TestSessionMutesOutput: each feature records with the output muted,
-// and it is back as the recording stops, before the services work on it
-// (the language model's request finds it unmuted); a cancel gives it back
-// too, and the follow-up of a Rewrite answer mutes again.
+// and it comes back as the recording stops, while the services work on
+// it: by the language model's request, or within releaseBound of it (the
+// release does not wait for the session: it goes from the stopped
+// snapshot through the main thread, the mute's queue and the helper,
+// while the session goes on to recognition; on loopback services under
+// load the request may come first). A cancel gives it back too, and the
+// follow-up of a Rewrite answer mutes again.
 func TestSessionMutesOutput(t *testing.T) {
+	// releaseBound is how long after the request the output may still be
+	// muted: the release's few calls, on a loaded machine. A product that
+	// held the mute through the model's work would hold it until the
+	// answer, which this request withholds meanwhile.
+	const releaseBound = 2 * time.Second
 	for _, tc := range []struct {
 		name, opts string
 		setup      func(t *testing.T, chat *fakeChat) (func(*settings.Settings), map[string]string)
@@ -45,11 +54,19 @@ func TestSessionMutesOutput(t *testing.T) {
 			state := filepath.Join(t.TempDir(), "output.json")
 			muted := func() bool { return helpertest.LoadOutputSystem(state).Muted(testSpeakers) }
 			var mu sync.Mutex
-			var mutedAtChat []bool
+			var backAfter []time.Duration // after each request's start; -1: not within releaseBound
 			chat := &fakeChat{text: "Hello there.", onRequest: func() {
-				m := muted()
+				t0 := time.Now()
+				d := time.Duration(-1)
+				for time.Since(t0) < releaseBound {
+					if !muted() {
+						d = time.Since(t0)
+						break
+					}
+					time.Sleep(5 * time.Millisecond)
+				}
 				mu.Lock()
-				mutedAtChat = append(mutedAtChat, m)
+				backAfter = append(backAfter, d)
 				mu.Unlock()
 			}}
 			set, keys, _ := fileSetup(t, "hello there", chat)
@@ -78,11 +95,12 @@ func TestSessionMutesOutput(t *testing.T) {
 				t.Fatal("still muted after the session")
 			}
 			mu.Lock()
-			atChat := slices.Clone(mutedAtChat)
+			back := slices.Clone(backAfter)
 			mu.Unlock()
-			if slices.Contains(atChat, true) || (tc.end == session.Done && tc.name != "transcribe, stream" && len(atChat) == 0) {
-				t.Errorf("muted while the language model worked (or no request): %v", atChat)
+			if slices.Contains(back, -1) || (tc.end == session.Done && tc.name != "transcribe, stream" && len(back) == 0) {
+				t.Errorf("still muted %v after the language model's request (or no request): %v", releaseBound, back)
 			}
+			t.Logf("output back %v after the language model's request", back)
 			if w := helpertest.LoadOutputSystem(state).WriteLog(); !slices.Equal(w, []string{testSpeakers + ":true", testSpeakers + ":false"}) {
 				t.Errorf("writes %v", w)
 			}
