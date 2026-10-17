@@ -19,6 +19,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
+	"github.com/hehehai/Auralink/internal/macx"
 	"github.com/hehehai/Auralink/internal/settings"
 )
 
@@ -50,6 +51,7 @@ type settingsForm struct {
 	keepAudio    bool
 	logText      bool
 	sounds       bool
+	soundPreset  string      // a macx.Presets ID (settings_sounds.go)
 	skipSilence  bool        // !Audio.VAD.Off
 	cleanSound   bool        // !Audio.Clean.Off
 	muteOutput   bool        // Audio.MuteOn()
@@ -228,6 +230,7 @@ func (a *app) loadSettingsForm() {
 	}
 	f.keepHistory, f.keepAudio, f.logText = s.Privacy.KeepHistory, s.Privacy.KeepAudio, s.Privacy.LogText
 	f.sounds = s.Audio.Sounds
+	f.soundPreset = macx.PresetFor(s.Audio.SoundPreset).ID
 	f.skipSilence = !s.Audio.VAD.Off
 	f.cleanSound = !s.Audio.Clean.Off
 	f.muteOutput = s.Audio.MuteOn()

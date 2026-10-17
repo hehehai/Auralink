@@ -27,6 +27,7 @@ import (
 //	homeState         home_page.go    Home: readiness, today, recent results
 //	onboardingState   onboarding.go   the setup guide
 //	audioState        settings_audio.go   Settings → Audio, the recording's sounds
+//	soundsState       settings_sounds.go  the sounds' presets and previews
 //	muteState         mute_link.go    the system's output, muted while recording
 //	updateState       updates.go      the updater, an update installed while running
 //	familyState       family.go       the ActNow family: the other apps, shared settings
@@ -58,6 +59,7 @@ type app struct {
 	homeState
 	onboardingState
 	audioState
+	soundsState
 	muteState
 	updateState
 	familyState

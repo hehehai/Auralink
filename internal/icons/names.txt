@@ -54,6 +54,9 @@ stop
 minus                   # numberInput
 add
 
+# Settings → Audio (settings_sounds.go).
+music-note               # try a sound
+
 # Model services (providers_page.go).
 key-minimalistic-square  # a saved key
 soundwave                # speech services

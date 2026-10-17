@@ -165,16 +165,17 @@ func TestRecordingMuteWithoutSounds(t *testing.T) {
 	if r.muted() || len(r.takeCues()) != 0 {
 		t.Fatal("muted, or a cue")
 	}
-	// A start cue that does not end mutes after startCueMax; one that
-	// ends after the recording stopped mutes nothing (its engage is late).
+	// A start cue that does not end mutes once its audible part played
+	// (startCueWait: Pop's 0.2 s, not its file's 1.6 s); one that ends
+	// after the recording stopped mutes nothing (its engage is late).
 	r.updateSettings(func(s *settings.Settings) { s.Audio.Sounds = true })
 	block := make(chan struct{})
 	defer close(block)
 	r.playSound = func(macx.Sound) { <-block }
 	t0 := time.Now()
 	r.sessionChanged(session.Snapshot{Rev: r.sess.Rev + 1, ID: "s2", Kind: store.KindTranscribe, State: session.Recording, Target: slackApp})
-	if d := time.Since(t0); d < startCueMax {
-		t.Fatalf("the engage did not wait for the cue: %v", d)
+	if d := time.Since(t0); d < startCueWait(macx.SoundStart) || d >= startCueMax {
+		t.Fatalf("the engage did not wait for the cue's audible part: %v", d)
 	}
 	r.sessionChanged(session.Snapshot{Rev: r.sess.Rev + 1, ID: "s2", Kind: store.KindTranscribe, State: session.Cancelled, Target: slackApp})
 	if r.muted() {
@@ -241,5 +242,41 @@ func TestRecordingMuteHelper(t *testing.T) {
 	r2.feed("s1", session.Recording)
 	if r2.muted() {
 		t.Fatal("an older helper was asked to mute")
+	}
+}
+
+// TestStartCueWait: the mute waits for each preset's start sound to be
+// heard (its audible part and the margin), never longer than the longest
+// (Submarine, 1.02 s), and startCueMax for a sound of unknown length.
+func TestStartCueWait(t *testing.T) {
+	for _, p := range macx.Presets() {
+		d := startCueWait(p.Start)
+		if d <= p.Start.Audible() || d > 1100*time.Millisecond {
+			t.Errorf("%s: %v", p.ID, d)
+		}
+	}
+	if d := startCueWait("Pop"); d != 365*time.Millisecond {
+		t.Errorf("Pop: %v", d)
+	}
+	if d := startCueWait("Blow"); d != startCueMax {
+		t.Errorf("unknown: %v", d)
+	}
+}
+
+// TestRecordingMutePreset: a preset whose start and stop are one sound
+// (Hero) plays it before the mute and after it, as Soft's pair.
+func TestRecordingMutePreset(t *testing.T) {
+	r := newMuteRig(t)
+	r.updateSettings(func(s *settings.Settings) { s.Audio.SoundPreset = "hero" })
+	r.feed("s1", session.Recording)
+	if !r.muted() {
+		t.Fatal("not muted")
+	}
+	r.feed("s1", session.Recognizing)
+	if r.muted() {
+		t.Fatal("still muted")
+	}
+	if got := r.takeCues(); !slices.Equal(got, []string{"Hero:audible", "Hero:audible"}) {
+		t.Fatalf("cues %v", got)
 	}
 }

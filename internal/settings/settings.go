@@ -146,9 +146,13 @@ type Audio struct {
 	// Auralink muted (internal/outmute, 10-16). Nil until the user
 	// chooses: on (MuteOn), for older documents too, without a
 	// migration. Sounds plays a cue when recording starts and another
-	// when it stops (M6).
-	MuteOutput *bool `json:"muteOutput,omitempty"`
-	Sounds     bool  `json:"sounds"`
+	// when it stops (M6); SoundPreset is the pair it plays, by Voxt's
+	// preset IDs (macx.Presets: "soft", "glass", …). Empty, or an ID
+	// Auralink does not know, is "soft" (Pop, then Tink), so older
+	// documents need no migration (10-17).
+	MuteOutput  *bool  `json:"muteOutput,omitempty"`
+	Sounds      bool   `json:"sounds"`
+	SoundPreset string `json:"soundPreset,omitempty"`
 	// VAD is the local voice activity detection a recording goes
 	// through before a speech service hears it (10-15).
 	VAD VAD `json:"vad,omitzero"`

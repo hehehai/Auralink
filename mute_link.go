@@ -45,13 +45,26 @@ type muteState struct {
 }
 
 // Times around the cues: the start cue plays at most startCueMax before
-// the output is muted anyway; the stop cue waits at most stopCueMax for
-// the output to come back.
+// the output is muted anyway (startCueWait: less for a sound of known
+// length); the stop cue waits at most stopCueMax for the output to come
+// back.
 const (
 	startCueMax  = time.Second
 	stopCueMax   = 300 * time.Millisecond
 	muteNoteTime = 3 * time.Second
 )
+
+// startCueWait is how long the mute waits for the start cue s, unless
+// afplay ends first: its audible part and cueMargin (macx.Sound.Audible,
+// Voxt's rule: the files' trailing silence, Pop's 1.4 s, does not delay
+// the mute), or startCueMax for a sound of unknown length. The longest,
+// Submarine, waits 1.02 s.
+func startCueWait(s macx.Sound) time.Duration {
+	if d := s.Audible(); d > 0 {
+		return d + cueMargin
+	}
+	return startCueMax
+}
 
 // outputJournal is the helper's journal of claims in the cache directory.
 func outputJournal(cacheDir string) string {
@@ -108,16 +121,17 @@ func (a *app) muteNotified(m proto.Message) {
 // and the stop cue plays once it is back; entering it mutes the output
 // once the start cue played.
 func (a *app) recordingAudio(was, s session.Snapshot) {
-	cue, hasCue := recordingCue(was, s)
-	sounds := hasCue && a.prefs.Audio.Sounds && a.playSound != nil
+	cue := recordingCue(was, s)
+	sound := cueSound(cue, a.prefs.Audio.SoundPreset)
+	sounds := cue != noCue && a.prefs.Audio.Sounds && a.playSound != nil
 	play := a.playSound
 	if id := a.muting; id != "" && (s.ID != id || s.State != session.Recording) {
 		a.muting = ""
 		a.clearMuteNote(id)
-		if sounds && cue == macx.SoundStop {
+		if sounds && cue == stopCue {
 			sounds = false
 			once := sync.Once{}
-			then := func() { once.Do(func() { a.post(func() { a.async(func() { play(cue) }) }) }) }
+			then := func() { once.Do(func() { a.post(func() { a.async(func() { play(sound) }) }) }) }
 			time.AfterFunc(stopCueMax, then) // the output is slow to come back: the cue anyway
 			a.mute.Release(id, then)
 		} else {
@@ -132,14 +146,15 @@ func (a *app) recordingAudio(was, s session.Snapshot) {
 				a.mute.Engage(id)
 			}
 		}
-		if sounds && cue == macx.SoundStart {
+		if sounds && cue == startCue {
 			sounds = false
+			wait := startCueWait(sound)
 			a.async(func() {
 				done := make(chan struct{})
-				go func() { play(cue); close(done) }()
+				go func() { play(sound); close(done) }()
 				select {
 				case <-done:
-				case <-time.After(startCueMax):
+				case <-time.After(wait):
 				}
 				a.post(engage)
 			})
@@ -148,7 +163,7 @@ func (a *app) recordingAudio(was, s session.Snapshot) {
 		}
 	}
 	if sounds {
-		a.async(func() { play(cue) })
+		a.async(func() { play(sound) })
 	}
 }
 

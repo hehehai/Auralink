@@ -8,8 +8,10 @@ func activate(int, time.Duration, func(func())) (bool, time.Duration) { return f
 
 func frontmost() App { return App{} }
 
-func play(Sound) error { return nil }
-
-func playWait(Sound) error { return nil }
+func start(Sound) (*Playing, error) {
+	done := make(chan struct{})
+	close(done)
+	return &Playing{done: done}, nil
+}
 
 func windowNumber(uintptr) int { return 0 }

@@ -42,6 +42,7 @@ type audioState struct {
 
 func (a *app) openAudio() {
 	a.playSound = func(s macx.Sound) { macx.PlayWait(s) }
+	a.startSound = startPreview // settings_sounds.go
 }
 
 // audioShown reads the inputs when the section shows; helperChanged
@@ -270,12 +271,7 @@ func (a *app) audioSettings(c *ui.Context) {
 	})
 
 	sectionTitle(c, i18n.T("Sounds"))
-	settingRow(c, "audio-sounds", i18n.T("Play sounds"), i18n.T("A short sound when recording starts, and another when it stops."), func() {
-		if ui.Switch(c.Key("audio-sounds-switch"), &a.settingsForm.sounds).Label(i18n.T("Play sounds")).Changed() {
-			on := a.settingsForm.sounds
-			a.updateSettings(func(s *settings.Settings) { s.Audio.Sounds = on })
-		}
-	})
+	a.soundsRow(c) // settings_sounds.go
 	settingRow(c, "audio-mute", i18n.T("Mute system audio while recording"), i18n.T("Mutes every sound of the current output device while you speak, so that videos, music or calls are not recorded: from just after the start sound until the recording stops, then they come back. A device you muted yourself stays muted. Some devices cannot be muted by software. No permission is needed: nothing of the system's sound is recorded."), func() {
 		if ui.Switch(c.Key("audio-mute-switch"), &a.settingsForm.muteOutput).Label(i18n.T("Mute system audio while recording")).Changed() {
 			on := a.settingsForm.muteOutput
@@ -307,16 +303,35 @@ func deviceName(c *ui.Context, name, notes string, inUse, present bool) {
 	})
 }
 
-// recordingCue is the sound a change of the session makes: one when it
+// cue is a sound of a recording: its start, or its stop.
+type cue int
+
+const (
+	noCue cue = iota
+	startCue
+	stopCue
+)
+
+// recordingCue is the cue a change of the session makes: one when it
 // starts recording, another when the recording stops and the text is on
 // its way. A cancelled or failed recording stops silently.
-func recordingCue(was, s session.Snapshot) (macx.Sound, bool) {
+func recordingCue(was, s session.Snapshot) cue {
 	switch {
 	case s.State == session.Recording && (was.State != session.Recording || was.ID != s.ID):
-		return macx.SoundStart, true
+		return startCue
 	case was.State == session.Recording && was.ID == s.ID && s.State != session.Recording &&
 		s.State != session.Cancelled && s.State != session.Failed:
-		return macx.SoundStop, true
+		return stopCue
 	}
-	return "", false
+	return noCue
+}
+
+// cueSound is the sound of a cue in the preset of Settings → Audio (an ID
+// of macx.Presets; Soft when empty or unknown).
+func cueSound(c cue, preset string) macx.Sound {
+	p := macx.PresetFor(preset)
+	if c == stopCue {
+		return p.Stop
+	}
+	return p.Start
 }
