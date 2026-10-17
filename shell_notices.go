@@ -295,6 +295,8 @@ func cardActionLabel(link string) string {
 		return i18n.T("Restart Auralink")
 	case "/providers":
 		return i18n.T("Open Model services")
+	case linkShortcuts: // family_shortcuts.go
+		return i18n.T("Change shortcut")
 	}
 	return i18n.T("Open")
 }

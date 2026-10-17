@@ -62,10 +62,11 @@ func (a *app) shortcutsSettings(c *ui.Context) {
 				continue
 			}
 			for i := range hs {
-				a.shortcutRow(c, feat, i, &hs[i], problems[i], keysW)
+				a.shortcutRow(c, feat, i, &hs[i], append(problems[i], a.familyHits(hs[i].Keys)...), keysW)
 			}
 		}
 	})
+	a.conflictLinks(c) // family_shortcuts.go: the other ActNow apps on the same keys
 }
 
 // shortcutMarksW is the room of a row's marks (Accessibility, a problem).

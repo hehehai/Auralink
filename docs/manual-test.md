@@ -564,6 +564,72 @@ MAC_DIR=code/Auralink-ov scripts/mac.sh --pull build/overlay-check     # 把结�
 - 2026-10-15 第四次（#21 第二轮：Voxt 的图标、标题行上下各 12、我们自己的语言下拉）：第 1 次只有一条 `FAIL`，是 zh 的“处理中”胶囊，截图那一刻 loader 的点都在暗的相位，像素检查只看到图标；现在 Mac 上处理中只检查尺寸。第 2 次 40 步全部通过：卡片 560 宽，标题笔画 17.5–33.0、分隔线 48.0（上下对称，新加的断言），语言下拉在卡片顶边上方 6，右边缘对齐胶囊，开关下拉前后卡片 frame 不变；前台 App 没变，没有残留进程。
 - 2026-10-15 第五次（#21 第三轮：进卡片前都是胶囊，卡片 440）：只跑了 1 次。唯一的 `FAIL` 是结尾“前台 App 变了”：大约第 7 秒起，前台从 Arc 变成另一个项目的 `dev.hehehai.pik.m7`（Pik），一直到结束；检查程序自己一次都没到前台（frames.txt 里没有出现 overlaycheck），所以不是浮窗的问题。其余逐步检查全部通过：胶囊里的草稿 300×76（英文）和 166×76（中文），都符合胶囊的规则；卡片 440 宽，标题笔画 17.5–33.0、分隔线 48.0；语言下拉在卡片顶边上方 6；所有可见状态的底边都在 1029。
 
+## 11. ActNow 家族（约 15 分钟，需要另一个已接入家族规范的 ActNow app）
+
+家族规范 v1.0.3 第一期的验收场景 5、6、7、9（规范 §16.1）。要用正式签名的构建，和至少一个已经接入规范第一期的 ActNow app（AudioSmith、Dicta 或 VoxtNew）一起做；场景 7 需要 VoxtNew（或把另一个 app 的快捷键改成 fn）。下面用 AudioSmith 举例。
+
+**11.0 准备**
+- 退出所有 ActNow app。记下家族目录现在的样子（只读）：`ls -la ~/Library/Application\ Support/ActNow/` 和 `cat ~/Library/Application\ Support/ActNow/settings.json`（没有就算了）。
+- 〔可选〕检查格式：在 Auralink 仓库里 `go run github.com/hehehai/actnowkit/cmd/actnow-conformance check`，再 `… discover`（列出找到的家族 app）。
+- 打开 Auralink 和 AudioSmith。
+- **应看到**：`apps/dev.hehehai.auralink.json` 出现，里面 `capabilities` 是 `dictation`、`asr.remote`、`llm.remote`，`shortcuts` 是四条（`Fn`、`Fn+Shift`、`Fn+Control`、`Control+Command+V`，有 `enabledAt`），`links.shortcuts` 是 `auralink://settings/shortcuts`。日志（⇧⌘L）里没有 `family:` 开头的错误。
+- **不对时看**：`~/Library/Logs/Auralink/auralink.log` 里 `family:` 的行。
+
+**11.1 设置同步（场景 5）**
+- **做**：
+  1. 在 Auralink 打开 设置 → 网络，看代理一行下面；把代理改成“自定义…”，填 `http://127.0.0.1:7890` 回车。
+  2. 不重启，切到 AudioSmith 看它的代理设置。
+  3. 在 AudioSmith 把代理改回“自动”，切回 Auralink（激活窗口）。
+  4. 在 Auralink 点“仅为此 app 单独设置”，再把代理改成“不使用”；去 AudioSmith 看。
+  5. 在 Auralink 点“与其他 ActNow app 使用相同设置”。
+  6. 设置 → 通用 → 界面语言重复第 1、2 步（改成另一种语言）。
+- **应看到**：
+  - 第 1 步：代理一行下面是“应用于所有 ActNow app · 仅为此 app 单独设置”；`settings.json` 的 `network.proxy` 变成 `http://127.0.0.1:7890`，`updatedBy` 是 `dev.hehehai.auralink`。
+  - 第 2 步：AudioSmith 的代理也是 `http://127.0.0.1:7890`（收到通知立即变，或者切过去时变）。
+  - 第 3 步：Auralink 的代理变回“自动”，下面的说明（“请求直接连接 / 经过 …”）跟着变。
+  - 第 4 步：下面变成“仅用于 Auralink · 与其他 ActNow app 使用相同设置”；AudioSmith 不变。
+  - 第 5 步：Auralink 改用 AudioSmith 当前的代理。
+  - 第 6 步：两个 app 的界面语言一起变。
+- **不对时看**：`settings.json` 的 `rev`、`updatedBy`；Auralink 日志里 `family: network.proxy follows the family`。
+
+**11.2 共享 API key（场景 6）**
+- **做**：
+  1. 在 Auralink 的模型服务里打开 DeepSeek（没有保存过 key 的话），粘贴 DeepSeek 的 key，看 key 下面的复选框，保存。
+  2. 在终端看元数据（不含 key）：`cat ~/Library/Application\ Support/ActNow/credentials.json`。
+  3. 在 AudioSmith 配置 DeepSeek。**点“使用此密钥”之前**，看 AudioSmith 的日志；然后点“使用此密钥”，再做连接测试。
+  4. 回到 Auralink，打开 DeepSeek，粘贴一个新的 key（可以用同一个 key 再粘一次），看提示，保存；在 AudioSmith 再做一次连接测试。
+  5. 在 Auralink 的 DeepSeek 对话框点“移除”，保存。
+- **应看到**：
+  - 第 1 步：复选框“允许这台 Mac 上的其他 ActNow app 使用此密钥”默认勾选，旁边的 ⓘ 说明钥匙串的安全性；保存后卡片上是 `sk-…xxxx`。钥匙串访问里有 `ActNow` / `vendor.deepseek`（标签“ActNow DeepSeek”），**没有**新的 `Auralink` / `llm.deepseek`。
+  - 第 2 步：`vendors.deepseek` 有 `hint`、`fingerprint`、`addedBy: dev.hehehai.auralink`、`users: [dev.hehehai.auralink]`，没有 key 本身。
+  - 第 3 步：AudioSmith 显示“使用 Auralink 中的 DeepSeek 密钥（sk-…xxxx）”；点之前它的日志里没有读取钥匙串的记录；点之后连接测试通过，`users` 里多了 AudioSmith。
+  - 第 4 步：Auralink 的对话框里有“AudioSmith 中也会一并更新。”；AudioSmith 的测试仍然通过（用的是新 key）。
+  - 第 5 步：先问“AudioSmith 也在使用此密钥。[仅在此处停用] [为所有 app 删除]”；选“仅在此处停用”后 Auralink 的 DeepSeek 没有 key 了，AudioSmith 照常可用，`users` 里没有 Auralink。
+- 〔可选〕以前在 Auralink 保存过 key 的服务（例如阶跃）：打开它，复选框默认**不勾选**；勾上保存后，钥匙串里多了 `ActNow` / `vendor.stepfun`，原来的 `Auralink` / `llm.stepfun` 还在。
+
+**11.3 快捷键冲突（场景 7）**
+- **做**：
+  1. 在 VoxtNew（或另一个支持 fn 的 ActNow app）里把一个快捷键设成 fn。
+  2. 切回 Auralink（激活窗口），看侧边栏底部的通知卡片和 设置 → 快捷键。
+  3. 点卡片上的“更改快捷键”；在表格下面点“打开 VoxtNew 设置”。
+  4. 关掉卡片后重启 Auralink。
+  5. 在 Auralink 的转录页把快捷键改成“自定义…”，输入 `RightCommand` 先不回车，再输入 `fn`。
+- **应看到**：
+  - 第 2 步：后改的一方提示：如果 VoxtNew 是后改的，提示出现在 VoxtNew，Auralink 只在设置页显示警告；如果是 Auralink 后改的（比如 Auralink 是新装的），Auralink 出现“VoxtNew 也在用这个快捷键 · fn 同时是 VoxtNew 的“转录”快捷键，按下时两个 app 都会响应。”。设置 → 快捷键里转录那一行下面是“VoxtNew 已用于“转录””，表格下面有那句说明和“打开 VoxtNew 设置”。
+  - 第 3 步：分别打开 Auralink 的快捷键设置和 VoxtNew 的快捷键设置。
+  - 第 4 步：同一对冲突不会再发卡片，设置页的警告还在。
+  - 第 5 步：输入 `fn` 时（按回车之前）就出现“VoxtNew 已用于“转录””。
+- **不对时看**：`apps/dev.hehehai.voxtnew.json` 的 `shortcuts`（`keys` 是不是 `Fn`、`enabled` 是不是 true）。
+
+**11.4 格式前向兼容（场景 9）**
+- **做**（先退出所有 ActNow app，备份家族目录：`cp -R ~/Library/Application\ Support/ActNow /tmp/ActNow-backup`）：
+  1. 在 `settings.json` 里加一个不认识的字段（例如顶层 `"futureThing": {"a": 1}`）、把 `rev` 改大（例如 100）；打开 Auralink，改一次代理。
+  2. 退出，把 `settings.json` 的 `schema` 改成 `actnow.settings/2`；打开 Auralink，打开 设置 → 网络，改一次代理。
+  3. 退出，用备份恢复家族目录：`rm -rf ~/Library/Application\ Support/ActNow && cp -R /tmp/ActNow-backup ~/Library/Application\ Support/ActNow`。
+- **应看到**：
+  - 第 1 步：Auralink 正常；改完后 `futureThing` 还在，`rev` 是 101。
+  - 第 2 步：代理一行下面是“另一个 ActNow app 更新了共享格式，请更新本 app 后再修改这些设置。”；改代理只影响 Auralink，`settings.json` 一个字节都没变。
+
 ---
 
 ## 结果怎么报

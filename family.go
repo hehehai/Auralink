@@ -41,9 +41,13 @@ type familyState struct {
 	// famManifest is the manifest last written (its shortcuts and
 	// channel tell when to write it again).
 	famManifest registry.Manifest
-	// famCreds is the family's shared keys (family_keys.go), for
-	// goroutines: nil outside the family.
+	// famCreds is the family's shared keys (family_keys.go), and famLink
+	// a.fam, for goroutines (family_paste.go): nil outside the family.
 	famCreds atomic.Pointer[credentials.Store]
+	famLink  atomic.Pointer[familyLink]
+	// famConflicts are Auralink's shortcuts on another app's keys
+	// (family_shortcuts.go).
+	famConflicts []shortcuts.Conflict
 }
 
 // familyLink is the family directory and Auralink in it. Its fields are
@@ -67,7 +71,7 @@ var newFamily = func() *familyLink {
 		return nil
 	}
 	dir := family.Default()
-	return &familyLink{dir: dir, self: self, sys: registry.DefaultSystem, creds: &credentials.Store{Family: dir, BundleID: self.BundleID}}
+	return &familyLink{dir: dir, self: self, sys: actnow.System, creds: &credentials.Store{Family: dir, BundleID: self.BundleID}}
 }
 
 // familyRead is what a read of the family found.
@@ -119,6 +123,7 @@ func (a *app) connectFamily() {
 		a.post(func() {
 			a.fam, a.famManifest = fl, m
 			a.famCreds.Store(fl.creds)
+			a.famLink.Store(fl)
 			if migrated {
 				a.updateSettings(func(s *settings.Settings) { actnow.Migrated(s, outcomes) })
 			}
@@ -161,6 +166,7 @@ func (fl *familyLink) read() familyRead {
 func (a *app) familyRead(r familyRead) {
 	a.famFound, a.famShared, a.famReadOnly = r.found, r.shared, r.readOnly
 	a.adoptShared()
+	a.checkConflicts() // family_shortcuts.go
 }
 
 // familyNotified answers a change notification of the family's files:
@@ -217,6 +223,7 @@ func (a *app) syncManifest() {
 	}
 	a.famManifest = m
 	a.async(func() { fl.writeManifest(m) })
+	a.checkConflicts() // family_shortcuts.go
 }
 
 // sameShortcut compares two declared shortcuts.
@@ -226,9 +233,16 @@ func sameShortcut(a, b shortcuts.Shortcut) bool {
 		a.Exclusive == b.Exclusive && (at == nil) == (bt == nil) && (at == nil || at.Equal(*bt))
 }
 
-// closeFamily stops the watch; it runs on quit.
+// closeFamily stops the watch and removes Auralink's runtime file
+// (family_paste.go); it runs on quit.
 func (a *app) closeFamily() {
-	if a.fam != nil && a.fam.watch != nil {
-		a.fam.watch.Close()
+	fl := a.fam
+	if fl == nil {
+		return
 	}
+	a.famLink.Store(nil)
+	if fl.watch != nil {
+		fl.watch.Close()
+	}
+	fl.dropRuntime()
 }

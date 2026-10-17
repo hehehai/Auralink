@@ -196,7 +196,7 @@ func (a *app) featureShortcuts(c *ui.Context, feature string) {
 			if i > 0 {
 				ui.Box(c).Height(1).Background(tok(t).Line).Shrink(0)
 			}
-			a.keyRowView(c, feature, i, hs[i], problems[i])
+			a.keyRowView(c, feature, i, hs[i], append(problems[i], a.familyHits(hs[i].Keys)...)) // family_shortcuts.go
 		}
 	})
 	switch feature {
@@ -318,6 +318,7 @@ func (a *app) customKeys(c *ui.Context, r *keyRow, label string, save func(keys 
 		warnLine(c, uitext.ParseErrorText(err))
 	case r.edited:
 		caption(c, i18n.T("Press Return to use %s.", uitext.HotkeyText(r.text)))
+		problemLines(c, a.familyHits(r.text)) // family_shortcuts.go: another ActNow app's keys
 	default:
 		caption(c, i18n.T("Modifiers first, then one key: Fn, RightCommand, Control+Option+Space, Fn+F5."))
 	}
@@ -345,7 +346,7 @@ func (a *app) trPasteRow(c *ui.Context) {
 	t := c.Theme()
 	r := &a.fui(hotkey.Transcribe).paste
 	cur := a.prefs.Features.PasteLast.Keys
-	problems := uitext.HotkeyProblems(a.prefs.Features, hotkey.PasteLast)[0]
+	problems := append(uitext.HotkeyProblems(a.prefs.Features, hotkey.PasteLast)[0], a.familyHits(cur)...)
 	ui.Column(c.Key("tr-paste")).Gap(px(t, 6)).Children(func() {
 		settingRow(c, "tr-paste-row", i18n.T("Paste the last result"), i18n.T("Pastes the latest result again where you type, whichever feature made it."), func() {
 			opts, byLabel := keyOptions(cur, true)

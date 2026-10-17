@@ -6,6 +6,7 @@ import (
 	"os"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/actnow"
@@ -15,6 +16,7 @@ import (
 	"github.com/hehehai/actnowkit/family"
 	"github.com/hehehai/actnowkit/registry"
 	asettings "github.com/hehehai/actnowkit/settings"
+	"github.com/hehehai/actnowkit/shortcuts"
 )
 
 // audioSmith is AudioSmith's release bundle id: the settings' rows speak
@@ -264,8 +266,17 @@ func familyShots(a *app, tt *ui.Tester, save func(string)) {
 	save("settings-network-family")
 	a.updateSettings(func(s *settings.Settings) { actnow.SetFollow(s, asettings.KeyProxy, false) })
 	save("settings-network-family-own")
+	// Settings → Shortcuts with VoxtNew on fn (family_shortcuts.go), set
+	// in memory, without announcing it.
+	voxt := voxtOnFn(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC))
+	a.famFound = append(a.famFound, registry.Found{BundleID: voxtNew, App: family.Apps[3], Variant: family.Release, Name: "VoxtNew", Installed: true,
+		Manifest: &registry.Manifest{BundleID: voxtNew, Name: "VoxtNew", Links: map[string]string{registry.LinkShortcuts: "voxtnew://settings/shortcuts"}, Shortcuts: []shortcuts.Shortcut{voxt}}})
+	a.famManifest = actnow.Manifest(a.fam.self, a.prefs)
+	a.famConflicts = shortcuts.FindConflicts(registry.HolderOf(a.famManifest), actnow.Others(a.famFound, a.fam.self.BundleID))
+	a.navigate("/settings/shortcuts")
+	save("settings-shortcuts-family")
 	a.updateSettings(func(s *settings.Settings) { s.Family = settings.Family{} })
-	a.fam, a.famFound = nil, nil
+	a.fam, a.famFound, a.famConflicts, a.famManifest = nil, nil, nil, registry.Manifest{}
 }
 
 // noSharedKeys is the family's keys of a test outside the family.

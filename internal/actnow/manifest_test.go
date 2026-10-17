@@ -129,3 +129,18 @@ func TestManifestWrites(t *testing.T) {
 		t.Errorf("VoxtNew on fn: %+v", hits)
 	}
 }
+
+// TestSystem: discovery's system passes through (its calls only lock the
+// thread).
+func TestSystem(t *testing.T) {
+	path, err := conformance.FakeApp(t.TempDir(), "Pik", "dev.hehehai.pik")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id, err := System.BundleID(path); err != nil || id != "dev.hehehai.pik" {
+		t.Errorf("%q %v", id, err)
+	}
+	_ = System.AppPaths("dev.hehehai.pik")
+	_ = System.Running("dev.hehehai.pik")
+	_ = teamID()
+}
