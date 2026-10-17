@@ -1,18 +1,16 @@
-// Package trayicon holds the menu bar icon: Auralink's symbol (a
-// lowercase a: a sound ring and a text cursor), from the ActNow brand kit
-// (Flat-A: a flat sound ring and a cursor with straight, rounded serifs),
-// as template PNGs of 36×36 pixels. MyGo's macOS
-// tray sizes any icon to 18 points tall, so on a Retina screen each pixel
-// is one device pixel; a 1× screen gets it scaled down by AppKit.
+// Package trayicon holds the menu bar icon: a speech bubble with a
+// waveform of three bars, drawn as template PNGs of 36×36 pixels. MyGo's
+// macOS tray sizes any icon to 18 points tall, so on a Retina screen each
+// pixel is one device pixel; a 1× screen gets it scaled down by AppKit.
 //
-// The PNGs are the kit's exports with two fixes: the half-transparent
-// pinholes where the ring meets the cursor are filled, and the faint noise
-// (alpha up to 8) around the recording dot is cleared (TestTrayIcons
-// checks both). menubar.svg is the symbol's 24-unit vector, without the
-// two notches that made the pinholes, for a new export. Recording shows the
-// symbol a little smaller, towards the bottom left, with a solid dot at
-// its top right in a gap cut around it; macOS tints both like the rest of
-// the menu bar.
+// The SVGs are the sources, on a 24-unit grid (1 unit = 1.5 px): 3 px
+// strokes (1.5 pt, about the weight of the system's own menu bar icons)
+// with every straight edge on a whole pixel, the bubble 33 px wide with the
+// bars centred in it. scripts/trayicon.sh renders the PNGs: black, only the
+// alpha drawn, no faint alpha that macOS would tint into specks
+// (TestTrayIcons checks that, and that the two states read apart). While
+// recording the bubble turns solid with the bars cut out of it, a little
+// longer than at rest; macOS tints both like the rest of the menu bar.
 package trayicon
 
 import _ "embed"

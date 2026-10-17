@@ -84,7 +84,7 @@ The recording kept in the history is always the original. These switches are in 
 | Home | History | Menu bar |
 |---|---|---|
 | ![Home: today's numbers and the latest results](docs/images/home.png) | ![History: results by feature, and one's details](docs/images/history.png) | ![The menu bar icon's menu](docs/images/menu.png) |
-<!-- TODO(ActNow brand icons): retake menu.png: the menu bar icon is now Auralink's own symbol (internal/trayicon), not Voxt's microphone (scripts/readme-media/post.sh composites it). -->
+<!-- TODO(menu bar icon): retake menu.png: the menu bar icon is now the speech bubble (internal/trayicon), not Voxt's microphone (scripts/readme-media/post.sh composites it). -->
 
 ### Updates
 

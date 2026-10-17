@@ -84,7 +84,7 @@ Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重
 | 首页 | 历史 | 菜单栏 |
 |---|---|---|
 | ![首页：今日统计和最近结果](docs/images/zh/home.png) | ![历史：按功能分类的结果和一条记录的详情](docs/images/zh/history.png) | ![菜单栏图标的菜单](docs/images/zh/menu.png) |
-<!-- TODO(ActNow brand icons): retake zh/menu.png: the menu bar icon is now Auralink's own symbol (internal/trayicon). -->
+<!-- TODO(menu bar icon): retake zh/menu.png: the menu bar icon is now the speech bubble (internal/trayicon). -->
 
 ### 更新
 

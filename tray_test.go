@@ -16,7 +16,8 @@ func TestTrayIcons(t *testing.T) {
 	if bytes.Equal(trayicon.Idle, trayicon.Recording) {
 		t.Fatal("the recording icon is the same")
 	}
-	for _, b := range [][]byte{trayicon.Idle, trayicon.Recording} {
+	var opaque [2]int // pixels at least half opaque: at rest, recording
+	for i, b := range [][]byte{trayicon.Idle, trayicon.Recording} {
 		img, err := png.Decode(bytes.NewReader(b))
 		if err != nil {
 			t.Fatal(err)
@@ -35,6 +36,9 @@ func TestTrayIcons(t *testing.T) {
 				// No faint noise, which macOS tints into specks.
 				if a := alpha(x, y); a > 0 && a <= 8 {
 					t.Errorf("pixel %d,%d: stray alpha %d", x, y, a)
+				}
+				if alpha(x, y) >= 128 {
+					opaque[i]++
 				}
 			}
 		}
@@ -55,6 +59,17 @@ func TestTrayIcons(t *testing.T) {
 				}
 			}
 		}
+	}
+	// The states read apart at a glance (recording fills the bubble: about
+	// 1.7 times the ink), and neither is a blot or nearly empty: the icon
+	// at rest is a line drawing (about 29% of the square), the recording
+	// one at most two thirds of it.
+	idle, rec := opaque[0], opaque[1]
+	if d := rec - idle; d < idle/4 || d > 2*idle {
+		t.Errorf("opaque pixels: %d at rest, %d recording", idle, rec)
+	}
+	if all := trayicon.Size * trayicon.Size; idle < all/5 || idle > all*2/5 || rec > all*2/3 {
+		t.Errorf("opaque pixels: %d at rest, %d recording, of %d", idle, rec, all)
 	}
 }
 
