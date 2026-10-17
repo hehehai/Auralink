@@ -1,10 +1,14 @@
 package main
 
 // The context menu of a history entry, on History's rows and Home's recent
-// results: Copy (its result), Show details, and Delete (confirmed by
-// historyDeleteDialog). On History a focused row takes ⌘C and ⌫ too.
+// results: Copy (its result), Copy the recognised text (when there is
+// one and it is not the result), Show details, Show the recording in
+// Finder (with a recording), and Delete (confirmed by
+// historyDeleteDialog). On History a focused row takes ⌘C and ⌫ too. The
+// recognised text and the recording are VoxtNew's (f380cdcf).
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -16,11 +20,20 @@ import (
 // the details' "Copy the result" and Home's copy button), "" for none.
 func entryCopyText(e store.Entry) string { return strings.TrimSpace(e.Result) }
 
+// entryRawCopy is the recognised text the menu offers apart: "" when
+// there is none or Copy copies it already.
+func entryRawCopy(e store.Entry) string {
+	if raw := strings.TrimSpace(e.RawText); raw != entryCopyText(e) {
+		return raw
+	}
+	return ""
+}
+
 // entryMenu gives row an entry's context menu; details shows the entry's
 // details, as a click on the row does. keys adds ⌘C and ⌫ while the row
 // has the focus, and shows them by the items.
 func (a *app) entryMenu(c *ui.Context, row ui.Element, e store.Entry, keys bool, details func()) {
-	text := entryCopyText(e)
+	text, raw := entryCopyText(e), entryRawCopy(e)
 	row.ContextMenu(func(m *ui.Menu) {
 		cp := m.Item(i18n.T("Copy")).Disabled(text == "")
 		if keys {
@@ -29,8 +42,14 @@ func (a *app) entryMenu(c *ui.Context, row ui.Element, e store.Entry, keys bool,
 		if cp.Chosen() {
 			a.copyEntry(c, text)
 		}
+		if raw != "" && m.Item(i18n.T("Copy the recognised text")).Chosen() {
+			a.copyEntry(c, raw)
+		}
 		if m.Item(i18n.T("Show details")).Chosen() {
 			details()
+		}
+		if e.Audio != "" && m.Item(i18n.T("Show the recording in Finder")).Chosen() {
+			revealInFinder(filepath.Join(a.lib.store.History().AudioDir(), e.Audio))
 		}
 		m.Separator()
 		del := m.Item(i18n.T("Delete"))

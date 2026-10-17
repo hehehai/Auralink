@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/core"
@@ -64,13 +65,61 @@ func TestHistoryMenuItems(t *testing.T) {
 	a, _, tt := newTestApp(t)
 	seedHistory(t, a)
 	a.navigate("/history")
+	// With a recording, and a recognised text apart from the result.
 	rightClick(t, tt, "Let's move the design review to Thursday afternoon.")
-	if got, want := tt.Menu(), []string{"Copy", "Show details", "-", "Delete"}; !slices.Equal(got, want) {
+	if got, want := tt.Menu(), []string{"Copy", "Copy the recognised text", "Show details", "Show the recording in Finder", "-", "Delete"}; !slices.Equal(got, want) {
 		t.Errorf("menu %q, want %q", got, want)
 	}
 	tt.CloseMenu()
 	if a.hist.sel != "" || a.hist.delAsk {
 		t.Errorf("a right-click selected %q or asked %v", a.hist.sel, a.hist.delAsk)
+	}
+	// Without a recording, and nothing recognised (it failed before).
+	rightClick(t, tt, "doubao: network: no result within 30s")
+	if got, want := tt.Menu(), []string{"Copy", "Show details", "-", "Delete"}; !slices.Equal(got, want) {
+		t.Errorf("failed entry's menu %q, want %q", got, want)
+	}
+	tt.CloseMenu()
+}
+
+// The recognised text is offered only when it is not the result; a
+// recording shows in Finder where the store keeps it.
+func TestHistoryMenuRecognisedAndRecording(t *testing.T) {
+	a, _, tt := newTestApp(t)
+	seedHistory(t, a)
+	same := store.Entry{
+		ID: "01HIST0000000000000000SAM1", Kind: store.KindTranscribe, CreatedAt: time.Now().Add(-time.Minute), Status: store.StatusDone,
+		AppName: "Notes", RawText: "Buy milk and eggs.", Result: "Buy milk and eggs.", Delivery: "insert",
+	}
+	if err := a.lib.store.History().Put(context.Background(), same); err != nil {
+		t.Fatal(err)
+	}
+	audio := putAudio(t, a)
+	var revealed []string
+	was := revealInFinder
+	revealInFinder = func(p string) { revealed = append(revealed, p) }
+	t.Cleanup(func() { revealInFinder = was })
+	a.navigate("/history")
+
+	rightClick(t, tt, "Buy milk and eggs.")
+	if got, want := tt.Menu(), []string{"Copy", "Show details", "-", "Delete"}; !slices.Equal(got, want) {
+		t.Errorf("same text: menu %q, want %q", got, want)
+	}
+	tt.CloseMenu()
+
+	rightClick(t, tt, "明天上午十点的站会改到线上，链接我稍后发到群里。")
+	choose(t, tt, "Copy the recognised text")
+	if got := tt.Clipboard(); got != "明天上午十点的站会改到线上 链接我稍后发群里" {
+		t.Errorf("recognised text copied %q", got)
+	}
+	if a.hist.sel != "" {
+		t.Errorf("Copy the recognised text selected %q", a.hist.sel)
+	}
+
+	rightClick(t, tt, "Let's move the design review to Thursday afternoon.")
+	choose(t, tt, "Show the recording in Finder")
+	if !slices.Equal(revealed, []string{audio}) {
+		t.Errorf("revealed %q, want %q", revealed, audio)
 	}
 }
 
@@ -247,7 +296,7 @@ func TestHomeRecentMenu(t *testing.T) {
 	e := a.hm.recent[0]
 	title, _ := uitext.EntryTitle(e)
 	rightClick(t, tt, title)
-	if got, want := tt.Menu(), []string{"Copy", "Show details", "-", "Delete"}; !slices.Equal(got, want) {
+	if got, want := tt.Menu(), []string{"Copy", "Copy the recognised text", "Show details", "Show the recording in Finder", "-", "Delete"}; !slices.Equal(got, want) {
 		t.Errorf("menu %q, want %q", got, want)
 	}
 	choose(t, tt, "Copy")
