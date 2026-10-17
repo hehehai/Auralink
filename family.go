@@ -14,10 +14,12 @@ package main
 import (
 	"log"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/hehehai/Auralink/internal/actnow"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/actnowkit/credentials"
 	"github.com/hehehai/actnowkit/family"
 	"github.com/hehehai/actnowkit/registry"
 	asettings "github.com/hehehai/actnowkit/settings"
@@ -39,6 +41,9 @@ type familyState struct {
 	// famManifest is the manifest last written (its shortcuts and
 	// channel tell when to write it again).
 	famManifest registry.Manifest
+	// famCreds is the family's shared keys (family_keys.go), for
+	// goroutines: nil outside the family.
+	famCreds atomic.Pointer[credentials.Store]
 }
 
 // familyLink is the family directory and Auralink in it. Its fields are
@@ -46,7 +51,8 @@ type familyState struct {
 type familyLink struct {
 	dir   family.Dir
 	self  actnow.Self
-	sys   registry.System // LaunchServices and the running apps
+	sys   registry.System    // LaunchServices and the running apps
+	creds *credentials.Store // the family's shared keys (the login Keychain's "ActNow")
 	watch *family.Watcher
 }
 
@@ -60,7 +66,8 @@ var newFamily = func() *familyLink {
 		log.Printf("family: not running from an Auralink app bundle: the ActNow family is off")
 		return nil
 	}
-	return &familyLink{dir: family.Default(), self: self, sys: registry.DefaultSystem}
+	dir := family.Default()
+	return &familyLink{dir: dir, self: self, sys: registry.DefaultSystem, creds: &credentials.Store{Family: dir, BundleID: self.BundleID}}
 }
 
 // familyRead is what a read of the family found.
@@ -111,6 +118,7 @@ func (a *app) connectFamily() {
 		fl.watch = w
 		a.post(func() {
 			a.fam, a.famManifest = fl, m
+			a.famCreds.Store(fl.creds)
 			if migrated {
 				a.updateSettings(func(s *settings.Settings) { actnow.Migrated(s, outcomes) })
 			}
@@ -161,6 +169,8 @@ func (a *app) familyNotified(topic string) {
 	switch topic {
 	case family.TopicApps, family.TopicSettings:
 		a.familyRefresh()
+	case family.TopicCredentials:
+		a.sharedKeysChanged() // family_keys.go
 	}
 }
 

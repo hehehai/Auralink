@@ -206,7 +206,7 @@ func normalizeProviders(list []Provider) []Provider {
 	for _, p := range list {
 		p.ID, p.Preset, p.Name = strings.TrimSpace(p.ID), strings.TrimSpace(p.Preset), strings.TrimSpace(p.Name)
 		p.Endpoint, p.Model, p.AppID = strings.TrimSpace(p.Endpoint), strings.TrimSpace(p.Model), strings.TrimSpace(p.AppID)
-		p.Prompt = strings.TrimSpace(p.Prompt)
+		p.Prompt, p.CredentialRef = strings.TrimSpace(p.Prompt), strings.TrimSpace(p.CredentialRef)
 		if p.Preset == p.ID {
 			p.Preset = ""
 		}

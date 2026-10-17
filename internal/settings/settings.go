@@ -266,6 +266,10 @@ type Provider struct {
 	// Prompt is an ASR service's recognition prompt (context, spelling),
 	// for services that take one; the dictionary's terms are added to it.
 	Prompt string `json:"prompt,omitempty"`
+	// CredentialRef names the ActNow family's key the service uses
+	// ("actnow:vendor.deepseek", internal/actnow), instead of its own
+	// Keychain item; "" for its own.
+	CredentialRef string `json:"credentialRef,omitempty"`
 }
 
 // Hotkey is one binding of a feature: the keys ("Fn", "Fn+Shift",

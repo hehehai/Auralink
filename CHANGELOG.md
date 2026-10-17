@@ -27,7 +27,7 @@ The first public version, a beta: voice input for macOS on remote models, from [
 - Signed with a Developer ID and notarised. Updates from actnow.dev: a daily check, the new version's notes in a window of its own, a download of only what changed, installed when you say so; Check for Updates… in the app menu, the menu bar icon's menu and Settings → About. An update installed while Auralink runs asks for a restart instead of starting the new helper.
 - Beta updates (Settings → About): betas too, or releases only; on by default in a beta. Turning it off never goes back to an older version: a beta stays until a release newer than it.
 - **Mute system audio while recording** (Settings → Audio, on by default): the current output device is muted from just after the start sound until the recording stops, so that videos, music or calls are not recorded; a device you muted stays muted, one you unmute during the recording stays on, and a device that cannot be muted leaves the recording as it is (the overlay says so). No permission is needed. If Auralink or its helper stops while muting, the sound comes back at once, or at the next start.
-- **ActNow family**: Auralink finds the other ActNow apps on this Mac (AudioSmith, Dicta, Pik…) and tells them what it does and which global shortcuts it uses, so that they can warn about clashes. The app's language and the proxy are shared with them: a change in one applies to all, unless you choose "Use a different setting for this app" (Settings → General, Network).
+- **ActNow family**: Auralink finds the other ActNow apps on this Mac (AudioSmith, Dicta, Pik…) and tells them what it does and which global shortcuts it uses, so that they can warn about clashes. The app's language and the proxy are shared with them: a change in one applies to all, unless you choose "Use a different setting for this app" (Settings → General, Network). API keys can be shared too: a key saved in Auralink is offered to the other ActNow apps (unless you uncheck "Let other ActNow apps on this Mac use this key"), and a service in Auralink offers the key another ActNow app saved, read only once you click "Use this key".
 
 ### Changed
 
@@ -53,7 +53,7 @@ The first public version, a beta: voice input for macOS on remote models, from [
 - 使用 Developer ID 签名并经过公证。通过 actnow.dev 更新：每天检查一次，在单独的窗口里显示更新说明，只下载有变化的部分，你同意后才安装。
 - Beta 更新（设置 → 诊断与关于）：同时接收 beta 版，或只接收正式版；正在用 beta 时默认打开。关闭后不会降级：已装的 beta 会保留到比它新的正式版发布。
 - **录音时静音系统声音**（设置 → 音频，默认开启）：从开始提示音之后到停止录音为止，当前输出设备静音，免得视频、音乐、通话的声音被录进去；你自己静音的设备保持静音，录音中你取消静音后不会再被静音，不支持软件静音的设备照常录音（浮窗会提示）。不需要任何权限。Auralink 或辅助进程在静音期间意外退出时，声音会立即恢复，最迟在下次启动时恢复。
-- **ActNow 家族**：Auralink 会找到这台 Mac 上的其他 ActNow app（AudioSmith、Dicta、Pik 等），并告诉它们自己做什么、用了哪些全局快捷键，方便互相提示冲突。界面语言和代理与它们共用：在一个 app 里改，所有 app 一起生效；也可以选“仅为此 app 单独设置”（设置 → 通用、网络）。
+- **ActNow 家族**：Auralink 会找到这台 Mac 上的其他 ActNow app（AudioSmith、Dicta、Pik 等），并告诉它们自己做什么、用了哪些全局快捷键，方便互相提示冲突。界面语言和代理与它们共用：在一个 app 里改，所有 app 一起生效；也可以选“仅为此 app 单独设置”（设置 → 通用、网络）。API 密钥也可以共用：在 Auralink 里保存的密钥会提供给其他 ActNow app（除非取消勾选“允许这台 Mac 上的其他 ActNow app 使用此密钥”）；配置服务时，如果其他 ActNow app 已经保存了这个厂商的密钥，可以一键使用，点“使用此密钥”之前不会读取它。
 
 ### 变更
 

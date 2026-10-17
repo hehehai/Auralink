@@ -11,6 +11,7 @@ import (
 	"github.com/hehehai/Auralink/internal/actnow"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/actnowkit/conformance"
+	"github.com/hehehai/actnowkit/credentials"
 	"github.com/hehehai/actnowkit/family"
 	"github.com/hehehai/actnowkit/registry"
 	asettings "github.com/hehehai/actnowkit/settings"
@@ -266,3 +267,6 @@ func familyShots(a *app, tt *ui.Tester, save func(string)) {
 	a.updateSettings(func(s *settings.Settings) { s.Family = settings.Family{} })
 	a.fam, a.famFound = nil, nil
 }
+
+// noSharedKeys is the family's keys of a test outside the family.
+func noSharedKeys() *credentials.Store { return nil }

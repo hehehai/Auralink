@@ -86,6 +86,7 @@ type providerDialog struct {
 	err, errMore       string // a save or check error
 	saving, removeKey  bool
 	test               providerTest
+	fam                dialogFamily // the ActNow family's key (family_keys.go)
 }
 
 // openProviders reads the masks of the keys of every service set up.
@@ -122,15 +123,15 @@ func (a *app) loadKeyMasks(accounts []string) {
 	if len(accounts) == 0 {
 		return
 	}
-	kr := a.keys
+	ks := a.keySource() // family_keys.go: a family key's hint, not the key
 	a.async(func() {
 		masks := map[string]string{}
 		for _, acc := range accounts {
-			v, err := kr.Get(acc)
+			m, err := ks.Mask(acc)
 			if err != nil {
-				v = ""
+				m = ""
 			}
-			masks[acc] = maskKey(v)
+			masks[acc] = m
 		}
 		a.post(func() {
 			for k, v := range masks {
@@ -390,7 +391,7 @@ func (a *app) testMark(c *ui.Context, acc string) {
 func (a *app) testProvider(kind providers.Kind, p settings.Provider) {
 	acc := providers.Account(kind, p.ID)
 	a.provTests[acc] = providerTest{running: true}
-	kr, proxy, logs := a.keys, a.prefs.Network.Proxy, a.logs
+	kr, proxy, logs := a.keySource(), a.prefs.Network.Proxy, a.logs
 	a.async(func() {
 		key, err := kr.Get(acc)
 		res := providers.TestResult{Err: err, At: time.Now()}

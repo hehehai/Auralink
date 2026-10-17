@@ -267,5 +267,6 @@ func snapshotsProviders(t *testing.T, out string) {
 		a.provTab = 1
 		a.openProviderDialog(providers.LLM, "custom")
 		save("providers-dialog-custom")
+		familyKeyShots(t, a, save) // family_keys_test.go
 	}
 }

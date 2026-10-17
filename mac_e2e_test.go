@@ -572,7 +572,7 @@ func newMacSession(t *testing.T, h helper.Supervisor, target proto.App, keys map
 	set(&s)
 	ms := &macSession{lib: lib, text: &macText{t: t, h: h, pid: target.PID}, ended: make(chan session.Snapshot, 4), seen: make(chan session.Snapshot, 1024)}
 	ms.Manager = session.New(session.Config{
-		Audio: session.HelperAudio{H: h}, Text: ms.text, Resolve: resolver(&memKeyring{m: keys}),
+		Audio: session.HelperAudio{H: h}, Text: ms.text, Resolve: resolver(&memKeyring{m: keys}, noSharedKeys),
 		History: lib.store.History(),
 		Glossary: func(ctx context.Context) ([]store.Term, error) {
 			return lib.store.Dictionary().List(ctx, "")

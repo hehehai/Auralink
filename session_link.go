@@ -32,6 +32,7 @@ import (
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store"
+	"github.com/hehehai/actnowkit/credentials"
 )
 
 // sessionSource is the logs' source of session lines.
@@ -122,7 +123,7 @@ const noticeTime = 5 * time.Second
 // supervisor exists.
 func (a *app) openSessions() {
 	sup := a.host.sup
-	kr := a.keys
+	kr, shared := a.keys, a.famCreds.Load
 	lib := a.lib
 	logs := a.logs
 	st := a.settings
@@ -130,7 +131,7 @@ func (a *app) openSessions() {
 		Audio:   session.HelperAudio{H: sup},
 		Text:    session.HelperText{H: sup},
 		Select:  session.HelperText{H: sup},
-		Resolve: resolver(kr),
+		Resolve: resolver(kr, shared),
 		History: lib.store.History(),
 		Glossary: func(ctx context.Context) ([]store.Term, error) {
 			return lib.store.Dictionary().List(ctx, "")
@@ -150,11 +151,13 @@ func (a *app) openSessions() {
 }
 
 // resolver builds a session's services from the settings, with the keys
-// from kr (the Keychain: off the main thread). A service that is not set
-// up stays nil: the session says what it lacks when it needs it (a
-// selection to translate needs no speech service).
-func resolver(kr keyring) session.Resolver {
+// from own (the Keychain: off the main thread), or the ActNow family's
+// shared (family_keys.go) for the services that use one. A service that
+// is not set up stays nil: the session says what it lacks when it needs
+// it (a selection to translate needs no speech service).
+func resolver(own keyring, shared func() *credentials.Store) session.Resolver {
 	return func(ctx context.Context, kind session.Kind, s settings.Settings) (session.Services, error) {
+		kr := keysFor(s, own, shared())
 		hasKey := func(acc string) bool { v, err := kr.Get(acc); return err == nil && v != "" }
 		feature := string(kind)
 		f := providers.FeatureOf(s, feature)

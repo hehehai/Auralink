@@ -35,11 +35,13 @@ func (a *app) openProviderDialog(kind providers.Kind, id string) {
 	if model == "" {
 		d.model = i18n.T("Other model…")
 	}
+	d.fam.ref, d.fam.share = p.CredentialRef, p.CredentialRef != ""
 	a.provDlg = d
 	acc := providers.Account(kind, id)
 	if _, read := a.keyMasks[acc]; !read {
 		a.loadKeyMasks([]string{acc})
 	}
+	a.loadDialogFamily() // family_keys.go: the ActNow family's key of its vendor
 }
 
 // dialogSetup is the setup the dialog's form describes.
@@ -62,6 +64,11 @@ func (d *providerDialog) setup() settings.Provider {
 func (a *app) providerDialogView(c *ui.Context) {
 	d := &a.provDlg
 	if !d.open {
+		if d.fam.joined { // closed unsaved after "Use this key"
+			f := d.fam
+			d.fam = dialogFamily{}
+			a.dialogClosed(f)
+		}
 		return
 	}
 	t := c.Theme()
@@ -102,21 +109,15 @@ func (a *app) providerDialogView(c *ui.Context) {
 			})
 		}
 		mask := a.keyMasks[acc]
-		fieldInfo(c, uitext.KeyLabel(d.kind, d.id), i18n.T("Saved in this Mac's Keychain, never in Auralink's settings or logs."), func() {
-			ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
-				ph := i18n.T("Paste the key")
-				if mask != "" && !d.removeKey {
-					ph = i18n.T("Saved: %s · paste a new one to replace it", mask)
-				}
-				ui.TextInput(c.Key("prov-key"), &d.key).Password().Placeholder(ph).Label(uitext.KeyLabel(d.kind, d.id)).Grow(1).MinWidth(0)
-				if mask != "" && !d.removeKey && ghostButton(c.Key("prov-key-remove"), i18n.T("Remove")).Label(i18n.T("Remove the saved key")).Clicked() {
-					d.removeKey, d.key = true, ""
-				}
-			})
-			if d.removeKey {
-				caption(c, i18n.T("The saved key is removed when you save."))
-			}
-		})
+		if f := d.fam; f.ref != "" && mask == "" && f.offer != nil {
+			mask = f.offer.Hint // the family's key, chosen in this dialog
+		}
+		if a.offerShown() {
+			a.sharedKeyOffer(c, name) // family_keys_view.go: the ActNow family's key
+		} else {
+			a.keyField(c, acc, mask)
+			a.sharedKeyNotes(c, name, mask) // family_keys_view.go
+		}
 		epInfo := i18n.T("Leave empty for the service's own. Only https:// (wss:// for streaming) addresses, or http:// to this Mac.")
 		if d.kind == providers.ASR && pr.Mode == providers.ModeFile && pr.ID != providers.StepFunASR {
 			epInfo = i18n.T("Any OpenAI-compatible transcription address (Groq, SiliconFlow…), or its API root ending in /v1. Only https://, or http:// to this Mac.")
@@ -159,7 +160,7 @@ func (a *app) providerDialogView(c *ui.Context) {
 			d.open = false
 		}
 		if primaryButton(c.Key("prov-dlg-save"), i18n.T("Save")).Disabled(d.saving).Shrink(0).Clicked() {
-			a.saveProviderDialog()
+			a.saveProviderDialog(false)
 		}
 	})
 }
@@ -200,13 +201,16 @@ func testStatus(c *ui.Context, tr providerTest, long bool) {
 // dialogKey is the key the dialog's test uses: the one typed, else the
 // saved one (read in the background), none when it is to be removed.
 func (a *app) dialogKey(acc string) func() (string, error) {
-	typed, remove, kr := strings.TrimSpace(a.provDlg.key), a.provDlg.removeKey, a.keys
+	typed, remove, kr := strings.TrimSpace(a.provDlg.key), a.provDlg.removeKey, a.keySource()
+	shared := a.provDlg.fam.secret // the family's key, once the user chose it (family_keys.go)
 	return func() (string, error) {
 		switch {
 		case typed != "":
 			return typed, nil
 		case remove:
 			return "", nil
+		case shared != "":
+			return shared, nil
 		}
 		return kr.Get(acc)
 	}
@@ -241,7 +245,9 @@ func (a *app) testDialog() {
 
 // saveProviderDialog checks the form, saves the key (when one was typed
 // or removed) and then the setup.
-func (a *app) saveProviderDialog() {
+// removeAll (when the dialog asked, family_keys_view.go) removes a key the
+// ActNow family shares for every app.
+func (a *app) saveProviderDialog(removeAll bool) {
 	d := &a.provDlg
 	kind, p := d.kind, d.setup()
 	if err := providers.CheckEndpoint(kind, p); err != nil {
@@ -250,28 +256,22 @@ func (a *app) saveProviderDialog() {
 	}
 	acc := providers.Account(kind, p.ID)
 	key, remove := strings.TrimSpace(d.key), d.removeKey
+	if a.askRemoveShared(remove) { // family_keys_view.go: other apps use it
+		return
+	}
 	label := "Auralink " + uitext.ProviderName(kind, p)
 	d.saving, d.err = true, ""
-	kr := a.keys
+	job := a.dialogKeyJob(&p, key, remove, removeAll, label) // family_keys.go
 	a.async(func() {
-		var err error
-		switch {
-		case key != "":
-			err = kr.Set(acc, label, key)
-		case remove:
-			err = kr.Set(acc, label, "")
-		}
+		mask, changed, err := job.run()
 		a.post(func() {
 			a.provDlg.saving = false
 			if err != nil {
 				a.provDlg.err, a.provDlg.errMore = i18n.T("Could not save the key in the Keychain."), err.Error()
 				return
 			}
-			switch {
-			case key != "":
-				a.keyMasks[acc] = maskKey(key)
-			case remove:
-				a.keyMasks[acc] = ""
+			if changed {
+				a.keyMasks[acc] = mask
 			}
 			delete(a.provTests, acc)
 			a.updateSettings(func(s *settings.Settings) { providers.Put(s, kind, p) })
@@ -279,5 +279,31 @@ func (a *app) saveProviderDialog() {
 			a.provDlg = providerDialog{}
 			a.toast(i18n.T("%s saved", uitext.ProviderName(kind, p)))
 		})
+	})
+}
+
+// keyField is the dialog's key: a password field over the saved key's
+// mask, and Remove.
+func (a *app) keyField(c *ui.Context, acc, mask string) {
+	t := c.Theme()
+	d := &a.provDlg
+	info := i18n.T("Saved in this Mac's Keychain, never in Auralink's settings or logs.")
+	fieldInfo(c, uitext.KeyLabel(d.kind, d.id), info, func() {
+		ui.Row(c).Gap(px(t, sp2)).AlignItems(ui.Center).Children(func() {
+			ph := i18n.T("Paste the key")
+			switch {
+			case mask != "" && !d.removeKey && d.fam.ref != "":
+				ph = i18n.T("Shared with other ActNow apps: %s · paste a new one to replace it", mask)
+			case mask != "" && !d.removeKey:
+				ph = i18n.T("Saved: %s · paste a new one to replace it", mask)
+			}
+			ui.TextInput(c.Key("prov-key"), &d.key).Password().Placeholder(ph).Label(uitext.KeyLabel(d.kind, d.id)).Grow(1).MinWidth(0)
+			if mask != "" && !d.removeKey && ghostButton(c.Key("prov-key-remove"), i18n.T("Remove")).Label(i18n.T("Remove the saved key")).Clicked() {
+				d.removeKey, d.key = true, ""
+			}
+		})
+		if d.removeKey {
+			caption(c, i18n.T("The saved key is removed when you save."))
+		}
 	})
 }

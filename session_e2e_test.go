@@ -554,7 +554,7 @@ func TestE2ESessionReal(t *testing.T) {
 			text := &pasteText{}
 			ended := make(chan session.Snapshot, 4)
 			m := session.New(session.Config{
-				Audio: wavAudio{pcm: pcm}, Text: text, Resolve: resolver(kr),
+				Audio: wavAudio{pcm: pcm}, Text: text, Resolve: resolver(kr, noSharedKeys),
 				Settings: func() settings.Settings { return s },
 				OnChange: func(sn session.Snapshot) {
 					if sn.State.Ended() {

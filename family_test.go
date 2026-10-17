@@ -22,17 +22,27 @@ const testBundleID = "dev.hehehai.auralink.familytest"
 // discovery that knows no installed app but the fixture's.
 func withFamily(t *testing.T) *conformance.Fixture {
 	t.Helper()
+	fx, _ := withFamilyKeys(t)
+	return fx
+}
+
+// withFamilyKeys is withFamily, with the login Keychain of the family's
+// shared keys in memory (fakeSecurity).
+func withFamilyKeys(t *testing.T) (*conformance.Fixture, *fakeSecurity) {
+	t.Helper()
 	fx := conformance.New(t)
+	sec := &fakeSecurity{items: map[string]string{}}
 	path, err := conformance.FakeApp(t.TempDir(), "Auralink", testBundleID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	old := newFamily
 	newFamily = func() *familyLink {
-		return &familyLink{dir: fx.Family, self: actnow.Self{BundleID: testBundleID, Path: path}, sys: conformance.FixtureSystem{}}
+		return &familyLink{dir: fx.Family, self: actnow.Self{BundleID: testBundleID, Path: path}, sys: conformance.FixtureSystem{},
+			creds: sec.store(fx, testBundleID)}
 	}
 	t.Cleanup(func() { newFamily = old })
-	return fx
+	return fx, sec
 }
 
 // joinFamily starts a test app's family link and runs what it posts.

@@ -247,7 +247,8 @@ func (a *app) resetSettings() {
 }
 
 // keychainItems are the Keychain items Auralink may have saved: a key
-// per configured provider.
+// per configured provider. (The ActNow family's keys the services use
+// are eraseAll's: family_keys.go.)
 func (a *app) keychainItems() []secrets.Item {
 	var items []secrets.Item
 	for _, p := range a.prefs.Providers.ASR {
@@ -264,11 +265,15 @@ func (a *app) keychainItems() []secrets.Item {
 func (a *app) eraseAll() {
 	keys, home, logs := a.resetKeys, a.home(), a.logDir
 	items := a.keychainItems()
+	cs, shared := a.famCreds.Load(), a.sharedVendors()
 	a.resetAsk = ""
 	a.async(func() {
 		if keys {
 			for _, it := range items {
 				it.Delete()
+			}
+			if cs != nil {
+				eraseSharedKeys(cs, shared) // only Auralink's: other apps keep theirs
 			}
 		}
 		err := datadir.WriteJSON(filepath.Join(home, datadir.ResetFile), datadir.PendingReset{Everything: true, Also: []string{logs}})
