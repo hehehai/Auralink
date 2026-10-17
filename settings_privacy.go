@@ -2,7 +2,9 @@ package main
 
 // Settings → Privacy: what leaves this Mac (only what the user's
 // providers need), and what Auralink keeps here: the history, its
-// recordings, the text in the logs (plan §6).
+// recordings, the text in the logs (plan §6). Where the recordings go and
+// how long the history keeps entries are in the History settings dialog
+// (history_settings.go), which a row opens.
 
 import (
 	"context"
@@ -38,10 +40,15 @@ func (a *app) privacySettings(c *ui.Context) {
 			})
 		}
 	})
-	settingRow(c, "priv-audio", i18n.T("Keep the recordings"), i18n.T("Saves the audio with each history entry, to listen again or recognise it once more."), func() {
+	settingRow(c, "priv-audio", i18n.T("Keep the recordings"), i18n.T("Saves the audio with each history entry, to listen again or recognise it once more. When this is off, a recording whose recognition failed is still kept for 7 days, so that you can retry it."), func() {
 		if ui.Switch(c.Key("priv-audio"), &a.settingsForm.keepAudio).Label(i18n.T("Save each recording")).Disabled(!a.prefs.Privacy.KeepHistory).Changed() {
 			on := a.settingsForm.keepAudio
 			a.updateSettings(func(s *settings.Settings) { s.Privacy.KeepAudio = on })
+		}
+	})
+	settingRow(c, "priv-hist-settings", i18n.T("History settings"), i18n.T("Where the recordings are kept, exporting them, and the automatic clean-up of old entries."), func() {
+		if ui.Button(c.Key("priv-hist-settings"), i18n.T("Open…")).Clicked() {
+			a.showHistorySettings()
 		}
 	})
 	settingRow(c, "priv-clear", i18n.T("Clear the history"), i18n.T("Deletes every entry and its recording. Your dictionary and settings stay."), func() {

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -48,7 +47,7 @@ func (a *app) historyDetail(c *ui.Context, e store.Entry) {
 		ui.Row(c).Gap(px(t, sp1)).AlignItems(ui.Center).Children(func() {
 			sectionHeading(c, i18n.T("Entry details")).Grow(1)
 			if e.Audio != "" && iconButton(c.Key("hist-reveal"), icons.FolderOpen, i18n.T("Show the recording in Finder")).Clicked() {
-				revealInFinder(filepath.Join(a.lib.store.History().AudioDir(), e.Audio))
+				revealInFinder(a.lib.store.History().AudioPath(e.Audio))
 			}
 			if iconButton(c.Key("hist-delete"), icons.TrashBinMinimalistic, i18n.T("Delete the entry…")).Clicked() {
 				a.askDeleteEntry(e.ID)
@@ -63,6 +62,9 @@ func (a *app) historyDetail(c *ui.Context, e store.Entry) {
 				kind, text = noticeWarn, i18n.T("Done with a problem: %s", uitext.FirstLine(e.Error))
 			}
 			notice(c, "hist-detail-err", kind, text, e.Error, nil, nil)
+		}
+		if s := recordingKeptText(e); s != "" {
+			caption(c, s) // history_cleanup.go
 		}
 		// The texts there are, each with Copy.
 		textBlock := func(key, title, copyLabel, text string) {

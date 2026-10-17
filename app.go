@@ -72,8 +72,9 @@ func newApp(lib *library, h *helperHost) *app {
 	a.openShell(lib)
 	a.openPermissions()
 	a.openProviders()
-	a.openAppEnhancement() // appenhance.go
-	a.openAudio()          // settings_audio.go
+	a.openAppEnhancement()  // appenhance.go
+	a.openAudio()           // settings_audio.go
+	a.openHistorySettings() // history_cleanup.go: the recordings folder, the clean-up
 	return a
 }
 

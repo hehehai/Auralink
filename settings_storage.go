@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/datadir"
 	"github.com/hehehai/Auralink/internal/i18n"
+	"github.com/hehehai/Auralink/internal/recordings"
 	"github.com/hehehai/Auralink/internal/secrets"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store/sqlitestore"
@@ -104,12 +106,18 @@ func (a *app) loadStorage() {
 		return
 	}
 	a.stLoading = true
-	data, logs, audio := a.dataDir(), a.logDir, a.lib.store.History().AudioDir()
+	hist := a.lib.store.History()
+	data, logs, audio := a.dataDir(), a.logDir, hist.AudioDir()
 	a.stLoc = datadir.ReadLocation(a.home())
 	a.async(func() {
 		ctx := context.Background()
 		r := &storageReport{}
 		rec, _ := datadir.TreeSize(ctx, audio, nil)
+		if audio != hist.DefaultAudioDir() {
+			// A folder the user chose may hold other files: only the
+			// recordings count (internal/recordings).
+			_, rec, _ = recordings.Usage(ctx, hist)
+		}
 		r.cats = append(r.cats, storageCat{id: "audio", title: i18n.T("Recordings kept with the history"), bytes: rec, dir: audio})
 		var db int64
 		if ents, err := os.ReadDir(data); err == nil {
@@ -123,7 +131,11 @@ func (a *app) loadStorage() {
 		}
 		r.cats = append(r.cats, storageCat{id: "database", title: i18n.T("Library database"), bytes: db})
 		r.data, _ = datadir.TreeSize(ctx, data, nil)
-		r.cats = append(r.cats, storageCat{id: "other", title: i18n.T("Other"), bytes: max(r.data-rec-db, 0), dir: data})
+		inData := rec // the recordings, when they are in the data folder
+		if rel, err := filepath.Rel(data, audio); err != nil || strings.HasPrefix(rel, "..") {
+			inData = 0
+		}
+		r.cats = append(r.cats, storageCat{id: "other", title: i18n.T("Other"), bytes: max(r.data-inData-db, 0), dir: data})
 		if logs != "" {
 			lb, _ := datadir.TreeSize(ctx, logs, nil)
 			r.cats = append(r.cats, storageCat{id: "logs", title: i18n.T("Logs"), bytes: lb, dir: logs})
@@ -267,7 +279,15 @@ func (a *app) eraseAll() {
 	items := a.keychainItems()
 	cs, shared := a.famCreds.Load(), a.sharedVendors()
 	a.resetAsk = ""
+	h := a.lib.store.History()
 	a.async(func() {
+		if h.AudioDir() != h.DefaultAudioDir() {
+			// Recordings outside the data folder (history_settings.go): the
+			// start's erase does not reach them.
+			if _, err := h.DeleteAudio(context.Background()); err != nil {
+				log.Printf("erase: recordings: %v", err)
+			}
+		}
 		if keys {
 			for _, it := range items {
 				it.Delete()
@@ -308,6 +328,15 @@ func (a *app) storageSettings(c *ui.Context) {
 			chooseMoveDir(a, a.startMove)
 		}
 	})
+	if dir := a.prefs.History.AudioDir; dir != "" {
+		// Recordings kept elsewhere (history_settings.go): the data
+		// folder's move leaves them where they are.
+		settingRowNote(c, "st-audio", i18n.T("Recordings folder"), uitext.ShortPath(dir), func() {
+			if ui.Button(c.Key("st-audio-settings"), i18n.T("History settings…")).Clicked() {
+				a.showHistorySettings()
+			}
+		})
+	}
 	if l := a.stLoc; l.Previous != "" {
 		settingRowNote(c, "st-prev", i18n.T("The previous data folder is still there"), uitext.ShortPath(l.Previous), func() {
 			if ui.Button(c.Key("st-prev-rm"), i18n.T("Remove it")).Clicked() {

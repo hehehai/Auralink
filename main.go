@@ -107,6 +107,7 @@ func main() {
 		a.openTray()          // tray.go: the menu bar icon, close to the menu bar
 		a.connectWindowLife() // tray.go
 		a.watchBundle()       // updates.go: an update installed while it runs
+		a.expireRecordings()  // history_cleanup.go: recordings kept for a retry, past their time
 		if demoReady != nil {
 			demoReady(a) // demo.go: the recording script's commands
 		}

@@ -5,7 +5,11 @@ package main
 // full-text index), and the details of one in a side panel beside the
 // list, or over it when the window is narrow: its texts to copy, where it
 // went, the services and models, the time of each stage, why it failed,
-// its recording in Finder, and Delete.
+// its recording in Finder, and Delete. An entry's context menu has the
+// same (history_menu.go).
+//
+// The History settings dialog (history_settings.go) holds what the
+// history keeps: its recordings and the automatic clean-up.
 //
 // The page keeps the entries of its tab and search in memory, read in the
 // background when it shows, when the tab or the search changes, and when a
@@ -38,7 +42,9 @@ const (
 
 // historyState is the History page's view state.
 type historyState struct {
-	hist historyView
+	hist      historyView
+	histSet   histSettingsState // history_settings.go
+	histClean histCleanState    // history_cleanup.go
 }
 
 // historyView is the History page's state.
@@ -165,7 +171,9 @@ func (a *app) historyPage(c *ui.Context) {
 		if searchField(c, "hist-search", &h.query, i18n.T("Search"), px(t, 360)).Label(i18n.T("Search the history")).Changed() {
 			a.loadHistory()
 		}
+		a.historySettingsButton(c) // history_settings.go
 	})
+	a.historyFolderNotice(c)
 	if !a.prefs.Privacy.KeepHistory {
 		ui.Column(c).Padding(0, px(t, sp6), px(t, sp3)).Shrink(0).Children(func() {
 			notice(c, "hist-off", noticeInfo, i18n.T("History is off: new results are not kept."), "", func() {
@@ -214,6 +222,7 @@ func (a *app) historyPage(c *ui.Context) {
 		}
 	})
 	a.historyDeleteDialog(c)
+	a.historySettingsDialog(c)
 }
 
 // historyEmpty is the list's empty state: nothing kept yet for the tab,

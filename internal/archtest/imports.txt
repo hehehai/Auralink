@@ -42,6 +42,8 @@ providers asr/openai
 providers llm
 providers netx
 providers settings
+recordings datadir
+recordings store
 session appctx
 session asr
 session compose
