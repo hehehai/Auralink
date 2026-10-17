@@ -70,7 +70,7 @@ func TestSoundsRow(t *testing.T) {
 	if !r.prefs.Audio.Sounds || !has(r.tt, "Soft (Pop/Tink)") {
 		t.Fatal("the menu did not come back")
 	}
-	click(t, r.tt, "Sound") // opens the menu: plays nothing
+	click(t, r.tt, "Sound preset") // opens the menu: plays nothing
 	for _, name := range []string{"Ping", "Morse", "Submarine", "Basso", "Bottle", "Frog", "Hero", "Purr", "Sosumi"} {
 		if !hasExact(r.tt, name) {
 			t.Errorf("no %s in the menu", name)
@@ -93,7 +93,7 @@ func TestSoundsRow(t *testing.T) {
 // at once.
 func TestSoundsChoose(t *testing.T) {
 	r := newSoundsRig(t)
-	click(t, r.tt, "Sound")
+	click(t, r.tt, "Sound preset")
 	click(t, r.tt, "Hero")
 	if got := r.settings.Get().Audio.SoundPreset; got != "hero" {
 		t.Fatalf("preset %q", got)
@@ -110,7 +110,7 @@ func TestSoundsChoose(t *testing.T) {
 		t.Fatalf("Try: %q", p)
 	}
 	// Back to Soft: Pop.
-	click(t, r.tt, "Sound")
+	click(t, r.tt, "Sound preset")
 	click(t, r.tt, "Soft (Pop/Tink)")
 	if got := r.settings.Get().Audio.SoundPreset; got != "soft" {
 		t.Fatalf("preset %q", got)
@@ -160,7 +160,7 @@ func TestSoundsTryAccent(t *testing.T) {
 // nothing is chosen.
 func TestSoundsRest(t *testing.T) {
 	r := newSoundsRig(t)
-	click(t, r.tt, "Sound")
+	click(t, r.tt, "Sound preset")
 	r.tt.Move(r.center(t, "Bottle"))
 	frames(r.tt)
 	r.tt.Move(r.center(t, "Frog"))

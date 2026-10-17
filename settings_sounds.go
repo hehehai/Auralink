@@ -166,7 +166,7 @@ func (a *app) soundSelect(c *ui.Context) bool {
 	t := c.Theme()
 	sel := ui.SelectBase(c.Key("audio-sounds-select"), &a.settingsForm.soundPreset)
 	b := sel.Trigger
-	b.Label(i18n.T("Sound")).Width(px(t, 160)).Padding(t.Space(1.5), t.Space(3.5)).Gap(t.Space(1.5)).Radius(t.Radius).
+	b.Label(i18n.T("Sound preset")).Width(px(t, 176)).Padding(t.Space(1.5), t.Space(3.5)).Gap(t.Space(1.5)).Radius(t.Radius).
 		Justify(ui.SpaceBetween).Border(1, t.Border).TextColor(t.Text)
 	switch {
 	case b.Pressed():
