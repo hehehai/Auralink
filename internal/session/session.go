@@ -318,6 +318,9 @@ type Config struct {
 	// recognition failed (or found no text) when the settings keep no
 	// recordings: for Retry (DefaultAudioRetention).
 	AudioRetention time.Duration
+	// StreamSpeed is how many times faster than it was said a retry sends
+	// a recording to a streaming service (DefaultStreamSpeed; retry.go).
+	StreamSpeed int
 }
 
 // Defaults of Config's limits.

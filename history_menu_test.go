@@ -67,7 +67,7 @@ func TestHistoryMenuItems(t *testing.T) {
 	a.navigate("/history")
 	// With a recording, and a recognised text apart from the result.
 	rightClick(t, tt, "Let's move the design review to Thursday afternoon.")
-	if got, want := tt.Menu(), []string{"Copy", "Copy the recognised text", "Show details", "Show the recording in Finder", "-", "Delete"}; !slices.Equal(got, want) {
+	if got, want := tt.Menu(), []string{"Copy", "Copy the recognised text", "Show details", "Show the recording in Finder", "Transcribe again", "-", "Delete"}; !slices.Equal(got, want) {
 		t.Errorf("menu %q, want %q", got, want)
 	}
 	tt.CloseMenu()
@@ -296,7 +296,7 @@ func TestHomeRecentMenu(t *testing.T) {
 	e := a.hm.recent[0]
 	title, _ := uitext.EntryTitle(e)
 	rightClick(t, tt, title)
-	if got, want := tt.Menu(), []string{"Copy", "Copy the recognised text", "Show details", "Show the recording in Finder", "-", "Delete"}; !slices.Equal(got, want) {
+	if got, want := tt.Menu(), []string{"Copy", "Copy the recognised text", "Show details", "Show the recording in Finder", "Transcribe again", "-", "Delete"}; !slices.Equal(got, want) {
 		t.Errorf("menu %q, want %q", got, want)
 	}
 	choose(t, tt, "Copy")

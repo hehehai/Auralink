@@ -22,6 +22,8 @@ type Manager struct {
 	snap Snapshot // the current (or last) session's
 	rev  uint64
 	last string // the last result delivered or shown, for "paste the last result"
+
+	retry retrying // Retry's one at a time (retry.go)
 }
 
 // New returns a Manager; nothing runs until Start.
@@ -121,7 +123,8 @@ func (m *Manager) Start(req StartRequest) (string, error) {
 		Target: req.Target, StartedAt: at,
 	}
 	if req.Kind == store.KindTranslate {
-		m.snap.TargetLanguage = TranslateTarget(r.settings, m.cfg.Locale(), req.TargetLanguage)
+		r.target = TranslateTarget(r.settings, m.cfg.Locale(), req.TargetLanguage)
+		m.snap.TargetLanguage = r.target
 	}
 	if t := req.Text; t != nil {
 		m.snap.Raw, m.snap.Selection = strings.TrimSpace(t.Raw), t.Selection

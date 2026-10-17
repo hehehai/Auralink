@@ -3,7 +3,7 @@ package main
 // The context menu of a history entry, on History's rows and Home's recent
 // results: Copy (its result), Copy the recognised text (when there is
 // one and it is not the result), Show details, Show the recording in
-// Finder (with a recording), and Delete (confirmed by
+// Finder and Retry or Transcribe again (with a recording), and Delete (confirmed by
 // historyDeleteDialog). On History a focused row takes ⌘C and ⌫ too. The
 // recognised text and the recording are VoxtNew's (f380cdcf).
 
@@ -49,6 +49,9 @@ func (a *app) entryMenu(c *ui.Context, row ui.Element, e store.Entry, keys bool,
 		}
 		if e.Audio != "" && m.Item(i18n.T("Show the recording in Finder")).Chosen() {
 			revealInFinder(a.lib.store.History().AudioPath(e.Audio))
+		}
+		if e.Audio != "" && m.Item(retryLabel(e)).Disabled(a.hist.retry.id != "").Chosen() {
+			a.retryEntry(e) // history_retry.go
 		}
 		m.Separator()
 		del := m.Item(i18n.T("Delete"))

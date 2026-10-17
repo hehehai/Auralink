@@ -63,6 +63,7 @@ func (a *app) historyDetail(c *ui.Context, e store.Entry) {
 			}
 			notice(c, "hist-detail-err", kind, text, e.Error, nil, nil)
 		}
+		a.entryRetryButton(c, e) // history_retry.go
 		if s := recordingKeptText(e); s != "" {
 			caption(c, s) // history_cleanup.go
 		}

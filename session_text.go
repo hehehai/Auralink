@@ -71,6 +71,8 @@ func noticeActionLabel(action string) string {
 		return i18n.T("Open Permissions")
 	case actionHelper:
 		return i18n.T("Restart the helper")
+	case actionRetry:
+		return i18n.T("Retry")
 	}
 	return ""
 }

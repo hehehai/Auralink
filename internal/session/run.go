@@ -45,6 +45,12 @@ type run struct {
 	// recognitionFailed: recognition failed, timed out or found no text;
 	// the history entry keeps the recording for a while (keep), for Retry.
 	recognitionFailed bool
+	// target is Translate's target language (a code).
+	target string
+	// dsp and gainDB are what the sound processing did (noteDSP), for a
+	// retry's entry.
+	dsp    string
+	gainDB float64
 }
 
 type capResult struct {

@@ -104,6 +104,7 @@ const (
 	actionProviders   = "providers"
 	actionPermissions = "permissions"
 	actionHelper      = "helper"
+	actionRetry       = "retry" // the session's entry, in History (history_retry.go)
 )
 
 // sessionNotice is a one-line message in the overlay (plan §3.2), where
@@ -112,8 +113,9 @@ const (
 type sessionNotice struct {
 	text, more string
 	action     string
-	warn       bool // a warning (the session went on), not an error
-	seq        int  // which notice: its timer hides only itself
+	entry      string // actionRetry's history entry
+	warn       bool   // a warning (the session went on), not an error
+	seq        int    // which notice: its timer hides only itself
 }
 
 // noticeTime is how long a notice shows.
@@ -256,7 +258,11 @@ func (a *app) sessionEnded(s session.Snapshot) {
 		text, more, action := sessionProblemText(p)
 		if text != "" {
 			// Nothing heard is not a failure: a warning.
-			a.showNotice(sessionNotice{text: text, more: more, action: action, warn: p.Degraded || p.Code == session.ProblemNoSpeech})
+			n := sessionNotice{text: text, more: more, action: action, warn: p.Degraded || p.Code == session.ProblemNoSpeech}
+			if p.Code == session.ProblemASR && s.Recording {
+				n.action, n.entry = actionRetry, s.ID // the entry kept the recording: Retry
+			}
+			a.showNotice(n)
 		}
 	}
 	if s.State != session.Cancelled {
@@ -286,8 +292,14 @@ func (a *app) closeNotice() {
 
 // noticeAction runs a notice's button.
 func (a *app) noticeAction(action string) {
+	entry := ""
+	if a.notice != nil {
+		entry = a.notice.entry
+	}
 	a.closeNotice()
 	switch action {
+	case actionRetry:
+		a.retryFromNotice(entry)
 	case actionProviders:
 		a.showMainWindow()
 		a.navigate("/providers")
