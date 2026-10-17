@@ -1,18 +1,15 @@
-// Package trayicon holds the menu bar icon: Voxt's microphone
-// (voxt.png, 512×512, unchanged from Voxt's voxt.imageset; NOTICE), as
-// template PNGs of 36×36 pixels. MyGo's macOS tray sizes any icon to 18
-// points tall, so on a Retina screen each pixel is one device pixel (Voxt
-// shows the same image at 18×18 points); a 1× screen gets it scaled down
-// by AppKit. The PNGs are made offline, with a Catmull-Rom filter:
+// Package trayicon holds the menu bar icon: Auralink's symbol (a
+// lowercase a: a sound ring and a text cursor), from the ActNow brand kit
+// (Family-1, Auralink-A), as template PNGs of 36×36 pixels. MyGo's macOS
+// tray sizes any icon to 18 points tall, so on a Retina screen each pixel
+// is one device pixel; a 1× screen gets it scaled down by AppKit.
 //
-//	go generate ./internal/trayicon
-//
-// Recording shows the same microphone with a solid dot at its top right,
-// in a gap cut around it so that it reads apart from the capsule; macOS
-// tints both like the rest of the menu bar.
+// The PNGs are the kit's exports, committed as they are (menubar.svg is
+// the symbol's 24-unit vector, for a new export). Recording shows the
+// symbol a little smaller, towards the bottom left, with a solid dot at
+// its top right in a gap cut around it; macOS tints both like the rest of
+// the menu bar.
 package trayicon
-
-//go:generate go run ./gen
 
 import _ "embed"
 

@@ -13,6 +13,7 @@
     "auralink"
   ],
   "macos": {
+    "icon": "assets/Auralink.icon",
     "minimumSystemVersion": "15.0",
     "infoPlist": {
       "LSApplicationCategoryType": "public.app-category.productivity",

@@ -12,7 +12,7 @@ It runs no models on your Mac. You choose the speech and language services (Step
 
 Auralink is a pared-down rewrite of [Voxt](https://github.com/hehehai/voxt), by the same author: Voxt's dictation, translation and rewriting, with remote models only, and without meetings, file transcription, notes or local models. Its interface and engineering come from [AudioSmith](https://github.com/hehehai/AudioSmith).
 
-> **Status: 0.1.0-beta.2, a beta.** Everything below is built and tested. Download it from [actnow.dev](https://actnow.dev/download/auralink) (sign in first); the product page is [actnow.dev/auralink](https://actnow.dev/auralink), the [changelog](https://actnow.dev/auralink/changelog) and the [price](https://actnow.dev/pricing) (a one-time purchase) are there too. The app icon is still a placeholder.
+> **Status: 0.1.0-beta.2, a beta.** Everything below is built and tested. Download it from [actnow.dev](https://actnow.dev/download/auralink) (sign in first); the product page is [actnow.dev/auralink](https://actnow.dev/auralink), the [changelog](https://actnow.dev/auralink/changelog) and the [price](https://actnow.dev/pricing) (a one-time purchase) are there too.
 
 <sub>Screenshots and recordings: Auralink 0.1.0-beta.1 on macOS 26, with sample data, StepFun for speech and DeepSeek for the language model.</sub>
 
@@ -84,6 +84,7 @@ The recording kept in the history is always the original. These switches are in 
 | Home | History | Menu bar |
 |---|---|---|
 | ![Home: today's numbers and the latest results](docs/images/home.png) | ![History: results by feature, and one's details](docs/images/history.png) | ![The menu bar icon's menu](docs/images/menu.png) |
+<!-- TODO(ActNow brand icons): retake menu.png: the menu bar icon is now Auralink's own symbol (internal/trayicon), not Voxt's microphone (scripts/readme-media/post.sh composites it). -->
 
 ### Updates
 

@@ -1,0 +1,38 @@
+{
+  "fill": {
+    "linear-gradient": [
+      "srgb:0.50980,0.41176,0.97647,1.00000",
+      "srgb:0.27843,0.18039,0.73725,1.00000"
+    ]
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "glyph-main.svg",
+          "name": "main",
+          "glass": true
+        },
+        {
+          "image-name": "glyph-accent.svg",
+          "name": "accent",
+          "glass": true
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.2
+      },
+      "specular": true
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}
