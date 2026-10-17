@@ -180,9 +180,13 @@ func (r *run) retry(e store.Entry, pcm []byte, stage func(State)) (store.Entry, 
 		return e, errors.New("no speech was heard in the recording")
 	}
 	e.SentMS = asr.Duration(upload, asr.SampleRate).Milliseconds()
-	actx, acancel := context.WithTimeout(r.ctx, r.retryASRLimit(pcm))
+	limit := r.retryASRLimit(pcm)
+	actx, acancel := context.WithTimeout(r.ctx, limit)
 	res, err := r.recognizeWhole(actx, upload)
-	if err != nil && actx.Err() != nil {
+	switch {
+	case err != nil && errors.Is(actx.Err(), context.DeadlineExceeded):
+		err = &asr.Error{Kind: asr.KindNetwork, Detail: fmt.Sprintf("no result within %v", limit.Round(time.Second)), Retryable: true}
+	case err != nil && actx.Err() != nil:
 		err = r.ctxErr(actx)
 	}
 	acancel()
