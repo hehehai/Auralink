@@ -121,6 +121,7 @@ func TestSessionSounds(t *testing.T) {
 	feed("s1", session.Recording)
 	feed("s1", session.Recognizing)
 	feed("s1", session.Done)
+	a.mute.Wait() // the stop cue comes from the mute's goroutine: before the next start
 	feed("s2", session.Recording)
 	feed("s2", session.Cancelled)
 	a.mute.Wait()
