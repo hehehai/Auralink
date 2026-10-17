@@ -50,6 +50,9 @@ type Settings struct {
 	Updates        Updates        `json:"updates,omitzero"`
 	// Family is Auralink's place in the ActNow family (internal/actnow).
 	Family Family `json:"family,omitzero"`
+	// History is how long the history keeps entries and where their
+	// recordings are (history.go).
+	History History `json:"history,omitzero"`
 }
 
 // Family is what Auralink keeps of its own about the ActNow family of

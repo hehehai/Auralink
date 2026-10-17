@@ -197,6 +197,9 @@ type Snapshot struct {
 	DSP     string
 	GainDB  float64
 	Problem *Problem
+	// Recording: the session's history entry keeps its recording (the
+	// settings', or for a while because recognition failed: Retry).
+	Recording bool
 }
 
 // Elapsed is how long the recording has run (from the first audio), at
@@ -311,6 +314,10 @@ type Config struct {
 	// discarding the capture job (a capture.stop that raced its start);
 	// DefaultStopGrace.
 	StopGrace time.Duration
+	// AudioRetention is how long the history keeps a recording whose
+	// recognition failed (or found no text) when the settings keep no
+	// recordings: for Retry (DefaultAudioRetention).
+	AudioRetention time.Duration
 }
 
 // Defaults of Config's limits.
@@ -323,6 +330,7 @@ const (
 	DefaultReadTimeout    = 1500 * time.Millisecond
 	DefaultDeliverTimeout = 5 * time.Second
 	DefaultStopGrace      = 3 * time.Second
+	DefaultAudioRetention = 7 * 24 * time.Hour
 )
 
 // StartRequest starts a session.

@@ -2,13 +2,12 @@ package sqlitestore
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/egoist/mygo/plugins/sqlite"
 	"github.com/hehehai/Auralink/internal/core"
@@ -16,18 +15,20 @@ import (
 )
 
 // historyRepo stores finished sessions (the history table: migration 001,
-// rule_source 002, sent_ms 003, dsp and gain_db 004).
+// rule_source 002, sent_ms 003, dsp and gain_db 004, audio_until 005);
+// its recordings folder and clean-up are in history_retention.go.
 type historyRepo struct {
 	db  *sqlite.DB
-	dir string
-}
+	dir string // the store's audio directory (DefaultAudioDir)
 
-func (r *historyRepo) AudioDir() string { return r.dir }
+	mu     sync.Mutex
+	custom string // the one SetAudioDir set; "" = dir
+}
 
 // historyColumns are the columns an Entry has, in scanEntry's order.
 const historyColumns = `id, kind, created_at, status, error, app_bundle, app_name, url_host, rule_id, rule_name,
 raw_text, source_text, prompt_text, result, target_lang, delivery, asr_provider, asr_model, llm_provider, llm_model,
-audio_ms, asr_ms, llm_ms, total_ms, audio, rule_source, sent_ms, dsp, gain_db`
+audio_ms, asr_ms, llm_ms, total_ms, audio, rule_source, sent_ms, dsp, gain_db, audio_until`
 
 var historyUpsert = func() string {
 	cols := strings.Split(strings.ReplaceAll(historyColumns, "\n", " "), ",")
@@ -58,7 +59,7 @@ func (r *historyRepo) Put(ctx context.Context, e store.Entry) error {
 	_, err := r.db.Execute(ctx, historyUpsert,
 		e.ID, string(e.Kind), e.CreatedAt.UnixMilli(), string(e.Status), e.Error, e.AppBundle, e.AppName, e.URLHost, e.RuleID, e.RuleName,
 		e.RawText, e.SourceText, e.PromptText, e.Result, e.TargetLang, e.Delivery, e.ASRProvider, e.ASRModel, e.LLMProvider, e.LLMModel,
-		e.AudioMS, e.ASRMS, e.LLMMS, e.TotalMS, e.Audio, e.RuleSource, e.SentMS, e.DSP, e.GainDB)
+		e.AudioMS, e.ASRMS, e.LLMMS, e.TotalMS, e.Audio, e.RuleSource, e.SentMS, e.DSP, e.GainDB, untilMS(e.AudioUntil))
 	return wrap("history "+e.ID, err)
 }
 
@@ -71,7 +72,24 @@ func scanEntry(row []any) store.Entry {
 		ASRProvider: str(16), ASRModel: str(17), LLMProvider: str(18), LLMModel: str(19),
 		AudioMS: asInt(row[20]), ASRMS: asInt(row[21]), LLMMS: asInt(row[22]), TotalMS: asInt(row[23]), Audio: str(24),
 		RuleSource: str(25), SentMS: asInt(row[26]), DSP: str(27), GainDB: asFloat(row[28]),
+		AudioUntil: untilTime(row[29]),
 	}
+}
+
+// untilMS is AudioUntil as stored: Unix ms, 0 for none.
+func untilMS(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixMilli()
+}
+
+// untilTime is untilMS's inverse.
+func untilTime(v any) time.Time {
+	if ms := asInt(v); ms > 0 {
+		return time.UnixMilli(ms)
+	}
+	return time.Time{}
 }
 
 func (r *historyRepo) Get(ctx context.Context, id string) (store.Entry, error) {
@@ -100,6 +118,9 @@ func (r *historyRepo) List(ctx context.Context, q store.HistoryQuery) ([]store.E
 	}
 	if q.Kind != "" {
 		where, args = append(where, `kind = ?`), append(args, string(q.Kind))
+	}
+	if q.WithAudio {
+		where = append(where, `audio != ''`)
 	}
 	sql := `SELECT ` + historyColumns + ` FROM history`
 	if len(where) > 0 {
@@ -139,21 +160,29 @@ func (r *historyRepo) DeleteAll(ctx context.Context, kind store.Kind) (int, erro
 	if err != nil {
 		return 0, wrap("history", err)
 	}
-	var first error
-	for _, row := range rows.Values {
-		if err := r.removeAudio(asString(row[0])); err != nil && first == nil {
-			first = err
-		}
-	}
-	return len(rows.Values), first
+	return len(rows.Values), r.removeAudios(rows.Values)
 }
 
-func (r *historyRepo) removeAudio(file string) error {
-	if file == "" || filepath.Base(file) != file {
-		return nil
+func (r *historyRepo) ExpireAudio(ctx context.Context, now time.Time) (int, error) {
+	// RETURNING gives the new values: the names first, then one guarded
+	// update a row (a recording retried meanwhile stays).
+	rows, err := r.db.Query(ctx, `SELECT seq, audio FROM history WHERE audio != '' AND audio_until > 0 AND audio_until <= ?`, now.UnixMilli())
+	if err != nil || len(rows.Values) == 0 {
+		return 0, wrap("history audio", err)
 	}
-	if err := os.Remove(filepath.Join(r.dir, file)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("removing %s: %w", file, err)
+	stmts := make([]sqlite.Statement, 0, len(rows.Values))
+	for _, row := range rows.Values {
+		stmts = append(stmts, sqlite.Statement{SQL: `UPDATE history SET audio = '', audio_until = 0 WHERE seq = ? AND audio = ? AND audio_until > 0`, Args: []any{row[0], row[1]}})
 	}
-	return nil
+	res, err := r.db.Transaction(ctx, stmts)
+	if err != nil {
+		return 0, wrap("history audio", err)
+	}
+	var gone [][]any
+	for i, x := range res {
+		if x.Changes > 0 {
+			gone = append(gone, []any{rows.Values[i][1]})
+		}
+	}
+	return len(gone), r.removeAudios(gone)
 }

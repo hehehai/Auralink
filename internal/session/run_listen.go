@@ -152,6 +152,7 @@ func (r *run) listen() (string, bool) {
 		case e := <-finals:
 			finals = nil
 			if e.err != nil {
+				r.recognitionFailed = true
 				r.endFailed(r.asrProblem(e.err), stream)
 				return "", false
 			}
@@ -225,12 +226,14 @@ func (r *run) listen() (string, bool) {
 			select {
 			case o := <-openDone:
 				if o.err != nil {
+					r.recognitionFailed = true
 					r.endFailed(r.asrProblem(o.err), nil)
 					return "", false
 				}
 				stream = o.st
 				finals = r.feed(stream)
 			case <-actx.Done():
+				r.recognitionFailed = true
 				r.endFailed(r.timeoutProblem(actx), nil)
 				return "", false
 			}
@@ -251,6 +254,7 @@ func (r *run) listen() (string, bool) {
 		if silent {
 			// The gate held the whole recording: no speech, nothing sent.
 			r.logf("info", "no speech in %v: nothing sent to %s", audioLen.Round(time.Millisecond), r.svc.ASRInfo.ID)
+			r.recognitionFailed = true
 			r.m.update(r, func(s *Snapshot) { s.Timings.Sent = 0 })
 			r.finish(Done, &Problem{Code: ProblemNoSpeech}, "", finishOpts{})
 			return "", false
@@ -259,6 +263,7 @@ func (r *run) listen() (string, bool) {
 		upload, speech := r.prepare(pcm)
 		if !speech {
 			r.logf("info", "no speech in %v: not sent to %s", audioLen.Round(time.Millisecond), r.svc.ASRInfo.ID)
+			r.recognitionFailed = true
 			r.m.update(r, func(s *Snapshot) { s.Timings.Sent = 0 })
 			r.finish(Done, &Problem{Code: ProblemNoSpeech}, "", finishOpts{})
 			return "", false
@@ -278,6 +283,7 @@ func (r *run) listen() (string, bool) {
 	}
 	asrTime := r.now().Sub(asrStart)
 	if err != nil {
+		r.recognitionFailed = true
 		// The error itself follows in endFailed's line.
 		r.logf("warning", "speech service %s (model %s) failed after %v", r.svc.ASRInfo.ID, r.svc.ASRInfo.Model, asrTime.Round(time.Millisecond))
 		r.endFailed(r.asrProblem(err), nil, func(s *Snapshot) { s.Timings.ASR = asrTime })
@@ -287,6 +293,7 @@ func (r *run) listen() (string, bool) {
 	r.logf("info", "recognised %s in %v", r.logText(raw), asrTime.Round(time.Millisecond))
 	r.m.update(r, func(s *Snapshot) { s.Raw, s.Partial, s.Timings.ASR = raw, raw, asrTime })
 	if raw == "" {
+		r.recognitionFailed = true
 		r.finish(Done, &Problem{Code: ProblemNoSpeech}, "", finishOpts{})
 		return "", false
 	}

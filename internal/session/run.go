@@ -42,6 +42,9 @@ type run struct {
 	svcDone  chan svcResult
 	resolved bool
 	sc       sceneState // app enhancement (scene.go)
+	// recognitionFailed: recognition failed, timed out or found no text;
+	// the history entry keeps the recording for a while (keep), for Retry.
+	recognitionFailed bool
 }
 
 type capResult struct {
@@ -214,6 +217,7 @@ func (r *run) finish(st State, problem *Problem, result string, o finishOpts) {
 	total := r.now().Sub(snap.StartedAt)
 	r.m.end(r, st, func(s *Snapshot) {
 		s.Result, s.Problem = result, problem
+		s.Recording = r.keepsRecording()
 		s.Inserted = dres.Inserted
 		s.Card = result != "" && !r.req.Try && !dres.Inserted
 		s.Delivery = dres.Reason
@@ -242,6 +246,7 @@ func (r *run) endFailed(p *Problem, stream asr.Stream, more ...func(*Snapshot)) 
 		s.Problem = p
 		s.Timings.Total = total
 		s.Timings.Audio = audio
+		s.Recording = audio >= r.m.cfg.MinRecording && r.keepsRecording()
 		for _, fn := range more {
 			fn(s)
 		}
@@ -319,17 +324,21 @@ func (r *run) keep(s Snapshot, status store.Status) {
 	if s.Problem != nil && s.Problem.Err != nil {
 		e.Error = s.Problem.Err.Error()
 	}
-	if r.settings.Privacy.KeepAudio {
-		if pcm := r.pcm.bytes(); len(pcm) > 0 {
-			name := r.id + ".wav"
-			dir := cfg.History.AudioDir()
-			if err := os.MkdirAll(dir, 0o755); err == nil {
-				if err := os.WriteFile(filepath.Join(dir, name), asr.WAV(pcm, asr.SampleRate), 0o644); err == nil {
-					e.Audio = name
-				} else {
-					r.logf("warning", "keeping the recording: %v", err)
+	if s.Recording {
+		name := r.id + ".wav"
+		dir := cfg.History.AudioDir()
+		if err := os.MkdirAll(dir, 0o755); err == nil {
+			if err := os.WriteFile(filepath.Join(dir, name), asr.WAV(r.pcm.bytes(), asr.SampleRate), 0o644); err == nil {
+				e.Audio = name
+				if !r.settings.Privacy.KeepAudio {
+					e.AudioUntil = r.now().Add(cfg.AudioRetention)
+					r.logf("info", "recognition failed: the recording is kept until %s, for Retry", e.AudioUntil.Format(time.DateTime))
 				}
+			} else {
+				r.logf("warning", "keeping the recording: %v", err)
 			}
+		} else {
+			r.logf("warning", "keeping the recording: %v", err)
 		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -337,6 +346,18 @@ func (r *run) keep(s Snapshot, status store.Status) {
 	if err := cfg.History.Put(ctx, e); err != nil {
 		r.logf("error", "history: %v", err)
 	}
+}
+
+// keepsRecording reports whether the session's history entry keeps the
+// recording: the settings keep recordings, or recognition failed (for
+// a while: Config.AudioRetention). Not for tries, nor for sessions that
+// recorded nothing (a text given at Start, a selection translated).
+func (r *run) keepsRecording() bool {
+	cfg := r.m.cfg
+	if r.req.Try || r.req.Text != nil || cfg.History == nil || !r.settings.Privacy.KeepHistory || len(r.pcm.bytes()) == 0 {
+		return false
+	}
+	return r.settings.Privacy.KeepAudio || r.recognitionFailed
 }
 
 func isHelperErr(err error) bool { return errors.Is(err, core.ErrHelper) }
