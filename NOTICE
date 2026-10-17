@@ -25,6 +25,17 @@ AudioSmith
   supervisor). They have been modified; docs/architecture.md lists what
   was taken and how it changed.
 
+VoxtNew log selection
+  The logs' line selection (shell_logs_select.go, its tests
+  shell_logs_select_test.go and the parts of shell_logs.go that draw and
+  key the selected lines; logs_check.go and scripts/mac-logs-shots.sh,
+  scripts/logs-shots/drive.swift, which capture it on a Mac) is adapted
+  from VoxtNew (https://github.com/hehehai/sglang-omni, VoxtNew/, commits
+  21fe7ed7, ccc48bbe and 2fc1f90f), Copyright 2026 ActNow and the
+  SGLang-Omni Team, licensed under the Apache License 2.0
+  (LICENSES/Apache-2.0.txt). It has been modified: import paths, names
+  and sample lines are Auralink's.
+
 Voxt overlay preview background
   assets/overlay-preview-background.png, the desktop picture behind the
   overlay's preview in Settings → Overlay style, is taken unchanged from
@@ -101,10 +112,10 @@ Go modules compiled into Auralink
     authors, Apache License 2.0 (LICENSES/Apache-2.0.txt)
   - github.com/go-text/typesetting v0.3.5, Copyright 2021 The go-text
     authors, Unlicense OR BSD-3-Clause
-  - github.com/hehehai/actnowkit v0.2.1, Copyright 2026 ActNow
+  - github.com/hehehai/actnowkit v0.3.0, Copyright 2026 ActNow
     (https://actnow.dev), Apache License 2.0: the ActNow family protocol
     (finding the other ActNow apps, shared settings, shared API keys,
-    shortcut conflicts). Its NOTICE, which names the origin of its hfhub
+    shortcut conflicts) and the logs' line selection (listsel). Its NOTICE, which names the origin of its hfhub
     package (portions Copyright 2026 the AudioSmith authors), is copied
     unchanged into LICENSES/go/github.com_hehehai_actnowkit.NOTICE.txt.
   - golang.org/x/image v0.46.0, Copyright 2009 The Go Authors,

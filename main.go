@@ -41,6 +41,12 @@ func main() {
 		runOverlayCheck(dir)
 		return
 	}
+	// The logs' screenshots of -tags logscheck builds (logs_check.go): a
+	// window of their own over a temporary library, no lock, no helper.
+	if dir := argAfter("--logs-check"); dir != "" && logsCheck != nil {
+		logsCheck(dir)
+		return
+	}
 	// Dev builds are "Auralink Dev"; share data with the installed app.
 	mygo.App.SetName("Auralink")
 	if demoStart != nil {

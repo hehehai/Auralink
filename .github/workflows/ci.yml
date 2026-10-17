@@ -118,10 +118,11 @@ jobs:
       - name: MyGo vet
         run: go tool mygo vet .
 
-      - name: Vet the demo and update-check builds
+      - name: Vet the demo, update-check and logs-check builds
         run: |
           go vet -tags demo ./...
           go vet -tags updatecheck .
+          go vet -tags logscheck .
 
       - name: Snapshots
         run: |

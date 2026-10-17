@@ -163,6 +163,7 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 | 8.5 | 引导中按其他功能的热键会走正常流程 | Auralink 在前台时：引导打开且在试用步骤，只有本步骤功能的热键发起试用，其他功能的热键只提示“刚才按的是 X 的快捷键”；首页和功能页上按热键在页面里试用（`tryPlace`）；其他页面照常 | 在自己的窗口里按热键，用户想看的是演示结果，而不是往 Auralink 的输入框里粘贴 | ✅ |
 | 8.6 | 引导完成状态和旧版本步骤迁移 | 关闭或完成都记 `settings.Setup.Done`，之后不再自动弹出；设置 → 通用、首页右上角、⌘K 都能重新打开 | 没有旧版本 | ✅ |
 | 8.7 | — | 日志面板最多占窗口高度的一半（`shell.go`），680×440 下首页和各页的按钮不会被挡住 | M2 遗留问题 | ✅ |
+| 8.10 | — | 日志的行（日志页和日志面板，`shell_logs_select.go`，ActNow 家族的日志选择规格，模型是 `actnowkit` v0.3.0 的 `listsel`，代码移植自 VoxtNew，NOTICE）：悬停整行浅灰高亮；单击（不带修饰键、没拖动）复制这一行并 toast“已复制 1 行”，这一行成为锚点但不显示选中；Shift-单击从锚点选到这里，⌘-单击加选或取消一行；按住拖动超过 4 pt 就是拖选（向上向下都行，靠近边缘自动滚动，⌘ 按住时加到已有选择，Esc 放弃、恢复拖之前的选择）；⌘A 全选显示的行，Esc 取消选择，⌘C 复制选中的行（也接 Edit 菜单的 Copy / Select All）；右键（Control-单击）菜单：复制这一行 / 复制选中的 N 行（有选择时）/ 复制全部显示的行；有选中时右上角显示“已选中 N 行”、复制、取消选择，否则仍是行数和“复制全部显示的行”。复制后取消选中，toast“已复制 N 行”；多行每行末尾带换行，单行不带。行用日志序号（`core.LogEntry.Seq`）标识：新日志进来、过滤变化时选择不错位，看不见的行从选择里去掉。消息文本不再是可选文字（字符级选择和行选择冲突）。680 pt 宽时“已选中 N 行”和面板标题不被截断（筛选框让位） | 用户 10-17：日志要能单行一点就复制、多行像 Finder 那样选；家族各 app 用同一套交互 | ✅ `shell_logs_select_test.go`；Mac 实机：`scripts/mac-logs-shots.sh` |
 
 ## 9. 设置各节与菜单栏（M6）
 
@@ -191,11 +192,11 @@ Auralink 的功能和行为参考 Voxt（`hehehai/voxt` @ `baa6f31`，1.15.0）�
 
 ## 11. ActNow 家族（家族规范 v1.0.3 第一期）
 
-Voxt 没有对应的东西。这一节对照的是 ActNow 家族共享规范 v1.0.3（官网项目 `docs/family/actnow-family-spec.md`，下称“规范”）和 Auralink 的落地清单；共享代码用公开的 [actnowkit](https://github.com/hehehai/actnowkit) v0.2.1（Apache-2.0），Auralink 这一侧的规则在 `internal/actnow`，接线在包 main 的 `family*.go`。
+Voxt 没有对应的东西。这一节对照的是 ActNow 家族共享规范 v1.0.3（官网项目 `docs/family/actnow-family-spec.md`，下称“规范”）和 Auralink 的落地清单；共享代码用公开的 [actnowkit](https://github.com/hehehai/actnowkit) v0.3.0（Apache-2.0），Auralink 这一侧的规则在 `internal/actnow`，接线在包 main 的 `family*.go`。
 
 | # | 规范要求 | Auralink 怎么做 | 为什么 | 状态 |
 |---|---|---|---|---|
-| 11.1 | 用 actnowkit 接入，`runtime` 包按 `famruntime` 导入（§14.3） | 依赖 `github.com/hehehai/actnowkit` v0.2.1（NOTICE，`LICENSES/go/` 里有它的 LICENSE 和 NOTICE）。只有包 main 和 `internal/actnow` 可以导入它，`conformance` 只用于测试，`runtime` 必须叫 `famruntime`（`internal/archtest` 检查） | 家族协议留在领域的边上：会话、服务、设置包都不知道家族的存在 | ✅ |
+| 11.1 | 用 actnowkit 接入，`runtime` 包按 `famruntime` 导入（§14.3） | 依赖 `github.com/hehehai/actnowkit` v0.3.0（NOTICE，`LICENSES/go/` 里有它的 LICENSE 和 NOTICE）。只有包 main 和 `internal/actnow` 可以导入它，`conformance` 只用于测试，`runtime` 必须叫 `famruntime`（`internal/archtest` 检查） | 家族协议留在领域的边上：会话、服务、设置包都不知道家族的存在 | ✅ |
 | 11.2 | 启动顺序（§15.2，落地清单“启动顺序”）：单实例锁之后 `Ensure`、`CleanAllTemps`、写清单、`Discover`、`Watch`；失败只记日志，不阻塞启动 | `connectFamily`（`family.go`）在窗口打开后（单实例锁之后，`main.go` 的 `WhenReady`）启动，全部在一个 goroutine 里：找自己的 bundle（`actnow.FindSelf`：`registry.BundlePath` + Info.plist + 签名的 Team ID）→ `Ensure` → `CleanAllTemps` → 写清单 → `Discover` + 读共享设置 → `Watch`（apps、settings、credentials）；结果经 `a.post` 回主线程。每一步失败都只写日志（`family: …`），Auralink 照常工作。收到通知、Auralink 变成活动 app 时（`OnDidBecomeActive`）重读一次（通知只是提示，§5.4）。家族目录的格式比自己新（`ReadOnly`）时只读不写 | build pass 不做 I/O（AGENTS.md）；家族出问题不能拖住语音输入 | ✅ |
 | 11.3 | 注册清单（§6.2、§10.3）：能力、全局快捷键（用户的实际值）、links | 能力 `dictation`、`asr.remote`、`llm.remote`；links `shortcuts` → `auralink://settings/shortcuts`、`network` → `auralink://settings/network`（URL scheme `auralink` 早就注册了，`openURL` 已能打开这两页）；快捷键：三个功能的每一条和“粘贴最近结果”，id `transcribe`、`translate`、`rewrite`、`pasteLast`（同一功能的第二条起是 `transcribe.2`…），按家族写法拼键（`Fn+Shift`、`Control+Command+V`；我们的 Delete/ForwardDelete/Return 写成 Backspace/Delete/Enter），触发方式：单独修饰键的单击是 `tap`、带键的单击是 `press`、双击 `double`、长按 `hold`；`mechanism: eventtap`；`exclusive`：带键的组合（事件 tap 吞掉）和含 Fn 的（`swallowFn`）为真。每条快捷键的 `enabledAt` 是它的键最后一次改动的时间（`settings.Family.KeysSince`，第一次加入家族时记为当时）。快捷键、更新通道（Beta 更新）变了就重写清单（`syncManifest`），版本每次启动都写；dev 版的名字是 “Auralink Dev” | 默认快捷键就是家族默认表里 Auralink 的四条（`TestDefaultShortcuts` 对照 `shortcuts.DefaultsOf("auralink")`）；`enabledAt` 让“后改的一方提示冲突”（§10.4）不受每次启动重写清单的影响 | ✅ |
 | 11.4 | 变体（§6.1）：dev、updtest、betatest、demo 等照样写清单，`variant` 自动判断 | 清单的 `variant` 由 bundle id 自动判断（`….dev` 是 dev，其他后缀是 test）。例外：**demo 构建不加入家族**（`demo.go` 把 `newFamily` 置空），因为它的录制会来回切换界面语言、用的是假 key，不能让用户的其他 ActNow app 跟着变；不在 .app 里运行（`go run`、测试）时也不加入。`--update-check`、`--overlay-check` 在单实例锁之前就返回，不碰家族目录。测试一律用 `conformance.New(t)` 的临时目录（`ACTNOW_FAMILY_DIR`） | demo 的设置和 key 都是演示用的 | ✅ |

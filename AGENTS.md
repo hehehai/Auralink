@@ -27,9 +27,10 @@ scripts/mac.sh '<command>'                                   # run on the Mac (M
 scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'   # the Swift helper, then the app
 scripts/mac.sh 'cd helper && swift test'                     # the helper's tests (same fixtures as Go)
 MAC_DIR=code/Auralink-mt scripts/mac.sh scripts/mac-e2e.sh   # headless Mac tests: real helper, no window or key (--offline: no services)
+MAC_DIR=code/Auralink-logsel scripts/mac.sh scripts/mac-logs-shots.sh   # the logs' selection worked with the real pointer and captured (only while nobody uses the Mac; AURALINK_SHOTS_DRY=1: the window only)
 scripts/vendor-mygo.sh --check                               # third_party/mygo is MyGo + our patches
 scripts/snapshots.sh check                                   # every snapshot, pixel for pixel, against the merge base
 go run ./internal/tools/declhash . ./internal/...            # a hash per declaration: equal before and after a pure move
-go vet -tags demo ./... && go vet -tags updatecheck .        # the demo and update-check builds (CI does too)
+go vet -tags demo ./... && go vet -tags updatecheck . && go vet -tags logscheck .   # the demo, update-check and logs-check builds (CI does too)
 bash scripts/actnow-publish.sh --app auralink --dir build/darwin-arm64 --changelog CHANGELOG.md --dry-run   # what a release sends to actnow.dev (docs/release.md)
 ```

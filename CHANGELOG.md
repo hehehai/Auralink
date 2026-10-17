@@ -29,6 +29,7 @@ The first public version, a beta: voice input for macOS on remote models, from [
 - **Mute system audio while recording** (Settings → Audio, on by default): the current output device is muted from just after the start sound until the recording stops, so that videos, music or calls are not recorded; a device you muted stays muted, one you unmute during the recording stays on, and a device that cannot be muted leaves the recording as it is (the overlay says so). No permission is needed. If Auralink or its helper stops while muting, the sound comes back at once, or at the next start.
 - **Sounds to choose** (Settings → Audio → Play sounds): Voxt's ten pairs of start and stop sounds (Soft, the default, then Ping, Morse, Submarine, Basso, Bottle, Frog, Hero, Purr and Sosumi), in a menu beside the switch with a Try button; choosing one plays it, and so does resting on one in the open menu. The output is muted once the start sound has been heard, not after its file's silent end: about 0.6 s sooner with Soft.
 - **ActNow family**: Auralink finds the other ActNow apps on this Mac (AudioSmith, Dicta, Pik…) and tells them what it does and which global shortcuts it uses, so that they can warn about clashes. The app's language and the proxy are shared with them: a change in one applies to all, unless you choose "Use a different setting for this app" (Settings → General, Network). API keys can be shared too: a key saved in Auralink is offered to the other ActNow apps (unless you uncheck "Let other ActNow apps on this Mac use this key"), and a service in Auralink offers the key another ActNow app saved, read only once you click "Use this key". A shortcut another ActNow app also uses is pointed out where you set it (and announced once by the app that set it last), and two ActNow apps no longer paste over each other's clipboard.
+- **Logs** (the Logs page and panel): click a line to copy it; Shift-click, ⌘-click or drag to select lines as in Finder, ⌘A for every line shown; right-click to copy a line, the selection or every line shown. The header shows how many lines are selected, with Copy and Deselect.
 
 ### Changed
 
@@ -57,6 +58,7 @@ The first public version, a beta: voice input for macOS on remote models, from [
 - **录音时静音系统声音**（设置 → 音频，默认开启）：从开始提示音之后到停止录音为止，当前输出设备静音，免得视频、音乐、通话的声音被录进去；你自己静音的设备保持静音，录音中你取消静音后不会再被静音，不支持软件静音的设备照常录音（浮窗会提示）。不需要任何权限。Auralink 或辅助进程在静音期间意外退出时，声音会立即恢复，最迟在下次启动时恢复。
 - **可选的提示音**（设置 → 音频 → 播放提示音）：和 Voxt 一样的 10 组开始和结束提示音（默认“柔和”，另有 Ping、Morse、Submarine、Basso、Bottle、Frog、Hero、Purr、Sosumi），开关旁边有下拉菜单和试听按钮；选中一组会试听，在打开的菜单里停在某一项上片刻也会试听。录音时静音系统声音改为在开始提示音听完后立即静音，不再等声音文件末尾的静音段：用“柔和”时提早约 0.6 秒。
 - **ActNow 家族**：Auralink 会找到这台 Mac 上的其他 ActNow app（AudioSmith、Dicta、Pik 等），并告诉它们自己做什么、用了哪些全局快捷键，方便互相提示冲突。界面语言和代理与它们共用：在一个 app 里改，所有 app 一起生效；也可以选“仅为此 app 单独设置”（设置 → 通用、网络）。API 密钥也可以共用：在 Auralink 里保存的密钥会提供给其他 ActNow app（除非取消勾选“允许这台 Mac 上的其他 ActNow app 使用此密钥”）；配置服务时，如果其他 ActNow app 已经保存了这个厂商的密钥，可以一键使用，点“使用此密钥”之前不会读取它。和其他 ActNow app 用了同一个快捷键时，设置快捷键的地方会提示（后设置的 app 还会发一次通知）；两个 ActNow app 同时粘贴时不会再互相覆盖剪贴板。
+- **日志**（日志页和日志面板）：单击一行就复制这一行；Shift-单击、⌘-单击或拖动，像在访达里一样选择多行，⌘A 选中全部显示的行；右键可以复制这一行、选中的行或全部显示的行。右上角显示已选中几行，以及“复制”和“取消选择”。
 
 ### 变更
 
