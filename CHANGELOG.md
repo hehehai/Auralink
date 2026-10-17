@@ -39,7 +39,6 @@ The first public version, a beta: voice input for macOS on remote models, from [
 ### Known limitations
 
 - Apple silicon and macOS 15 or later only (no Intel build yet).
-- The app icon is a placeholder.
 
 ### 中文
 
@@ -67,7 +66,7 @@ The first public version, a beta: voice input for macOS on remote models, from [
 
 ### 已知限制
 
-- 只支持 Apple 芯片和 macOS 15 及以上；app 图标还是占位的。
+- 只支持 Apple 芯片和 macOS 15 及以上。
 
 ## [0.1.0-beta.1] - 2026-10-16 (not released)
 
