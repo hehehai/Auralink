@@ -13,6 +13,7 @@ import (
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/uitext"
+	asettings "github.com/hehehai/actnowkit/settings"
 )
 
 func (a *app) generalSettings(c *ui.Context) {
@@ -25,9 +26,10 @@ func (a *app) generalSettings(c *ui.Context) {
 			if i := slices.Index(opts, a.settingsForm.language); i > 0 {
 				tag = i18n.Supported()[i-1]
 			}
-			a.updateSettings(func(s *settings.Settings) { s.General.Language = tag })
+			a.setShared(asettings.KeyLanguage, tag) // family_settings.go
 		}
 	})
+	a.sharedNote(c, asettings.KeyLanguage)
 	settingRow(c, "main-language", i18n.T("Main language"), i18n.T("The language you mostly speak and write. Clean-up keeps your text in it; Translate writes in English, or in Chinese when this is English, unless the Translate page says otherwise."), func() {
 		opts := mainLanguageOptions()
 		if ui.Select(c.Key("main-language-select"), &a.settingsForm.mainLanguage, opts).Label(i18n.T("Main language")).Width(px(t, 220)).Changed() {

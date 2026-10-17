@@ -138,6 +138,7 @@ func snapshotsMain(t *testing.T, out string) {
 				save("settings-overlay-preview")
 			}
 		}
+		familyShots(a, tt, save) // family_settings_test.go: the shared settings' rows
 		a.settingsOpen = false
 
 		// The shell's overlays.

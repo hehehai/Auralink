@@ -20,6 +20,7 @@ import (
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/store/sqlitestore"
 	"github.com/hehehai/Auralink/internal/uitext"
+	asettings "github.com/hehehai/actnowkit/settings"
 )
 
 // storageState is the Storage page's state.
@@ -223,18 +224,24 @@ func (a *app) dismissMoveFailure() {
 // resetLook restores the appearance and the language.
 func (a *app) resetLook() {
 	d := settings.Defaults()
-	a.updateSettings(func(s *settings.Settings) { s.Appearance, s.General.Language = d.Appearance, d.General.Language })
+	a.updateSettings(func(s *settings.Settings) { s.Appearance = d.Appearance })
+	a.setShared(asettings.KeyLanguage, d.General.Language) // family_settings.go: maybe the family's too
 	a.sideW, a.navOpen = 0, nil
 	a.toast(i18n.T("The look is back to its defaults"))
 }
 
 // resetSettings restores every setting (the setup stays done; keys stay
-// in the Keychain).
+// in the Keychain). The shared settings follow the ActNow family again,
+// and take its values; what Auralink noted of the family (its shortcuts'
+// times, the conflicts it announced) stays.
 func (a *app) resetSettings() {
 	a.updateSettings(func(s *settings.Settings) {
+		fam := s.Family
 		*s = settings.Defaults()
 		s.Setup.Done = true
+		s.Family = settings.Family{Migrated: fam.Migrated, KeysSince: fam.KeysSince, Prompted: fam.Prompted}
 	})
+	a.adoptShared() // family_settings.go
 	a.sideW, a.navOpen = 0, nil
 	a.toast(i18n.T("Every setting is back to its default"))
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/netx"
 	"github.com/hehehai/Auralink/internal/settings"
+	asettings "github.com/hehehai/actnowkit/settings"
 )
 
 // netCheck is the result of reaching one host.
@@ -128,7 +129,7 @@ func (a *app) networkSettings(c *ui.Context) {
 					return // until a URL is typed
 				}
 			}
-			a.updateSettings(func(s *settings.Settings) { s.Network.Proxy = mode })
+			a.setShared(asettings.KeyProxy, mode) // family_settings.go
 		}
 	})
 	if slices.Index(proxyOptions(), a.proxyMode) == 2 {
@@ -136,10 +137,11 @@ func (a *app) networkSettings(c *ui.Context) {
 			in := ui.TextInput(c.Key("proxy-input"), &a.proxy).Placeholder("http://127.0.0.1:7890").Width(px(t, 280)).Label(i18n.T("Proxy URL"))
 			if in.Submitted() {
 				mode := strings.TrimSpace(a.proxy)
-				a.updateSettings(func(s *settings.Settings) { s.Network.Proxy = mode })
+				a.setShared(asettings.KeyProxy, mode)
 			}
 		})
 	}
+	a.sharedNote(c, asettings.KeyProxy)
 
 	sectionTitle(c, i18n.T("Connection"))
 	settingRow(c, "net-test", i18n.T("Test the connection"), i18n.T("Reaches OpenAI, Volcengine (Doubao), Alibaba Cloud Model Studio, DeepSeek and the endpoints you set up, through the proxy above."), func() {

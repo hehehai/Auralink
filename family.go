@@ -3,7 +3,8 @@ package main
 // Auralink in the ActNow family of apps (internal/actnow; the family's
 // spec v1.0.3, phase 1): at the start, the family directory, Auralink's
 // manifest (what it does, its shortcuts, links to its settings), the
-// other family apps, and a watch on the family's files. Every step reads
+// first start's merge of the shared settings, the other family apps, and
+// a watch on the family's files. Every step reads
 // or writes files: they run on a goroutine, and what they found comes
 // back through a.post. A failure is logged and changes nothing else:
 // Auralink works as before without the family.
@@ -95,8 +96,11 @@ func (a *app) connectFamily() {
 		}
 		readOnly := info.ReadOnly()
 		m := actnow.Manifest(fl.self, s)
+		var outcomes []asettings.Outcome
+		migrated := false
 		if !readOnly {
 			fl.writeManifest(m)
+			outcomes, migrated = fl.migrate(s) // family_settings.go
 		}
 		r := fl.read()
 		r.readOnly = r.readOnly || readOnly
@@ -107,6 +111,9 @@ func (a *app) connectFamily() {
 		fl.watch = w
 		a.post(func() {
 			a.fam, a.famManifest = fl, m
+			if migrated {
+				a.updateSettings(func(s *settings.Settings) { actnow.Migrated(s, outcomes) })
+			}
 			a.familyRead(r)
 			a.stampShortcuts(a.prefs.Features)
 		})
@@ -141,9 +148,11 @@ func (fl *familyLink) read() familyRead {
 	return familyRead{found: found, shared: shared, readOnly: ro}
 }
 
-// familyRead keeps what a read found.
+// familyRead keeps what a read found, and takes the shared settings
+// Auralink follows (family_settings.go).
 func (a *app) familyRead(r familyRead) {
 	a.famFound, a.famShared, a.famReadOnly = r.found, r.shared, r.readOnly
+	a.adoptShared()
 }
 
 // familyNotified answers a change notification of the family's files:
