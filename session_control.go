@@ -118,8 +118,10 @@ func (a *app) toggleTranscribe() {
 	}
 }
 
-// setDelivery records in the history how a result left the card.
-func (a *app) setDelivery(id, how string) {
+// setDelivery records in the history how a result left the card, and
+// the app it was inserted into when that is not the entry's (into: zero
+// otherwise).
+func (a *app) setDelivery(id, how string, into proto.App) {
 	h := a.lib.store.History()
 	a.async(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -129,6 +131,7 @@ func (a *app) setDelivery(id, how string) {
 			return // not kept
 		}
 		e.Delivery = how
+		e.InsertedBundle, e.InsertedName = into.BundleID, into.Name
 		if err := h.Put(ctx, e); err == nil {
 			a.post(a.historyChanged)
 		}
@@ -152,7 +155,7 @@ func (a *app) pasteLast(target proto.App) {
 		res := deliver.Insert(ctx, io, deliver.Request{Text: text, Target: target})
 		a.post(func() {
 			if !res.Inserted {
-				a.showNotice(sessionNotice{text: uitext.DeliveryText(res, target)})
+				a.showNotice(sessionNotice{text: uitext.DeliveryText(res)})
 			}
 		})
 	})

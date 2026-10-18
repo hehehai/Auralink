@@ -11,6 +11,7 @@ import (
 
 	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/deliver"
+	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/store"
@@ -23,7 +24,7 @@ func (a *app) openAnswer(s session.Snapshot) {
 	card := answerCard{
 		open: true, id: s.ID, kind: s.Kind, text: s.Result, title: s.Title, target: s.Target,
 		input: session.TextInput{Raw: s.Raw, Selection: s.Selection}, lang: s.TargetLanguage,
-		why: uitext.WhyInCard(s.Delivery, s.Selection != "", s.Target.Name),
+		why: uitext.WhyInCard(s.Delivery, s.Selection != ""),
 	}
 	if s.State == session.Failed {
 		card.problem = s.Problem
@@ -181,7 +182,7 @@ func (a *app) copyAnswer(copyText func(string)) {
 		return
 	}
 	copyText(a.answer.text)
-	a.setDelivery(a.answer.id, "copy")
+	a.setDelivery(a.answer.id, "copy", proto.App{})
 	a.answer.copySeq++
 	seq, id := a.answer.copySeq, a.answer.id
 	a.answer.copied = true
@@ -195,9 +196,12 @@ func (a *app) copyAnswer(copyText func(string)) {
 	})
 }
 
-// insertAnswer inserts the card's text into the app the session started
-// in: the user chose to, so any focused element will do. The card hides
-// while it pastes and comes back if that did not work (Voxt's).
+// insertAnswer inserts the card's text where the focus is (deliver: back
+// into the app the session started in when Auralink has it): the user
+// chose to, so in that app any focused element will do, in another one
+// any that may take text. A selection's result too: the user clicked
+// where it should go. The card hides while it pastes and comes back if
+// that did not work (Voxt's).
 func (a *app) insertAnswer() {
 	card := a.answer
 	if !card.open || card.inserting || card.text == "" || a.cardSessionLive() {
@@ -217,11 +221,15 @@ func (a *app) insertAnswer() {
 			}
 			a.answer.inserting = false
 			if res.Inserted {
-				a.setDelivery(card.id, "insert")
+				var into proto.App
+				if res.Elsewhere(card.target) {
+					into = res.Into // the user clicked into another app
+				}
+				a.setDelivery(card.id, "insert", into)
 				a.closeAnswer()
 				return
 			}
-			a.answer.msg = uitext.DeliveryText(res, card.target)
+			a.answer.msg = uitext.DeliveryText(res)
 			a.overlaySync()
 		})
 	})

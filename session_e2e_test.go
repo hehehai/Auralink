@@ -511,6 +511,10 @@ func (p *pasteText) Focus(context.Context) (proto.FocusResult, error) {
 	return proto.FocusResult{PID: 812, Role: "AXTextArea", Editable: true}, nil
 }
 
+func (p *pasteText) Frontmost(context.Context) (proto.App, error) {
+	return proto.App{PID: 812, BundleID: "com.tinyspeck.slackmacgap", Name: "Slack"}, nil
+}
+
 func (p *pasteText) Paste(_ context.Context, pp proto.PasteParams) (proto.PasteResult, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

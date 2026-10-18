@@ -140,10 +140,10 @@ func TestAnswerCardButtons(t *testing.T) {
 	card("c1")
 	tt := cardTester(a)
 	frames(tt)
-	if !tt.HasText("Answer c1") || tt.HasText("Nothing in Slack takes text: click where it should go, then insert.") {
+	if !tt.HasText("Answer c1") || tt.HasText("No place to type was found: click where it should go and insert, or copy it.") {
 		t.Errorf("card texts %q", firstTexts(tt))
 	}
-	if a.answer.why != "Nothing in Slack takes text: click where it should go, then insert." {
+	if a.answer.why != "No place to type was found: click where it should go and insert, or copy it." {
 		t.Errorf("why %q", a.answer.why)
 	}
 	if err := tt.Click("Copy"); err != nil {
@@ -166,16 +166,29 @@ func TestAnswerCardButtons(t *testing.T) {
 	if a.answer.open || len(pasted) != 1 || pasted[0].Text != "Answer c2" || pasted[0].TargetPID != 812 {
 		t.Errorf("insert: %+v %+v", a.answer, pasted)
 	}
-	front = 530 // another app came to the front
+	// The user moved to another app: Insert goes where the focus is,
+	// when it may take text.
+	front = 530
+	fs.handlers[proto.MethodAppFrontmost] = func(json.RawMessage) (any, error) {
+		return proto.App{PID: front, BundleID: "com.apple.TextEdit", Name: "TextEdit"}, nil
+	}
 	card("c3")
 	a.insertAnswer()
-	if !a.answer.open || a.answer.inserting || a.ov.mode != ovAnswer || a.answer.msg != "Slack is not in front any more." || len(pasted) != 1 {
-		t.Errorf("elsewhere: %s %+v", a.ov.mode, a.answer)
+	if !a.answer.open || a.answer.inserting || a.ov.mode != ovAnswer || a.answer.msg != "No place to type was found: click where the text should go first." || len(pasted) != 1 {
+		t.Errorf("elsewhere, a static text: %s %+v", a.ov.mode, a.answer)
 	}
 	h := a.ov.h
 	if h != layout.CardChrome+a.mustBody(t)+layout.CardMsgGap+layout.CardMsgH {
 		t.Errorf("the line under the text: %d high", h)
 	}
+	fs.handlers[proto.MethodTextFocus] = func(json.RawMessage) (any, error) {
+		return proto.FocusResult{PID: front, Role: "AXTextArea", Editable: true}, nil
+	}
+	a.insertAnswer()
+	if a.answer.open || len(pasted) != 2 || pasted[1].Text != "Answer c3" || pasted[1].TargetPID != 530 {
+		t.Errorf("elsewhere, a field: %+v %+v", a.answer, pasted)
+	}
+	card("c4")
 	fs.handlers[proto.MethodTextFocus] = func(json.RawMessage) (any, error) {
 		return nil, &proto.Error{Code: proto.CodePermissionDenied}
 	}
@@ -352,7 +365,7 @@ func overlayShots(t *testing.T, a *app, out, suffix string, dark bool) {
 		{"overlay-translate-card-insert-failed", session.Snapshot{Kind: store.KindTranslate, State: session.Done, Card: true, Delivery: deliver.ReasonNotEditable,
 			Target: proto.App{PID: 77, Name: "Arc"}, Selection: "A goroutine is a lightweight thread managed by the Go runtime.", TargetLanguage: "zh-Hans",
 			Result: "goroutine 是由 Go 运行时管理的轻量级线程。"}, nil, func(string) {
-			a.answer.msg = uitext.DeliveryText(deliver.Result{Reason: deliver.ReasonNotFront}, proto.App{Name: "Arc"})
+			a.answer.msg = uitext.DeliveryText(deliver.Result{Reason: deliver.ReasonNotFront})
 		}},
 		{"overlay-rewrite-card", session.Snapshot{Kind: store.KindRewrite, State: session.Done, Card: true, Delivery: deliver.ReasonCard,
 			Raw: "写一段两百字的自我介绍，用于技术分享会的开场", Title: "技术分享开场自我介绍",

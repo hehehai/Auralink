@@ -537,6 +537,8 @@ func (m *macText) Focus(ctx context.Context) (proto.FocusResult, error) {
 	return proto.FocusResult{PID: m.pid, Role: "AXTextArea", Editable: true}, nil
 }
 
+func (m *macText) Frontmost(context.Context) (proto.App, error) { return proto.App{PID: m.pid}, nil }
+
 func (m *macText) Paste(_ context.Context, p proto.PasteParams) (proto.PasteResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

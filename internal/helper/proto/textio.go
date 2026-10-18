@@ -13,8 +13,14 @@ type FocusResult struct {
 	Editable    bool       `json:"editable"`
 	Selection   *TextRange `json:"selection,omitempty"`
 	ValueLength int        `json:"valueLength"` // UTF-16 units of its value (0: none or unknown)
-	Error       string     `json:"error,omitempty"`
+	// Error: the element could not be read (FocusNoAccess, or another
+	// reason: "no focused element").
+	Error string `json:"error,omitempty"`
 }
+
+// FocusNoAccess is FocusResult.Error when Auralink may not use
+// Accessibility.
+const FocusNoAccess = "Accessibility is not allowed"
 
 // TextRange is a range of UTF-16 units.
 type TextRange struct {

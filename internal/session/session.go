@@ -184,6 +184,10 @@ type Snapshot struct {
 	Inserted bool
 	Card     bool
 	Delivery deliver.Reason
+	// Into is the app the result was pasted into when that is not Target
+	// (the user moved to another app before the session ended; zero
+	// otherwise). Target stays the app the scene was chosen for.
+	Into proto.App
 	// Scene is the app enhancement group the session falls in (scene.go);
 	// nil until it is decided.
 	Scene *appctx.Match

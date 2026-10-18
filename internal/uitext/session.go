@@ -11,25 +11,22 @@ import (
 	"github.com/hehehai/Auralink/internal/appctx"
 	"github.com/hehehai/Auralink/internal/compose"
 	"github.com/hehehai/Auralink/internal/deliver"
-	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/session"
 	"github.com/hehehai/Auralink/internal/store"
 )
 
-// DeliveryText says why a result was not inserted.
-func DeliveryText(res deliver.Result, target proto.App) string {
-	name := target.Name
-	if name == "" {
-		name = i18n.T("the app")
-	}
+// DeliveryText says why a result was not inserted (a notice, the answer
+// card's line after Insert). The result follows the focus (deliver), so
+// it names no app: what is missing is a place to type.
+func DeliveryText(res deliver.Result) string {
 	switch res.Reason {
 	case deliver.ReasonNoAccess:
 		return i18n.T("Allow Accessibility to insert results where you type.")
-	case deliver.ReasonNotFront, deliver.ReasonNoTarget:
-		return i18n.T("%s is not in front any more.", name)
-	case deliver.ReasonNotEditable:
-		return i18n.T("Click where the text should go in %s, then insert.", name)
+	case deliver.ReasonNotFront, deliver.ReasonNoTarget, deliver.ReasonNotEditable:
+		return i18n.T("No place to type was found: click where the text should go first.")
+	case deliver.ReasonSecure:
+		return i18n.T("The cursor is in a password field: Auralink does not type there.")
 	case deliver.ReasonFailed:
 		return i18n.T("Could not insert: %v", res.Err)
 	}
@@ -156,18 +153,17 @@ func TargetLanguageLabel(code string) string {
 // WhyInCard says why a result is in the card and not in place, for
 // Insert's tip ("" when the user asked for the card, or it went there
 // for its length).
-func WhyInCard(r deliver.Reason, selection bool, name string) string {
-	if name == "" {
-		name = i18n.T("the app")
-	}
+func WhyInCard(r deliver.Reason, selection bool) string {
 	switch r {
 	case deliver.ReasonNotFront, deliver.ReasonNoTarget:
-		return i18n.T("%s is not in front any more: insert it there, or copy it.", name)
+		return i18n.T("No place to type was found: click where it should go and insert, or copy it.")
 	case deliver.ReasonNotEditable:
 		if selection {
-			return i18n.T("The selection in %s cannot be edited: copy the result, or click where it should go and insert.", name)
+			return i18n.T("The selection cannot be edited: copy the result, or click where it should go and insert.")
 		}
-		return i18n.T("Nothing in %s takes text: click where it should go, then insert.", name)
+		return i18n.T("No place to type was found: click where it should go and insert, or copy it.")
+	case deliver.ReasonSecure:
+		return i18n.T("The cursor is in a password field: click where it should go and insert, or copy it.")
 	case deliver.ReasonNoAccess:
 		return i18n.T("Allow Accessibility to insert results where you type.")
 	}

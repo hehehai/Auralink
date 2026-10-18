@@ -352,6 +352,7 @@ func (f *fakeLLM) requests() []llm.Request {
 type fakeText struct {
 	focus proto.FocusResult
 	err   error
+	front proto.App // app.frontmost (zero: the focused app, unnamed)
 
 	mu      sync.Mutex
 	pasted  []string
@@ -359,6 +360,13 @@ type fakeText struct {
 }
 
 func (f *fakeText) Focus(context.Context) (proto.FocusResult, error) { return f.focus, f.err }
+
+func (f *fakeText) Frontmost(context.Context) (proto.App, error) {
+	if f.front.PID != 0 {
+		return f.front, nil
+	}
+	return proto.App{PID: f.focus.PID}, nil
+}
 
 func (f *fakeText) Paste(_ context.Context, p proto.PasteParams) (proto.PasteResult, error) {
 	f.mu.Lock()

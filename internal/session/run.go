@@ -217,7 +217,12 @@ func (r *run) finish(st State, problem *Problem, result string, o finishOpts) {
 		if dres.Err != nil {
 			r.logf("warning", "insert: %v", dres.Err)
 		}
-		r.logf("info", "inserted %v (%s) in %v", dres.Inserted, dres.Reason, dres.Elapsed.Round(time.Millisecond))
+		where := ""
+		if dres.Elsewhere(r.req.Target) {
+			// Followed the focus: the user moved to another app.
+			where = fmt.Sprintf(" into %s (pid %d), not the starting app", dres.Into.BundleID, dres.Into.PID)
+		}
+		r.logf("info", "inserted %v (%s)%s in %v", dres.Inserted, dres.Reason, where, dres.Elapsed.Round(time.Millisecond))
 	}
 	snap := r.m.Current()
 	total := r.now().Sub(snap.StartedAt)
@@ -225,6 +230,9 @@ func (r *run) finish(st State, problem *Problem, result string, o finishOpts) {
 		s.Result, s.Problem = result, problem
 		s.Recording = r.keepsRecording()
 		s.Inserted = dres.Inserted
+		if dres.Inserted && dres.Elsewhere(r.req.Target) {
+			s.Into = dres.Into
+		}
 		s.Card = result != "" && !r.req.Try && !dres.Inserted
 		s.Delivery = dres.Reason
 		s.Timings.Deliver, s.Timings.Total = dres.Elapsed, total
@@ -324,6 +332,7 @@ func (r *run) keep(s Snapshot, status store.Status) {
 	switch {
 	case s.Inserted:
 		e.Delivery = "insert"
+		e.InsertedBundle, e.InsertedName = s.Into.BundleID, s.Into.Name
 	case s.Card:
 		e.Delivery = "card"
 	}
