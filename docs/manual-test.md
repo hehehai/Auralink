@@ -122,21 +122,24 @@ DEEPSEEK_API_KEY=...
   - 点卡片上的按钮时，焦点不会被抢到卡片上。卡片不能拖动。
 - **不对时看**：`helper.log` 的 focus 结果。
 
-**1.5 中途切换 App（10-18 改：跟随结束时的焦点）**
-- **准备**：应用增强里有一个包含 TextEdit 的分组，“插入后按键”设为 Return（做完改回来）。
+**1.5 中途切换 App（10-18 改：结果插进停止时在前台、有输入框的 App；和 VoxtNew manual-test §2.8 相同）**
 - **做**：
-  1. 在 TextEdit 里点一下，按 fn 开始录音；录音中切到备忘录，点进一条备忘录的正文；按 fn 停止。
-  2. 再在 TextEdit 里开始录音，录音中点一下访达的文件列表（或桌面），停止。看完卡片后点进备忘录的正文，再点卡片上的“插入”。
-  3. 再在 TextEdit 里开始录音，录音中点一下 Auralink 的主窗口（例如首页），停止。
-  4. 〔可选〕在 TextEdit 里开始录音，录音中切到 Safari，点进一个登录页的密码框，停止。
-  5. 在 TextEdit 里选中一段英文，按 fn⌃ 说“改得正式一点”，等卡片出来后点进备忘录的正文，再点卡片上的“插入”。
+  1. 在 TextEdit 里开始录音，录音中切到备忘录，点进一条备忘录的正文，停止录音。
+  2. 在 TextEdit 里开始录音，录音中切到访达，点一下桌面（不选任何输入框），停止录音。然后点进 TextEdit 的正文，在卡片里点“插入”。
+  3. 在 Safari 打开一个有密码框的登录页（不要输入真实密码），在 TextEdit 里开始录音，录音中切到 Safari 点进密码框，停止录音。
+  4. 给 TextEdit 建一个应用增强分组，自动按键设成 Return；在 TextEdit 里开始转录，录音中切到备忘录的正文，停止。（做完把分组删掉。）
+  5. 在 TextEdit 里选中一段文字，按翻译快捷键（“在卡片中显示结果”关闭），马上切到备忘录的正文。
+  6. 在 TextEdit 里开始录音，录音中点一下 Auralink 的主窗口（例如首页），停止录音。
+  7. 网页编辑器：在 Chrome 或 Arc 里打开 Notion 或 Slack 网页版，把光标放在编辑区里；在 TextEdit 里开始录音，录音中切过去，停止录音。
 - **应看到**：
-  1. 文字插进**备忘录**，TextEdit 里没有；**没有**按 Return（Return 是 TextEdit 分组的）；浮窗上显示的分组名仍是 TextEdit 的分组。历史详情的“应用”是 TextEdit，“交付方式”是“已插入到 备忘录”。
-  2. 结果进卡片，“插入”的 tooltip 是“没有找到可以输入的地方：点一下要输入的位置再插入，或者复制。”，不再说“TextEdit 已经不在前台”。点“插入”后文字插进备忘录，历史的交付方式变成“已插入到 备忘录”。
-  3. Auralink 把前台还给 TextEdit，文字插进 TextEdit（和以前一样），交付方式是“已插入”。
-  4. 不往密码框里粘贴：结果进卡片，tooltip 说光标在密码框里。
-  5. 改写的结果插进备忘录（不是替换 TextEdit 里的选区）。
-- **不对时看**：`auralink.log` 里 `inserted true () into … not the starting app` 那一行，`helper.log` 的 `textio.focus`。
+  - 第 1 步：文字插进备忘录（停止时在前台、有输入框的 App），不弹卡片，TextEdit 不会被切回前台；历史详情的“应用”仍是 TextEdit，“交付方式”是“已插入到 备忘录”。
+  - 第 2 步：结果进卡片，“插入”的 tooltip 说“没有选中输入框”；点进 TextEdit 后点“插入”，文字插进 TextEdit。
+  - 第 3 步：密码框里什么都没有输入，结果进卡片，tooltip 说是密码输入框。
+  - 第 4 步：文字插进备忘录，但不按 Return（自动按键只在开始录音的 App 里按）；在 TextEdit 里不切换时，插入后照常按 Return。
+  - 第 5 步：译文不会替换到备忘录里，进卡片，tooltip 说 TextEdit 已经不在前台。
+  - 第 6 步：TextEdit 回到前台，文字插进 TextEdit（不会插进 Auralink 自己的输入框）。
+  - 第 7 步：文字插进 Notion / Slack 的编辑区（helper 读 `AXEditableAncestor`，网页的可编辑区域算作输入框）；如果进了卡片，把 `helper.log` 里这次 `textio.focus` 的 role 和 editable 发回来。
+- **不对时看**：日志里 `inserted into … not …`（换了 App）或 `not inserted (…; … in front)`，以及 `helper.log` 的 focus 结果。
 
 **1.6 粘贴最近结果**
 - **做**：按 ⌃⌘V。然后退出 Auralink（菜单栏 → 退出），重新打开，再按一次 ⌃⌘V。
