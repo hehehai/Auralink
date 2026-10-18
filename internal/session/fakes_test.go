@@ -352,7 +352,6 @@ func (f *fakeLLM) requests() []llm.Request {
 type fakeText struct {
 	focus proto.FocusResult
 	err   error
-	front proto.App // app.frontmost (zero: the focused app, unnamed)
 	// refuse: the paste finds this app in front instead (the focus moved
 	// between the check and the paste).
 	refuse *proto.App
@@ -370,19 +369,10 @@ func (f *fakeText) Focus(context.Context) (proto.FocusResult, error) {
 }
 
 // setFocus moves the focus while a session runs.
-func (f *fakeText) setFocus(focus proto.FocusResult, front proto.App) {
+func (f *fakeText) setFocus(focus proto.FocusResult) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.focus, f.front = focus, front
-}
-
-func (f *fakeText) Frontmost(context.Context) (proto.App, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.front.PID != 0 {
-		return f.front, nil
-	}
-	return proto.App{PID: f.focus.PID}, nil
+	f.focus = focus
 }
 
 func (f *fakeText) Paste(_ context.Context, p proto.PasteParams) (proto.PasteResult, error) {

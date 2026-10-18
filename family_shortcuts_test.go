@@ -119,8 +119,6 @@ type fakePaste struct {
 func (f *fakePaste) Focus(context.Context) (proto.FocusResult, error) {
 	return proto.FocusResult{}, nil
 }
-func (f *fakePaste) Frontmost(context.Context) (proto.App, error) { return proto.App{}, nil }
-
 func (f *fakePaste) Paste(context.Context, proto.PasteParams) (proto.PasteResult, error) {
 	r, err := famruntime.Read(f.fx.Family, testBundleID)
 	f.flagged, f.at = err == nil && r.Pasting, time.Now()

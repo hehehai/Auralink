@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/helper/helpertest"
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/session"
@@ -43,7 +44,7 @@ func TestSessionFollowsFocus(t *testing.T) {
 	a := newSessionApp(t, ev, set, keys)
 	a.pump("the end", func() bool { return a.sess.State.Ended() })
 	end := a.sess
-	if end.State != session.Done || !end.Inserted || end.Target.Name != "Slack" || end.Into.Name != "TextEdit" {
+	if end.State != session.Done || !end.Inserted || end.Target.Name != "Slack" || end.InsertedInto.Name != "TextEdit" {
 		t.Fatalf("end %+v", end)
 	}
 	a.pump("the second paste", func() bool { return len(a.pasted()) == 2 })
@@ -78,7 +79,7 @@ func TestSessionFocusNowhere(t *testing.T) {
 	if end.State != session.Done || end.Inserted || !end.Card || !a.answer.open || len(a.pasted()) != 0 {
 		t.Fatalf("end %+v, card %v, pasted %+v", end, a.answer.open, a.pasted())
 	}
-	if a.answer.why != "No place to type: click where it should go and insert, or copy it." {
+	if a.answer.why != "No text field is focused: click where it should go, then insert, or copy it." {
 		t.Errorf("why %q", a.answer.why)
 	}
 	// The user clicks into TextEdit, then Insert.
@@ -121,20 +122,13 @@ func TestRewriteCardFollowsFocus(t *testing.T) {
 }
 
 // TestPasteLastFollowsFocus: ⌃⌘V pastes the last result where the focus
-// is; where nothing takes text it says so, without naming an app.
+// is; where nothing takes text, or in a password field, it says so.
 func TestPasteLastFollowsFocus(t *testing.T) {
 	a, fs, _ := newTestApp(t)
 	var pasted []proto.PasteParams
-	focus := proto.FocusResult{PID: 530, Role: "AXTextArea", Editable: true}
+	textEdit := helpertest.Apps["com.apple.TextEdit"]
+	focus := proto.FocusResult{PID: 530, App: &textEdit, Role: "AXTextArea", Editable: true}
 	fs.handlers[proto.MethodTextFocus] = func(json.RawMessage) (any, error) { return focus, nil }
-	fs.handlers[proto.MethodAppFrontmost] = func(json.RawMessage) (any, error) {
-		for _, app := range helpertest.Apps {
-			if app.PID == focus.PID {
-				return app, nil
-			}
-		}
-		return proto.App{PID: focus.PID}, nil
-	}
 	fs.handlers[proto.MethodTextPaste] = func(raw json.RawMessage) (any, error) {
 		var p proto.PasteParams
 		json.Unmarshal(raw, &p)
@@ -151,13 +145,43 @@ func TestPasteLastFollowsFocus(t *testing.T) {
 		focus proto.FocusResult
 		say   string
 	}{
-		{proto.FocusResult{PID: 640, Role: "AXOutline"}, "No place to type: click where it should go first."},
-		{proto.FocusResult{PID: 530, Role: "AXTextField", Subrole: "AXSecureTextField", Editable: true}, "The cursor is in a password field: Auralink does not type there."},
+		{proto.FocusResult{PID: 640, Role: "AXOutline"}, "No text field is focused: click where the text should go, then insert."},
+		{proto.FocusResult{PID: 530, Role: "AXTextField", Subrole: "AXSecureTextField", Editable: true}, "A password field is focused: Auralink never types into one."},
 	} {
 		focus = tc.focus
 		a.pasteLast(slack)
 		if len(pasted) != 1 || a.notice == nil || a.notice.text != tc.say {
 			t.Errorf("%+v: pasted %+v, notice %+v", tc.focus, pasted, a.notice)
 		}
+	}
+}
+
+// TestSessionSwitchedApp (VoxtNew's): the shortcut is pressed in Slack,
+// then the user goes to another app before the helper is asked: nothing
+// focused there (Finder's desktop) or a password field leaves the result
+// in the answer card, saying why.
+func TestSessionSwitchedApp(t *testing.T) {
+	for _, tc := range []struct {
+		name, opts string
+		why        string
+		reason     deliver.Reason
+	}{
+		{name: "nothing focused", opts: "switch=com.apple.finder,focus=none", reason: deliver.ReasonNotEditable,
+			why: "No text field is focused: click where it should go, then insert, or copy it."},
+		{name: "a password field", opts: "switch=com.apple.TextEdit,focus=secure", reason: deliver.ReasonSecure,
+			why: "A password field is focused, and Auralink never types into one: copy it, or click another field and insert."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			chat := &fakeChat{text: "Hello, Auralink."}
+			set, keys, _ := fileSetup(t, "hello aura link", chat)
+			ev := script(t, hotkeyLine(0, "transcribe/0", proto.PhaseTrigger), hotkeyLine(400, "transcribe/0", proto.PhaseTrigger))
+			a := newSessionApp(t, tc.opts+","+ev, set, keys)
+			a.pump("the end", func() bool { return a.sess.State.Ended() })
+			end := a.sess
+			if end.State != session.Done || end.Target.Name != "Slack" || end.Inserted || !end.Card || end.Delivery != tc.reason ||
+				len(a.pasted()) != 0 || !a.answer.open || a.answer.why != tc.why {
+				t.Errorf("card: end %+v, pasted %+v, card %+v", end, a.pasted(), a.answer)
+			}
+		})
 	}
 }

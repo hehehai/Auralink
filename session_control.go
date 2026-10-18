@@ -155,7 +155,7 @@ func (a *app) pasteLast(target proto.App) {
 		res := deliver.Insert(ctx, io, deliver.Request{Text: text, Target: target})
 		a.post(func() {
 			if !res.Inserted {
-				a.showNotice(sessionNotice{text: uitext.DeliveryText(res)})
+				a.showNotice(sessionNotice{text: uitext.DeliveryText(res, target)})
 			}
 		})
 	})

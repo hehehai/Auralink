@@ -143,7 +143,7 @@ func cardCheckSteps(lang string) []ovCheckStep {
 		}, true},
 		{"card-insert-failed", func(a *app) {
 			a.answer.copied = false
-			a.answer.msg = uitext.DeliveryText(deliver.Result{Reason: deliver.ReasonNotFront})
+			a.answer.msg = uitext.DeliveryText(deliver.Result{Reason: deliver.ReasonNotFront}, arc)
 		}, true},
 		{"card-long", end(tr(lang+"-t3", session.Done, long, long, lang)), true},
 		{"card-rewrite", func(a *app) {

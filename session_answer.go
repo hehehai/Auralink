@@ -24,7 +24,7 @@ func (a *app) openAnswer(s session.Snapshot) {
 	card := answerCard{
 		open: true, id: s.ID, kind: s.Kind, text: s.Result, title: s.Title, target: s.Target,
 		input: session.TextInput{Raw: s.Raw, Selection: s.Selection}, lang: s.TargetLanguage,
-		why: uitext.WhyInCard(s.Delivery, s.Selection != ""),
+		why: uitext.WhyInCard(s.Delivery, s.Selection != "", s.Target.Name),
 	}
 	if s.State == session.Failed {
 		card.problem = s.Problem
@@ -196,12 +196,11 @@ func (a *app) copyAnswer(copyText func(string)) {
 	})
 }
 
-// insertAnswer inserts the card's text where the focus is (deliver: back
-// into the app the session started in when Auralink has it): the user
-// chose to, so in that app any focused element will do, in another one
-// any that may take text. A selection's result too: the user clicked
-// where it should go. The card hides while it pastes and comes back if
-// that did not work (Voxt's).
+// insertAnswer inserts the card's text where the user is typing: the
+// app the session started in (the user chose to, so any focused element
+// there will do; when Auralink is in front, that app comes back first), or
+// a text field in the app in front now. The card hides while it pastes
+// and comes back if that did not work (Voxt's).
 func (a *app) insertAnswer() {
 	card := a.answer
 	if !card.open || card.inserting || card.text == "" || a.cardSessionLive() {
@@ -222,14 +221,14 @@ func (a *app) insertAnswer() {
 			a.answer.inserting = false
 			if res.Inserted {
 				var into proto.App
-				if res.Elsewhere(card.target) {
-					into = res.Into // the user clicked into another app
+				if res.Moved(card.target) {
+					into = res.To // the user clicked into another app
 				}
 				a.setDelivery(card.id, "insert", into)
 				a.closeAnswer()
 				return
 			}
-			a.answer.msg = uitext.DeliveryText(res)
+			a.answer.msg = uitext.DeliveryText(res, card.target)
 			a.overlaySync()
 		})
 	})

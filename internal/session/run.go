@@ -191,11 +191,11 @@ func (r *run) main() {
 
 // finishOpts say how a result is delivered: card, when set, sends it to
 // the answer card without trying to insert it (the reason it shows
-// there); needEditable inserts only into an element Accessibility calls
-// editable (a selection).
+// there); replace replaces the selection, only in the app it was made in
+// (deliver.Request.Replace).
 type finishOpts struct {
-	card         deliver.Reason
-	needEditable bool
+	card    deliver.Reason
+	replace bool
 }
 
 // finish delivers result (unless it is a try or empty), keeps the
@@ -210,19 +210,21 @@ func (r *run) finish(st State, problem *Problem, result string, o finishOpts) {
 		r.m.update(r, func(s *Snapshot) { s.Result, s.Card = result, true })
 	default:
 		r.m.update(r, func(s *Snapshot) { s.State, s.Result = Delivering, result })
-		press := r.press(o.needEditable) // app enhancement's auto key
+		press := r.press(o.replace) // app enhancement's auto key
 		ctx, cancel := context.WithTimeout(context.Background(), cfg.DeliverTime)
-		dres = deliver.Insert(ctx, cfg.Text, deliver.Request{Text: result, Target: r.req.Target, Press: press, Self: cfg.Self, Activate: cfg.Activate, NeedEditable: o.needEditable})
+		dres = deliver.Insert(ctx, cfg.Text, deliver.Request{Text: result, Target: r.req.Target, Press: press, Self: cfg.Self, Activate: cfg.Activate, Replace: o.replace})
 		cancel()
 		if dres.Err != nil {
 			r.logf("warning", "insert: %v", dres.Err)
 		}
-		where := ""
-		if dres.Elsewhere(r.req.Target) {
-			// Followed the focus: the user moved to another app.
-			where = fmt.Sprintf(" into %s (pid %d), not the starting app", dres.Into.BundleID, dres.Into.PID)
+		switch {
+		case dres.Inserted && dres.Moved(r.req.Target):
+			r.logf("info", "inserted into %s, not %s (the user switched apps; no auto key) in %v", dres.To.BundleID, r.req.Target.BundleID, dres.Elapsed.Round(time.Millisecond))
+		case dres.Inserted:
+			r.logf("info", "inserted in %v", dres.Elapsed.Round(time.Millisecond))
+		default:
+			r.logf("info", "not inserted (%s; %s in front) in %v", dres.Reason, dres.Front.BundleID, dres.Elapsed.Round(time.Millisecond))
 		}
-		r.logf("info", "inserted %v (%s)%s in %v", dres.Inserted, dres.Reason, where, dres.Elapsed.Round(time.Millisecond))
 	}
 	snap := r.m.Current()
 	total := r.now().Sub(snap.StartedAt)
@@ -230,8 +232,8 @@ func (r *run) finish(st State, problem *Problem, result string, o finishOpts) {
 		s.Result, s.Problem = result, problem
 		s.Recording = r.keepsRecording()
 		s.Inserted = dres.Inserted
-		if dres.Inserted && dres.Elsewhere(r.req.Target) {
-			s.Into = dres.Into
+		if dres.Inserted {
+			s.InsertedInto = dres.To
 		}
 		s.Card = result != "" && !r.req.Try && !dres.Inserted
 		s.Delivery = dres.Reason
@@ -332,7 +334,9 @@ func (r *run) keep(s Snapshot, status store.Status) {
 	switch {
 	case s.Inserted:
 		e.Delivery = "insert"
-		e.InsertedBundle, e.InsertedName = s.Into.BundleID, s.Into.Name
+		if to := s.InsertedInto; to.PID != 0 && to.PID != s.Target.PID {
+			e.InsertedBundle, e.InsertedName = to.BundleID, to.Name // where it went; the app and the rule stay the start app's
+		}
 	case s.Card:
 		e.Delivery = "card"
 	}

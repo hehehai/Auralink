@@ -289,7 +289,10 @@ func TestMacHelperReadOnly(t *testing.T) {
 	}
 
 	focus := macCall[proto.FocusResult](t, h, proto.MethodTextFocus, nil)
-	t.Logf("textio.focus: pid %d role %s/%s editable %v, value %d chars %s", focus.PID, focus.Role, focus.Subrole, focus.Editable, focus.ValueLength, focus.Error)
+	t.Logf("textio.focus: pid %d (%+v) role %s/%s editable %v, value %d chars %s", focus.PID, focus.App, focus.Role, focus.Subrole, focus.Editable, focus.ValueLength, focus.Error)
+	if focus.App == nil || focus.App.PID != focus.PID && focus.Error == "" {
+		t.Errorf("textio.focus names no app, or another one than its pid's: %+v", focus.App)
+	}
 	sel := macCall[proto.SelectionResult](t, h, proto.MethodTextSelection, proto.SelectionParams{AllowCopy: false})
 	t.Logf("textio.selection (no ⌘C): via %s, %d chars, %.1f ms", sel.Via, len([]rune(sel.Text)), sel.MS)
 	if sel.Via == proto.ViaCopy {
@@ -536,8 +539,6 @@ func (m *macText) Focus(ctx context.Context) (proto.FocusResult, error) {
 	m.t.Logf("textio.focus (real): pid %d role %s editable %v", f.PID, f.Role, f.Editable)
 	return proto.FocusResult{PID: m.pid, Role: "AXTextArea", Editable: true}, nil
 }
-
-func (m *macText) Frontmost(context.Context) (proto.App, error) { return proto.App{PID: m.pid}, nil }
 
 func (m *macText) Paste(_ context.Context, p proto.PasteParams) (proto.PasteResult, error) {
 	m.mu.Lock()

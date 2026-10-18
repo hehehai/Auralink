@@ -62,7 +62,7 @@ func cardSteps() []cardStep {
 		{name: "copied", apply: func(a *app) { a.answer.copied = true }, body: layout.CardBodyMax, insert: true, copy: true, lang: true},
 		{name: "insert-failed", apply: func(a *app) {
 			a.answer.copied, a.answer.text = false, "goroutine 是由 Go 运行时管理的轻量级线程。"
-			a.answer.msg = uitext.DeliveryText(deliver.Result{Reason: deliver.ReasonNotFront})
+			a.answer.msg = uitext.DeliveryText(deliver.Result{Reason: deliver.ReasonNotFront}, arc)
 		}, msg: true, insert: true, copy: true, lang: true},
 		{name: "failed", apply: func(a *app) {
 			snap(a, session.Snapshot{ID: "t3", Kind: store.KindTranslate, State: session.Recording})
@@ -191,7 +191,7 @@ func TestAnswerCardInteraction(t *testing.T) {
 		}
 	}
 	// No line of orange: why it is in the card is Insert's tip.
-	if has(tt, a.answer.why) || !strings.HasPrefix(a.answer.why, "The selection cannot be edited") {
+	if has(tt, a.answer.why) || !strings.HasPrefix(a.answer.why, "The selection in Arc cannot be edited") {
 		t.Errorf("why %q shows", a.answer.why)
 	}
 	// The language menu: ours, in a window of its own; the language
