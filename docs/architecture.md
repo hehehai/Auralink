@@ -52,7 +52,8 @@ github.com/hehehai/Auralink
 │   │                     (streams, Leveler), a peak limiter; pure Go
 │   ├── compose/          the layered prompt composer: Transcribe, Translate, Rewrite;
 │   │                     templates/{en,zh-Hans}; 112 golden prompts; Untranslated, ParseAnswer
-│   ├── deliver/          the insert transaction: textio.focus, then textio.paste or the answer card
+│   ├── deliver/          the insert transaction: textio.focus, then textio.paste where the focus is at the
+│   │                     end (the session's app, another app's field) or the answer card
 │   ├── hotkey/           the shortcuts' grammar, bindings for hotkey.configure and the Carbon
 │   │                     fallback, conflict checks, routing an event to an action
 │   ├── appctx/           app enhancement: groups (document appctx:rules), URL rules and their
@@ -169,7 +170,8 @@ hotkey.event (helper) ─▶ helperNotified ─▶ hotkeyFired ─▶ hotkey.Rou
          (internal/vad: a stream gets nothing before the speech, an upload no silence around it; no speech: nothing is sent)
          (the recording kept in the history is the original)
    compose.Build (+ the Scene layer, the glossary) ─▶ one chat (8 s) ─▶ compose.Clean      (fails: the text as recognised, a warning)
-   deliver.Insert: textio.focus ─▶ textio.paste {targetPid, press: the group's auto key}   (or the answer card)
+   deliver.Insert: textio.focus (Auralink's own: macx.Activate the session's app) ─▶ textio.paste {targetPid: the app
+         with the focus, press: the group's auto key in the session's app only}   (nothing takes text: the answer card)
 Translate: textio.selection {allowCopy: session.AllowCopy(app)} first ─ text ─▶ compose (no recording)
            ─ none ─▶ record and recognise as above ─▶ compose
 Rewrite:   textio.selection while recording; the instruction (+ the selection) ─▶ compose

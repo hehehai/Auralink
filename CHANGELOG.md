@@ -39,6 +39,7 @@ The first public version, a beta: voice input for macOS on remote models, from [
 - Auralink is now proprietary software of actnow, sold at [actnow.dev](https://actnow.dev/auralink) (it was open source up to 0.1.0-beta.1). Settings → About shows the copyright, links to the website and the changelog, and opens the licence and the third-party notices, which now ship inside the app. Report a bug writes an email to hello@actnow.dev instead of a GitHub issue.
 - Downloads, updates and release notes come from [actnow.dev](https://actnow.dev/auralink/changelog) instead of GitHub Releases: sign in at actnow.dev/download/auralink to download. Updates come from actnow.dev/updates/auralink, and Beta updates read its beta channel, which always offers the newer of the latest beta and the latest release.
 - The menu bar icon is now a speech bubble with a waveform, in thin lines like the system's own icons; while recording, the bubble turns solid.
+- A result goes where you are typing when it is ready, not only into the app you started in (as in Voxt): move to another app's text field while Auralink records or works, and it is pasted there (the app's group's key after the paste is pressed only in the app you started in, whose group shaped the result). Where nothing takes text (Finder, the desktop, a window without a field) or the cursor is in a password field, it waits in the answer card, which says why; click where it should go, then Insert. Clicking Auralink's own window still sends it back to the app you started in. The history shows the app it was inserted into when that is another one. The same goes for Translate, Rewrite's Insert and Paste the last result.
 
 ### Known limitations
 
@@ -71,6 +72,7 @@ The first public version, a beta: voice input for macOS on remote models, from [
 - Auralink 改为 actnow 的专有软件，在 [actnow.dev](https://actnow.dev/auralink) 销售（0.1.0-beta.1 及以前是开源的）。设置 → 诊断与关于显示版权，链接到官网和更新日志，并打开 app 内附带的许可和第三方声明。“报告问题”改为给 hello@actnow.dev 写邮件，不再打开 GitHub issue。
 - 下载、更新和更新说明改由 [actnow.dev](https://actnow.dev/auralink/changelog) 提供，不再用 GitHub Releases：登录 actnow.dev/download/auralink 下载。更新来自 actnow.dev/updates/auralink，打开 Beta 更新时读它的 beta 通道，那里始终是最新 beta 和最新正式版中较新的那个。
 - 菜单栏图标改为对话气泡加波形，线条和系统图标一样细；录音时气泡变成实心。
+- 结果出来时插入到你**当时**正在输入的地方，不再只认开始时的 App（和 Voxt 一样）：录音或处理中切到另一个 App 的输入框，结果就粘贴到那里（应用增强分组的“插入后按键”只在开始时的 App 里按，因为结果是按那个分组生成的）。没有可以输入的地方（访达、桌面、没有输入框的窗口）或光标在密码框里时，结果留在答案卡片里，并说明原因；点一下要输入的位置，再点“插入”。点了 Auralink 自己的窗口时，仍然回到开始时的 App 插入。插入到别的 App 时，历史详情里会写“已插入到 …”。翻译、转写卡片的“插入”和“粘贴最近结果”也是同样的规则。
 
 ### 已知限制
 
