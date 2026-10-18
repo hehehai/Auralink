@@ -24,7 +24,7 @@ func DeliveryText(res deliver.Result) string {
 	case deliver.ReasonNoAccess:
 		return i18n.T("Allow Accessibility to insert results where you type.")
 	case deliver.ReasonNotFront, deliver.ReasonNoTarget, deliver.ReasonNotEditable:
-		return i18n.T("No place to type was found: click where the text should go first.")
+		return i18n.T("No place to type: click where it should go first.")
 	case deliver.ReasonSecure:
 		return i18n.T("The cursor is in a password field: Auralink does not type there.")
 	case deliver.ReasonFailed:
@@ -156,12 +156,12 @@ func TargetLanguageLabel(code string) string {
 func WhyInCard(r deliver.Reason, selection bool) string {
 	switch r {
 	case deliver.ReasonNotFront, deliver.ReasonNoTarget:
-		return i18n.T("No place to type was found: click where it should go and insert, or copy it.")
+		return i18n.T("No place to type: click where it should go and insert, or copy it.")
 	case deliver.ReasonNotEditable:
 		if selection {
 			return i18n.T("The selection cannot be edited: copy the result, or click where it should go and insert.")
 		}
-		return i18n.T("No place to type was found: click where it should go and insert, or copy it.")
+		return i18n.T("No place to type: click where it should go and insert, or copy it.")
 	case deliver.ReasonSecure:
 		return i18n.T("The cursor is in a password field: click where it should go and insert, or copy it.")
 	case deliver.ReasonNoAccess:

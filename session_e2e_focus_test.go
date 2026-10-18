@@ -78,7 +78,7 @@ func TestSessionFocusNowhere(t *testing.T) {
 	if end.State != session.Done || end.Inserted || !end.Card || !a.answer.open || len(a.pasted()) != 0 {
 		t.Fatalf("end %+v, card %v, pasted %+v", end, a.answer.open, a.pasted())
 	}
-	if a.answer.why != "No place to type was found: click where it should go and insert, or copy it." {
+	if a.answer.why != "No place to type: click where it should go and insert, or copy it." {
 		t.Errorf("why %q", a.answer.why)
 	}
 	// The user clicks into TextEdit, then Insert.
@@ -151,7 +151,7 @@ func TestPasteLastFollowsFocus(t *testing.T) {
 		focus proto.FocusResult
 		say   string
 	}{
-		{proto.FocusResult{PID: 640, Role: "AXOutline"}, "No place to type was found: click where the text should go first."},
+		{proto.FocusResult{PID: 640, Role: "AXOutline"}, "No place to type: click where it should go first."},
 		{proto.FocusResult{PID: 530, Role: "AXTextField", Subrole: "AXSecureTextField", Editable: true}, "The cursor is in a password field: Auralink does not type there."},
 	} {
 		focus = tc.focus

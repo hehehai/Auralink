@@ -140,10 +140,10 @@ func TestAnswerCardButtons(t *testing.T) {
 	card("c1")
 	tt := cardTester(a)
 	frames(tt)
-	if !tt.HasText("Answer c1") || tt.HasText("No place to type was found: click where it should go and insert, or copy it.") {
+	if !tt.HasText("Answer c1") || tt.HasText("No place to type: click where it should go and insert, or copy it.") {
 		t.Errorf("card texts %q", firstTexts(tt))
 	}
-	if a.answer.why != "No place to type was found: click where it should go and insert, or copy it." {
+	if a.answer.why != "No place to type: click where it should go and insert, or copy it." {
 		t.Errorf("why %q", a.answer.why)
 	}
 	if err := tt.Click("Copy"); err != nil {
@@ -174,7 +174,7 @@ func TestAnswerCardButtons(t *testing.T) {
 	}
 	card("c3")
 	a.insertAnswer()
-	if !a.answer.open || a.answer.inserting || a.ov.mode != ovAnswer || a.answer.msg != "No place to type was found: click where the text should go first." || len(pasted) != 1 {
+	if !a.answer.open || a.answer.inserting || a.ov.mode != ovAnswer || a.answer.msg != "No place to type: click where it should go first." || len(pasted) != 1 {
 		t.Errorf("elsewhere, a static text: %s %+v", a.ov.mode, a.answer)
 	}
 	h := a.ov.h
