@@ -46,12 +46,13 @@ package helpertest
 //	pcm=PATH         capture.pcm plays this WAV (16-bit mono, any rate) or raw
 //	                 PCM16 at the requested rate, then silence
 //	events=PATH      once the tap is installed, play a script: JSON lines
-//	                 {"afterMs":N,"method":"hotkey.event","params":{…}}, any notification
+//	                 {"afterMs":N,"method":"hotkey.event","params":{…}}, any notification;
+//	                 an app.activated line also brings its app to the front (the user moved on)
 //	press=ID         once the tap is installed, binding ID fires (a trigger, with Front)
 //	front=BUNDLE     the app in front (default com.tinyspeck.slackmacgap, Slack, pid 812)
 //	selection=TEXT   textio.selection reads TEXT through Accessibility
 //	copy-selection=TEXT  textio.selection reads TEXT only with allowCopy (via copy)
-//	readonly         textio.focus: the focused element is not editable
+//	readonly[=BUNDLE]  textio.focus: the focused element is not editable (of BUNDLE only)
 //	paste-log=PATH   append each textio.paste's params to PATH (JSON lines)
 //	delay=METHOD:MS  answer METHOD MS ms late (slow calls)
 //	no-url[=BUNDLE]  browser.url reads no URL (of BUNDLE, or of every browser)
@@ -131,6 +132,7 @@ var Apps = map[string]proto.App{
 	"com.apple.Safari":           {PID: 902, BundleID: "com.apple.Safari", Name: "Safari"},
 	"company.thebrowser.Browser": {PID: 903, BundleID: "company.thebrowser.Browser", Name: "Arc"},
 	"com.apple.TextEdit":         {PID: 530, BundleID: "com.apple.TextEdit", Name: "TextEdit"},
+	"com.apple.finder":           {PID: 640, BundleID: "com.apple.finder", Name: "Finder"},
 }
 
 // Browsers are the URLs browser.url answers, by bundle id; other apps
@@ -178,6 +180,7 @@ type fake struct {
 	stop      map[string]chan struct{} // closed by capture.stop
 	finished  map[string]chan struct{}
 	outSim    *OutputHelper // output.* (output.go)
+	moved     *proto.App    // the app in front since a script's app.activated
 }
 
 // Run serves the protocol on stdin and stdout with opts (see the top of
@@ -276,6 +279,12 @@ func (f *fake) notify(method string, params any) {
 func (f *fake) now() float64 { return float64(time.Since(f.start).Microseconds())/1000 + 1 }
 
 func (f *fake) front() proto.App {
+	f.mu.Lock()
+	moved := f.moved
+	f.mu.Unlock()
+	if moved != nil {
+		return *moved
+	}
 	if a, ok := Apps[f.opts["front"]]; ok {
 		return a
 	}

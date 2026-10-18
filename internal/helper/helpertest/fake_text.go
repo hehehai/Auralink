@@ -90,6 +90,14 @@ func (f *fake) playScript(bindings []proto.HotkeyBinding) {
 			continue
 		}
 		time.Sleep(time.Duration(s.AfterMS) * time.Millisecond)
+		if s.Method == proto.MethodAppActivated {
+			var app proto.App
+			if json.Unmarshal(s.Params, &app) == nil {
+				f.mu.Lock()
+				f.moved = &app
+				f.mu.Unlock()
+			}
+		}
 		f.send(proto.Message{Method: s.Method, Params: s.Params})
 	}
 }
@@ -105,7 +113,7 @@ func (f *fake) textio(m proto.Message) {
 	switch m.Method {
 	case proto.MethodTextFocus:
 		res := proto.FocusResult{PID: front.PID, Role: "AXTextArea", Editable: true, ValueLength: 40}
-		if f.has("readonly") {
+		if ro, ok := f.opts["readonly"]; ok && (ro == "" || ro == front.BundleID) {
 			res.Role, res.Editable, res.ValueLength = "AXStaticText", false, 0
 		}
 		if sel := f.opts["selection"]; sel != "" {
