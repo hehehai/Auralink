@@ -19,7 +19,11 @@ import (
 // activatedLine is a script's app.activated: the user brings bundle's app
 // to the front (the fake helper's front follows).
 func activatedLine(afterMS int, bundle string) string {
-	b, _ := json.Marshal(helpertest.Script{AfterMS: afterMS, Method: proto.MethodAppActivated, Params: mustJSON(helpertest.Apps[bundle])})
+	app, ok := helpertest.Apps[bundle]
+	if !ok {
+		app = proto.App{PID: 640, BundleID: bundle, Name: "Finder"} // Finder (not in the fake's app.list)
+	}
+	b, _ := json.Marshal(helpertest.Script{AfterMS: afterMS, Method: proto.MethodAppActivated, Params: mustJSON(app)})
 	return string(b)
 }
 

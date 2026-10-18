@@ -132,7 +132,6 @@ var Apps = map[string]proto.App{
 	"com.apple.Safari":           {PID: 902, BundleID: "com.apple.Safari", Name: "Safari"},
 	"company.thebrowser.Browser": {PID: 903, BundleID: "company.thebrowser.Browser", Name: "Arc"},
 	"com.apple.TextEdit":         {PID: 530, BundleID: "com.apple.TextEdit", Name: "TextEdit"},
-	"com.apple.finder":           {PID: 640, BundleID: "com.apple.finder", Name: "Finder"},
 }
 
 // Browsers are the URLs browser.url answers, by bundle id; other apps

@@ -131,7 +131,7 @@ func TestOverlayWriting(t *testing.T) {
 	if !a.answer.open || a.answer.input.Selection != "Hi" || a.answer.lang != "zh-Hans" {
 		t.Fatalf("card %+v", a.answer)
 	}
-	if got := a.answer.why; got != "The selection in Slack cannot be edited: copy the result, or click where it should go and insert." {
+	if got := a.answer.why; got != "The selection cannot be edited: copy the result, or click where it should go and insert." {
 		t.Errorf("why %q", got)
 	}
 	// Another language: nothing is set up, so the card says why.

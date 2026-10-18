@@ -191,7 +191,7 @@ func TestAnswerCardInteraction(t *testing.T) {
 		}
 	}
 	// No line of orange: why it is in the card is Insert's tip.
-	if has(tt, a.answer.why) || !strings.HasPrefix(a.answer.why, "The selection in Arc cannot be edited") {
+	if has(tt, a.answer.why) || !strings.HasPrefix(a.answer.why, "The selection cannot be edited") {
 		t.Errorf("why %q shows", a.answer.why)
 	}
 	// The language menu: ours, in a window of its own; the language
