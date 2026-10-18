@@ -353,15 +353,32 @@ type fakeText struct {
 	focus proto.FocusResult
 	err   error
 	front proto.App // app.frontmost (zero: the focused app, unnamed)
+	// refuse: the paste finds this app in front instead (the focus moved
+	// between the check and the paste).
+	refuse *proto.App
 
 	mu      sync.Mutex
 	pasted  []string
 	presses [][]proto.KeyPress
+	targets []int // each paste's TargetPID
 }
 
-func (f *fakeText) Focus(context.Context) (proto.FocusResult, error) { return f.focus, f.err }
+func (f *fakeText) Focus(context.Context) (proto.FocusResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.focus, f.err
+}
+
+// setFocus moves the focus while a session runs.
+func (f *fakeText) setFocus(focus proto.FocusResult, front proto.App) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.focus, f.front = focus, front
+}
 
 func (f *fakeText) Frontmost(context.Context) (proto.App, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.front.PID != 0 {
 		return f.front, nil
 	}
@@ -371,8 +388,12 @@ func (f *fakeText) Frontmost(context.Context) (proto.App, error) {
 func (f *fakeText) Paste(_ context.Context, p proto.PasteParams) (proto.PasteResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.refuse != nil {
+		return proto.PasteResult{Front: f.refuse}, nil
+	}
 	f.pasted = append(f.pasted, p.Text)
 	f.presses = append(f.presses, p.Press)
+	f.targets = append(f.targets, p.TargetPID)
 	return proto.PasteResult{Posted: true, Restored: true}, nil
 }
 
