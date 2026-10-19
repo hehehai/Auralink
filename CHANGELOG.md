@@ -36,6 +36,7 @@ The first public version, a beta: voice input for macOS on remote models, from [
 
 ### Changed
 
+- The note of which output device Auralink muted is kept in Application Support instead of ~/Library/Caches, so that a cache cleaner run after a crash cannot leave your speakers muted. Logs leave out keys, tokens and proxy passwords.
 - Auralink is now proprietary software of actnow, sold at [actnow.dev](https://actnow.dev/auralink) (it was open source up to 0.1.0-beta.1). Settings → About shows the copyright, links to the website and the changelog, and opens the licence and the third-party notices, which now ship inside the app. Report a bug writes an email to hello@actnow.dev instead of a GitHub issue.
 - Downloads, updates and release notes come from [actnow.dev](https://actnow.dev/auralink/changelog) instead of GitHub Releases: sign in at actnow.dev/download/auralink to download. Updates come from actnow.dev/updates/auralink, and Beta updates read its beta channel, which always offers the newer of the latest beta and the latest release.
 - The menu bar icon is now a speech bubble with a waveform, in thin lines like the system's own icons; while recording, the bubble turns solid.
@@ -69,6 +70,7 @@ The first public version, a beta: voice input for macOS on remote models, from [
 
 ### 变更
 
+- Auralink 静音了哪个输出设备的记录改放在 Application Support，不再放在 ~/Library/Caches，崩溃后即使清理了缓存，扬声器也不会一直静音。日志不再记下密钥、令牌和代理密码。
 - Auralink 改为 actnow 的专有软件，在 [actnow.dev](https://actnow.dev/auralink) 销售（0.1.0-beta.1 及以前是开源的）。设置 → 诊断与关于显示版权，链接到官网和更新日志，并打开 app 内附带的许可和第三方声明。“报告问题”改为给 hello@actnow.dev 写邮件，不再打开 GitHub issue。
 - 下载、更新和更新说明改由 [actnow.dev](https://actnow.dev/auralink/changelog) 提供，不再用 GitHub Releases：登录 actnow.dev/download/auralink 下载。更新来自 actnow.dev/updates/auralink，打开 Beta 更新时读它的 beta 通道，那里始终是最新 beta 和最新正式版中较新的那个。
 - 菜单栏图标改为对话气泡加波形，线条和系统图标一样细；录音时气泡变成实心。

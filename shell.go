@@ -29,6 +29,7 @@ import (
 	"github.com/hehehai/Auralink/internal/logs"
 	"github.com/hehehai/Auralink/internal/notify"
 	"github.com/hehehai/Auralink/internal/settings"
+	"github.com/hehehai/actnowkit/redact"
 )
 
 // The main window's size, DIPs: by default and at the least. A size the
@@ -122,7 +123,7 @@ func (a *app) openShell(lib *library) {
 	}
 	a.notes = notes
 	a.notices, _ = notes.List(context.Background())
-	a.logs = logs.New(logs.Options{Bus: a.bus})
+	a.logs = logs.New(logs.Options{Bus: a.bus, Redact: redact.Text})
 	a.loadSettingsForm()
 
 	core.On(a.bus, func(ev core.NotificationPosted) {
@@ -147,7 +148,7 @@ func (a *app) connectShell(logDir string) {
 	a.logDir = logDir // Settings → Storage, Diagnostics
 	if logDir != "" {
 		a.logs.Close()
-		a.logs = logs.New(logs.Options{Dir: logDir, Bus: a.bus})
+		a.logs = logs.New(logs.Options{Dir: logDir, Bus: a.bus, Redact: redact.Text}) // keys, tokens, proxy passwords out (family spec §13)
 		log.SetOutput(io.MultiWriter(os.Stderr, a.logs.Writer("app")))
 	}
 	mygo.App.OnOpenURL(func(u string) { a.post(func() { a.openURL(u) }) })

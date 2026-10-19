@@ -34,6 +34,9 @@ type Options struct {
 	Keep         int
 	// Bus receives LogAppended for every line (may be nil).
 	Bus *core.Bus
+	// Redact takes secrets out of a line before it is kept (package
+	// main: actnowkit/redact, family spec §13); nil keeps lines as they are.
+	Redact func(string) string
 }
 
 // Ring implements core.LogService.
@@ -90,6 +93,9 @@ func (r *Ring) Append(e core.LogEntry) {
 		e.Level = core.SeverityInfo
 	}
 	e.Message = strings.TrimRight(e.Message, "\r\n")
+	if r.opts.Redact != nil {
+		e.Message = r.opts.Redact(e.Message)
+	}
 	r.mu.Lock()
 	r.seq++
 	e.Seq = r.seq

@@ -89,13 +89,13 @@ func main() {
 	if demoLibrary != nil {
 		demoLibrary(lib) // demo_data.go: the sample data
 	}
-	h := newHelperHost(resources, logDir)   // helperlink.go
-	a := newApp(lib, h)                     // app.go
-	a.dataHome = home                       // settings_storage.go
-	a.openIcons(cacheDir)                   // appicons.go
-	a.muteJournal = outputJournal(cacheDir) // mute_link.go
-	a.connectShell(logDir)                  // shell.go
-	a.connectHelper()                       // helperlink.go
+	h := newHelperHost(resources, logDir)         // helperlink.go
+	a := newApp(lib, h)                           // app.go
+	a.dataHome = home                             // settings_storage.go
+	a.openIcons(cacheDir)                         // appicons.go
+	a.muteJournal = outputJournal(home, cacheDir) // mute_link.go
+	a.connectShell(logDir)                        // shell.go
+	a.connectHelper()                             // helperlink.go
 	a.upd, a.bundleStale = pluginUpdates{}, h.stale
 	a.connectUpdates() // updates.go
 
