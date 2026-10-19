@@ -26,12 +26,12 @@ AudioSmith
   was taken and how it changed.
 
 VoxtNew log selection
-  The logs' line selection (shell_logs_select.go, its tests
-  shell_logs_select_test.go and the parts of shell_logs.go that draw and
-  key the selected lines; logs_check.go and scripts/mac-logs-shots.sh,
+  The logs' line selection and order (shell_logs_select.go,
+  shell_logs_order.go, their tests and the parts of shell_logs.go that
+  draw and key the lines; logs_check.go and scripts/mac-logs-shots.sh,
   scripts/logs-shots/drive.swift, which capture it on a Mac) is adapted
   from VoxtNew (https://github.com/hehehai/sglang-omni, VoxtNew/, commits
-  21fe7ed7, ccc48bbe and 2fc1f90f), Copyright 2026 ActNow and the
+  21fe7ed7, ccc48bbe, 2fc1f90f and 4966998c), Copyright 2026 ActNow and the
   SGLang-Omni Team, licensed under the Apache License 2.0
   (LICENSES/Apache-2.0.txt). It has been modified: import paths, names
   and sample lines are Auralink's.
