@@ -8,11 +8,12 @@ Third-party material
 Auralink includes the material below. Each part keeps its own licence,
 and every one of them allows it to be part of proprietary software: the
 Apache License 2.0, MIT, ISC, BSD-3-Clause, the Unlicense, the Unicode
-License v3 and CC BY 4.0 (for the icons, which are artwork rather than
-code) ask for their notices and licence texts to go with it, which this
-file and LICENSES/ do; Auralink.app carries both in Contents/Resources.
-Full licence texts: LICENSES/Apache-2.0.txt, LICENSES/Unicode-3.0.txt
-and LICENSES/go/ (the Go modules' own files, copied unchanged, MyGo's
+License v3, CC BY 4.0 (for the icons, which are artwork rather than
+code) and React Bits' MIT + Commons Clause (for the sounds, used inside
+the app only) ask for their notices and licence texts to go with it,
+which this file and LICENSES/ do; Auralink.app carries both in
+Contents/Resources. Full licence texts: LICENSES/Apache-2.0.txt,
+LICENSES/Unicode-3.0.txt, LICENSES/React-Bits.md and LICENSES/go/ (the Go modules' own files, copied unchanged, MyGo's
 among them).
 
 AudioSmith
@@ -118,6 +119,15 @@ MyGo
   Auralink.app also carries MyGo's prebuilt SQLite library (SQLite 3.53.4,
   https://sqlite.org, in the public domain).
 
+React Bits Sound Lab (the recording's cues, resources/sounds)
+  Sounds from React Bits Sound Lab (https://reactbits.dev/tools/sound-lab),
+  Copyright (c) 2026 David Haz, licensed under MIT + Commons Clause
+  License Condition v1.0 (LICENSES/React-Bits.md): they may be used as
+  part of an application, paid ones included, but not sold or
+  redistributed on their own. Exported with Sound Lab's export, trimmed
+  and loudness-aligned for the ActNow family's private sound library
+  (hehehai/actnow-sounds), copied by scripts/sync-sounds.sh.
+
 Go modules compiled into Auralink
   Their licence files are copied unchanged into LICENSES/go/.
   - github.com/coder/websocket v1.8.15, Copyright (c) 2025 Coder, ISC
@@ -125,10 +135,11 @@ Go modules compiled into Auralink
     authors, Apache License 2.0 (LICENSES/Apache-2.0.txt)
   - github.com/go-text/typesetting v0.3.5, Copyright 2021 The go-text
     authors, Unlicense OR BSD-3-Clause
-  - github.com/hehehai/actnowkit v0.8.0, Copyright 2026 ActNow
+  - github.com/hehehai/actnowkit v0.9.0, Copyright 2026 ActNow
     (https://actnow.dev), Apache License 2.0: the ActNow family protocol
     (finding the other ActNow apps, shared settings, shared API keys,
-    shortcut conflicts) and the logs' line selection (listsel). Its NOTICE, which names the origin of its hfhub
+    shortcut conflicts), the logs' line selection (listsel) and the
+    cue sounds' catalogue and player (sounds; no audio). Its NOTICE, which names the origin of its hfhub
     package (portions Copyright 2026 the AudioSmith authors), is copied
     unchanged into LICENSES/go/github.com_hehehai_actnowkit.NOTICE.txt.
   - golang.org/x/image v0.46.0, Copyright 2009 The Go Authors,

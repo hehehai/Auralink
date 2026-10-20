@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"github.com/hehehai/actnowkit/sounds"
 	"os"
 	"os/exec"
 	"runtime"
@@ -22,7 +23,6 @@ import (
 	"github.com/hehehai/Auralink/internal/helper/helpertest"
 	"github.com/hehehai/Auralink/internal/helper/proto"
 	"github.com/hehehai/Auralink/internal/i18n"
-	"github.com/hehehai/Auralink/internal/macx"
 	"github.com/hehehai/Auralink/internal/overlay/layout"
 	"github.com/hehehai/Auralink/internal/permission"
 )
@@ -167,8 +167,9 @@ func newTestAppIn(t *testing.T, dir string) (*app, *fakeSupervisor, *ui.Tester) 
 	fs := newFakeSupervisor(lib.bus)
 	a := newApp(lib, &helperHost{sup: fs})
 	a.permSys = &permission.Fake{Mic: permission.Granted, Grant: true}
-	a.playSound = func(macx.Sound) {} // tests that listen replace it
-	a.measureHook = guessText         // the overlay's texts, without its view
+	useTestSounds(t, a)                  // sounds_fixture_test.go
+	a.playSound = func(sounds.Target) {} // tests that listen replace it
+	a.measureHook = guessText            // the overlay's texts, without its view
 	a.connectHelper()
 	a.upd = newFakeUpdates() // updates_test.go
 	a.connectUpdates()

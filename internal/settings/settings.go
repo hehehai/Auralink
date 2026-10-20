@@ -149,12 +149,18 @@ type Audio struct {
 	// Auralink muted (internal/outmute, 10-16). Nil until the user
 	// chooses: on (MuteOn), for older documents too, without a
 	// migration. Sounds plays a cue when recording starts and another
-	// when it stops (M6); SoundPreset is the pair it plays, by Voxt's
-	// preset IDs (macx.Presets: "soft", "glass", …). Empty, or an ID
-	// Auralink does not know, is "soft" (Pop, then Tink), so older
-	// documents need no migration (10-17).
+	// when it stops (M6). StartSound and StopSound are those cues, as
+	// choices of actnowkit's sounds package: "" the default (one of the
+	// ActNow family's sounds), "none", "system:<name>" for a macOS
+	// system sound, or a family sound's id (10-20). SoundVolume is their
+	// volume in percent (0: DefaultSoundVolume). SoundPreset was the pair
+	// before, by Voxt's preset IDs (10-17): Migrate turns it into
+	// StartSound and StopSound and never writes it again.
 	MuteOutput  *bool  `json:"muteOutput,omitempty"`
 	Sounds      bool   `json:"sounds"`
+	StartSound  string `json:"startSound,omitempty"`
+	StopSound   string `json:"stopSound,omitempty"`
+	SoundVolume int    `json:"soundVolume,omitempty"`
 	SoundPreset string `json:"soundPreset,omitempty"`
 	// VAD is the local voice activity detection a recording goes
 	// through before a speech service hears it (10-15).
@@ -443,8 +449,39 @@ func Migrate(data []byte) (Settings, error) {
 	if s.Version < 3 && s.Overlay.Radius == 16 {
 		s.Overlay.Radius = DefaultRadius // version 3: rounder, as Voxt's
 	}
+	migrateSoundPreset(&s.Audio)
 	s.Version = Version
 	return normalize(s), nil
+}
+
+// DefaultSoundVolume is the cues' volume until the user sets one.
+const DefaultSoundVolume = 70
+
+// SoundVolumeOrDefault is the cues' volume in percent.
+func (a Audio) SoundVolumeOrDefault() int {
+	if a.SoundVolume <= 0 {
+		return DefaultSoundVolume
+	}
+	return min(a.SoundVolume, 100)
+}
+
+// presetSounds are the system sounds of Voxt's presets (macx.Presets
+// before 10-20), start then stop: what migrateSoundPreset keeps of a
+// chosen preset. Soft (Pop, Tink), the default, becomes the family's
+// default sounds.
+var presetSounds = map[string][2]string{
+	"glass": {"Ping", "Ping"}, "funk": {"Morse", "Morse"}, "submarine": {"Submarine", "Submarine"},
+	"basso": {"Basso", "Basso"}, "bottle": {"Bottle", "Bottle"}, "frog": {"Frog", "Frog"},
+	"hero": {"Hero", "Hero"}, "purr": {"Purr", "Purr"}, "sosumi": {"Sosumi", "Sosumi"},
+}
+
+// migrateSoundPreset turns a Voxt preset into the start and stop cues it
+// played, as macOS system sounds; Soft and unknown IDs into the defaults.
+func migrateSoundPreset(a *Audio) {
+	if p, ok := presetSounds[a.SoundPreset]; ok && a.StartSound == "" && a.StopSound == "" {
+		a.StartSound, a.StopSound = "system:"+p[0], "system:"+p[1]
+	}
+	a.SoundPreset = ""
 }
 
 // Changed is published after an update is saved. Topic "settings.changed".
