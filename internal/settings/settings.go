@@ -153,7 +153,7 @@ type Audio struct {
 	// choices of actnowkit's sounds package: "" the default (one of the
 	// ActNow family's sounds), "none", "system:<name>" for a macOS
 	// system sound, or a family sound's id (10-20). SoundVolume is their
-	// volume in percent (0: DefaultSoundVolume). SoundPreset was the pair
+	// volume in percent (0: DefaultSoundVolume; negative: muted). SoundPreset was the pair
 	// before, by Voxt's preset IDs (10-17): Migrate turns it into
 	// StartSound and StopSound and never writes it again.
 	MuteOutput  *bool  `json:"muteOutput,omitempty"`
@@ -457,12 +457,26 @@ func Migrate(data []byte) (Settings, error) {
 // DefaultSoundVolume is the cues' volume until the user sets one.
 const DefaultSoundVolume = 70
 
-// SoundVolumeOrDefault is the cues' volume in percent.
+// SoundVolumeOrDefault is the cues' volume in percent: SoundVolume, or
+// DefaultSoundVolume when unset (0); a negative one is muted.
 func (a Audio) SoundVolumeOrDefault() int {
-	if a.SoundVolume <= 0 {
+	switch {
+	case a.SoundVolume == 0:
 		return DefaultSoundVolume
+	case a.SoundVolume < 0:
+		return 0
 	}
 	return min(a.SoundVolume, 100)
+}
+
+// SetSoundVolume keeps v (percent) as the cues' volume; 0 is stored as
+// muted (-1), as 0 is unset.
+func (a *Audio) SetSoundVolume(v int) {
+	if v <= 0 {
+		a.SoundVolume = -1
+		return
+	}
+	a.SoundVolume = min(v, 100)
 }
 
 // presetSounds are the system sounds of Voxt's presets (macx.Presets
