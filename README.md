@@ -12,7 +12,7 @@ It runs no models on your Mac. You choose the speech and language services (Step
 
 Auralink is a pared-down rewrite of [Voxt](https://github.com/hehehai/voxt), by the same author: Voxt's dictation, translation and rewriting, with remote models only, and without meetings, file transcription, notes or local models. Its interface and engineering come from [AudioSmith](https://github.com/hehehai/AudioSmith).
 
-> **Status: 0.1.0-beta.2, a beta.** Everything below is built and tested. Download it from [actnow.dev](https://actnow.dev/download/auralink) (sign in first); the product page is [actnow.dev/auralink](https://actnow.dev/auralink), the [changelog](https://actnow.dev/auralink/changelog) and the [price](https://actnow.dev/pricing) (a one-time purchase) are there too.
+> **Status: 0.1.0-beta.2, a beta.** Everything below is built and tested. Download it from [actnow.dev](https://actnow.dev/download/auralink) (sign in first); the product page is [actnow.dev/auralink](https://actnow.dev/auralink), with the [changelog](https://actnow.dev/auralink/changelog). Auralink is free and open source (GNU AGPL-3.0).
 
 <sub>Screenshots and recordings: Auralink 0.1.0-beta.1 on macOS 26, with sample data, StepFun for speech and DeepSeek for the language model.</sub>
 
@@ -154,6 +154,8 @@ go tool mygo dev                     # run with hot reload
 go tool mygo build                   # build/darwin-arm64/Auralink.app and "Auralink 0.1.0 arm64.dmg"
 ```
 
+A build from this repository plays macOS's system sounds when a recording starts and stops. The builds from actnow.dev carry the ActNow family's sounds instead, which come from a private library and may not be redistributed ([NOTICE](NOTICE)); with access to it, `scripts/sync-sounds.sh` copies them into `resources/sounds` before a build.
+
 From Linux, `scripts/mac.sh <command>` mirrors the project to a Mac (`MAC_HOST`, default `mac-air`; `MAC_DIR`, default `code/Auralink`) and runs the command there: `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'`.
 
 <details>
@@ -199,6 +201,14 @@ CI runs gofmt, the Go tests (also under the race detector) and MyGo vet on Linux
 - [MyGo](https://github.com/egoist/mygo): native macOS UI from Go, without cgo (MIT).
 - [Solar](https://www.figma.com/community/file/1166831539721848736) icons by 480 Design, under CC BY 4.0.
 
+## Contributing
+
+Bug reports, ideas and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) for the checks to run. Before we can merge your first pull request, you sign the [Contributor License Agreement](CLA.md) by commenting on it; a bot asks you.
+
 ## Licence
 
-Copyright (c) 2026 actnow. All rights reserved. Auralink is proprietary software, sold at [actnow.dev](https://actnow.dev/pricing): see [LICENSE](LICENSE). Third-party material and its licences are listed in [NOTICE](NOTICE), and both ship inside the app.
+Copyright (C) 2026 hehehai and the Auralink contributors.
+
+Auralink is free software: you can redistribute it and/or modify it under the terms of the [GNU Affero General Public License](LICENSE) as published by the Free Software Foundation, version 3 (AGPL-3.0). It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; see the licence for details. Versions up to and including 0.1.0-beta.1 were released under the Apache License 2.0 and stay under it.
+
+Third-party material and its licences are listed in [NOTICE](NOTICE), with the licence texts in [LICENSES/](LICENSES); the app carries both. The sounds of the official builds are not part of this repository nor under the AGPL (NOTICE).

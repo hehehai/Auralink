@@ -12,7 +12,7 @@ Auralink 是一个精简的 macOS 语音输入 app。在任意 App 里按下快�
 
 Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重写：保留 Voxt 的听写、翻译和改写，只用远程模型，去掉了会议、文件转录、笔记和本地模型。界面和工程沿用 [AudioSmith](https://github.com/hehehai/AudioSmith)。
 
-> **状态：0.1.0-beta.2，beta 版。** 下面的功能都已完成并通过测试。在 [actnow.dev](https://actnow.dev/download/auralink) 下载（需要先登录）；产品页是 [actnow.dev/auralink](https://actnow.dev/auralink)，[更新日志](https://actnow.dev/auralink/changelog)和[价格](https://actnow.dev/pricing)（一次性购买）也在官网。
+> **状态：0.1.0-beta.2，beta 版。** 下面的功能都已完成并通过测试。在 [actnow.dev](https://actnow.dev/download/auralink) 下载（需要先登录）；产品页是 [actnow.dev/auralink](https://actnow.dev/auralink)，[更新日志](https://actnow.dev/auralink/changelog)也在官网。Auralink 免费开源（GNU AGPL-3.0）。
 
 <sub>截图和录屏：Auralink 0.1.0-beta.1，macOS 26，演示数据；语音识别用阶跃星辰，语言模型用 DeepSeek。</sub>
 
@@ -154,6 +154,8 @@ go tool mygo dev                     # 热重载运行
 go tool mygo build                   # 生成 build/darwin-arm64/Auralink.app 和 “Auralink 0.1.0 arm64.dmg”
 ```
 
+从本仓库构建的版本，录音开始和结束时播放 macOS 系统声音。actnow.dev 发布的版本带有 ActNow 家族的提示音，它们来自私有的声音库，不允许再分发（见 [NOTICE](NOTICE)）；有权限访问声音库时，`scripts/sync-sounds.sh` 会在构建前把它们复制到 `resources/sounds`。
+
 在 Linux 上开发时，`scripts/mac.sh <命令>` 会把项目同步到 Mac（`MAC_HOST` 默认 `mac-air`，`MAC_DIR` 默认 `code/Auralink`）并在那边执行，例如 `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'`。
 
 <details>
@@ -199,6 +201,14 @@ CI 在 Linux 上跑 gofmt、Go 测试（含 race 检测）和 MyGo vet，在 mac
 - [MyGo](https://github.com/egoist/mygo)：用 Go 写原生 macOS 界面，不用 cgo（MIT 许可）。
 - 480 Design 的 [Solar](https://www.figma.com/community/file/1166831539721848736) 图标，以 CC BY 4.0 授权。
 
+## 参与贡献
+
+欢迎报告问题、提建议和提交 PR，需要跑的检查见 [CONTRIBUTING.md](CONTRIBUTING.md)。你的第一个 PR 合并前，需要在 PR 里留言签署[贡献者许可协议](CLA.md)，机器人会提示你。
+
 ## 许可证
 
-Copyright (c) 2026 actnow。保留所有权利。Auralink 是专有软件，在 [actnow.dev](https://actnow.dev/pricing) 销售，许可条款见 [LICENSE](LICENSE)（以英文为准）。第三方素材及其许可见 [NOTICE](NOTICE)，两者都随 app 一起分发。
+Copyright (C) 2026 hehehai and the Auralink contributors.
+
+Auralink 是自由软件：你可以按自由软件基金会发布的 [GNU Affero 通用公共许可证](LICENSE)第 3 版（AGPL-3.0）再分发和修改它。我们希望它有用，但不提供任何担保，详见许可证。0.1.0-beta.1 及更早的版本以 Apache License 2.0 发布，仍适用该许可。
+
+第三方素材及其许可列在 [NOTICE](NOTICE) 里，许可全文在 [LICENSES/](LICENSES)，应用里都带有这两份。官方版本里的提示音不在本仓库里，也不适用 AGPL（见 NOTICE）。

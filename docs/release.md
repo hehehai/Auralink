@@ -1,12 +1,13 @@
 # 发布与更新
 
-Auralink 是 actnow 的专有软件（[LICENSE](../LICENSE)），下载、更新和更新日志都在官网 [actnow.dev](https://actnow.dev/auralink)。仓库是私有的，**没有 GitHub Release**。
+Auralink 是开源软件（GNU AGPL-3.0，[LICENSE](../LICENSE)），仓库 [hehehai/Auralink](https://github.com/hehehai/Auralink) 是公开的；下载、更新和更新日志都在官网 [actnow.dev](https://actnow.dev/auralink)，**没有 GitHub Release**。公开仓库的 GitHub Actions 标准 runner（包括 macOS）不计额度。
 
 发布版本在 GitHub Actions 上构建：打一个 `v0.x.y` tag（正式版）或 `v0.x.y-beta.n` tag（beta 版），[release 工作流](../.github/workflows/release.yml)就在 macOS runner 上编译辅助进程和 app，用 Developer ID 签名，用 Apple ID 和 App 专用密码公证，用更新密钥签名更新包，然后用官网的发布脚本 [scripts/actnow-publish.sh](../scripts/actnow-publish.sh)（`https://actnow.dev/actnow-publish.sh` 的副本，见 §2.3）把文件交给官网后台。后台校验（大小、sha256、清单、Ed25519 签名、CHANGELOG）、存进 R2、写更新日志、发布，**清单最后写**。CI 只需要 `ACTNOW_INGEST_TOKEN`，没有 R2 的密钥。官网的说明在 actnow-www 仓库的 `docs/release-pipeline.md`。
 
 ```
 tag v0.1.0-beta.2 ─▶ release.yml（macos-26，contents: read）
    │  检查版本号、CHANGELOG、Secret（发布时缺 ACTNOW_INGEST_TOKEN 就在构建前失败）
+   ├─ 家族提示音：有 ACTNOW_SOUNDS_TOKEN 时从私有库 hehehai/actnow-sounds 拉到 resources/sounds（scripts/sync-sounds.sh），没有就用系统声音
    ├─ 签名钥匙串、公证凭据
    ├─ build-helper.sh → release-config.sh（合并 release/mygo.release.json：公钥、url、prereleases）
    ├─ go tool mygo build（不加 -upload）：签名、公证、staple；更新包、增量（从官网两个通道的清单）、清单
@@ -31,6 +32,15 @@ tag v0.1.0-beta.2 ─▶ release.yml（macos-26，contents: read）
 更新用的是 MyGo 官方方案（`mygo.Updater` + updater 插件的 `native.Plugin` 窗口），说明见 MyGo 的 `docs/updates.md`、`docs/plugins/updater.md`；beta 通道是我们的补丁 0006（`third_party/mygo-patches/`）。
 
 只发 Apple 芯片（darwin/arm64）：辅助进程只编 arm64，Intel Mac 暂不支持。
+
+## 公开仓库：提交和公开前的检查
+
+仓库是公开的，提交的东西（包括历史）任何人都能看到：
+
+- **秘密**：证书、`.p12`、`.p8`、私钥、token、API key、`.env` 一律不进仓库（只放在 GitHub Secrets、密码管理器和 `~/.config`）。改动较大或久未检查时，扫一遍全部历史：`gitleaks git --log-opts=--all .`（只应报测试里的假 key：`providers_page_test.go`、`internal/secrets/secrets_test.go`）。
+- **不能再分发的素材**：家族提示音（`resources/sounds/`，React Bits Sound Lab）只在构建时拉取；新加第三方素材前先看 [NOTICE](../NOTICE) 和 AGENTS.md 的许可规则。
+- 一旦推上去了：立刻作废泄漏的秘密（换证书、换 token、换更新密钥，见 §5），再用 `git filter-repo` 删掉文件并强推；只删不作废没有用，别人可能已经拉过。
+- 2026-10-20 转为公开前扫过一次：gitleaks 全部分支、tag 和 GitHub 上的 `refs/pull/*`，只有上面两处假 key；提示音只在没推送过的本地提交里，公开前已经从这些提交里删掉。
 
 ## 0. 两个通道
 
@@ -100,7 +110,7 @@ tag v0.1.0-beta.2 ─▶ release.yml（macos-26，contents: read）
 
 **把私钥存进密码管理器**（例如 1Password 的“安全备注”，或附件）。已安装的 Auralink 只接受这把私钥签的更新：丢了它，已安装的 app 就再也收不到自动更新（见第 5 节）。私钥不进仓库，不发给任何人，只放在密码管理器和 GitHub Secret 里。
 
-### 1.4 GitHub Secrets（7 个）
+### 1.4 GitHub Secrets（7 个，加上提示音的 1 个）
 
 在 mac-air 上执行。mac-air 上 `gh` 的登录已经失效，先重新登录（选 GitHub.com → HTTPS → 浏览器登录）：
 
@@ -126,7 +136,13 @@ gh secret set MYGO_UPDATER_PRIVATE_KEY -R "$REPO" < ~/.config/auralink-release/u
 
 ```sh
 gh secret set ACTNOW_INGEST_TOKEN -R "$REPO"      # 提示时粘贴
-gh secret list -R "$REPO"                          # 应该列出这 7 个
+gh secret list -R "$REPO"                          # 应该列出这 7 个（加上 ACTNOW_SOUNDS_TOKEN）
+```
+
+家族提示音：`ACTNOW_SOUNDS_TOKEN`，私有仓库 hehehai/actnow-sounds 的只读 token（fine-grained，只给这个仓库的 Contents: Read）。音频是 React Bits Sound Lab 的（MIT + Commons Clause：可以放在 app 里，不能单独再分发），所以**永远不进本仓库，历史里也不能有**（`.gitignore` 忽略 `resources/sounds/`）。没有这个 Secret 时工作流给出警告，照常构建，app 播放 macOS 系统声音：
+
+```sh
+gh secret set ACTNOW_SOUNDS_TOKEN -R "$REPO"      # 提示时粘贴
 ```
 
 设好以后，把 `.p12` 存进密码管理器，删掉桌面上的副本（`rm ~/Desktop/auralink-developer-id.p12`）。工作流里这些值都会被打码，notarytool 也不回显它们；发布脚本也不打印 token。不用 GitHub Environment 审批（用户 10-16 定）：Secret 只在 tag 构建和手动运行时用到，PR 构建拿不到。缺任何一个时，发布运行在构建之前就失败，并列出缺的名字。

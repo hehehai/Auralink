@@ -15,7 +15,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>0.1.0-beta.2</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2026 actnow. All rights reserved.</string>
+	<string>Copyright © 2026 hehehai and the Auralink contributors. Licensed under the GNU AGPL-3.0.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Auralink records your voice while you hold its shortcut and sends the audio to the speech service you set up.</string>
 </dict>

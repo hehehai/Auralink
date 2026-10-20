@@ -4,7 +4,7 @@ package main
 // and the machine, a self-check (library, helper, data folder, network,
 // Keychain, permissions), "Copy diagnostics", a diagnostic bundle (a ZIP
 // of the logs, the settings and the diagnostics) and Report a bug, which
-// opens a prefilled email to actnow in the mail app.
+// opens a prefilled GitHub issue in the browser.
 
 import (
 	"archive/zip"
@@ -32,19 +32,21 @@ import (
 	"github.com/hehehai/Auralink/internal/uitext"
 )
 
-// Auralink's addresses on the actnow website (Settings → About), and where
-// bugs are reported: the repository is private, so by email.
+// Auralink's addresses (Settings → About): the repository, where bugs are
+// reported as issues, and the product's page on the actnow website.
 const (
+	repoURL      = "https://github.com/hehehai/Auralink"
+	issuesURL    = repoURL + "/issues/new"
+	noticeURL    = repoURL + "/blob/main/NOTICE"
+	licenceURL   = "https://www.gnu.org/licenses/agpl-3.0.html" // the GNU AGPL version 3 (LICENSE)
 	websiteURL   = "https://actnow.dev/auralink"
 	changelogURL = websiteURL + "/changelog"
-	termsURL     = "https://actnow.dev/legal/terms"
-	supportEmail = "hello@actnow.dev"
 )
 
-// copyrightHolder is who holds Auralink's copyright (LICENSE, NOTICE,
-// README and mygo.json's copyright name it too; its legal name goes
-// there once settled).
-const copyrightHolder = "actnow"
+// copyrightHolder is who holds Auralink's copyright with its contributors
+// (NOTICE, README, mygo.json's copyright and the helper's Info.plist name
+// them too; CLA.md's Maintainer).
+const copyrightHolder = "hehehai"
 
 // legalDocs is the directory that holds LICENSE and NOTICE, with the
 // licence texts of LICENSES/: the app's Contents/Resources (mygo.json
@@ -66,7 +68,7 @@ func findLegalDocs(dirs ...string) string {
 }
 
 // legalDocURL is the file URL of a document the app ships with (LICENSE,
-// NOTICE), which opens in TextEdit, or else fallback on the website.
+// NOTICE), which opens in TextEdit, or else fallback on the web.
 func legalDocURL(name, fallback string) string {
 	if legalDocs == "" {
 		return fallback
@@ -302,16 +304,15 @@ func (a *app) saveBundle() {
 	}()
 }
 
-// bugReportURL is a new email to actnow with the diagnostics filled in.
+// bugReportURL is a new GitHub issue with the diagnostics filled in.
 func (a *app) bugReportURL() string {
 	diag := a.diagnosticsText()
 	if len(diag) > 5000 {
 		diag = diag[:5000]
 	}
 	body := "### What happened\n\n\n### What you expected\n\n\n### Steps to reproduce\n\n1. \n\n### Diagnostics\n\n```\n" + diag + "```\n"
-	q := url.Values{"subject": {"Auralink bug report"}, "body": {body}}
-	// Mail apps take %20 for a space, not the + of a form.
-	return "mailto:" + supportEmail + "?" + strings.ReplaceAll(q.Encode(), "+", "%20")
+	q := url.Values{"body": {body}, "labels": {"bug"}}
+	return issuesURL + "?" + q.Encode()
 }
 
 // aboutSettings is Settings → About.
@@ -345,15 +346,18 @@ func (a *app) aboutSettings(c *ui.Context) {
 			ui.Text(c, r[1]).Selectable()
 		}
 	})
-	// The copyright and the licence (LICENSE); the third-party notices and
-	// licence texts ship in the app, which opens its own copies.
-	caption(c, i18n.T("Copyright © 2026 %s. All rights reserved.", copyrightHolder))
-	caption(c, i18n.T("Auralink is proprietary software and comes with no warranty. It includes open-source components under their own licences, AudioSmith's among them."))
+	// The "appropriate legal notices" an interactive program shows under the
+	// GNU AGPL (§0, §5 d): the copyright, no warranty, the licence, and the
+	// source. The licence and the third-party notices ship in the app, which
+	// opens its own copies.
+	caption(c, i18n.T("Copyright © 2026 %s and the Auralink contributors.", copyrightHolder))
+	caption(c, i18n.T("Auralink is free software under the GNU Affero General Public License, version 3, and comes with no warranty. Parts of it come from AudioSmith."))
 	ui.Row(c.Key("about-licence")).Gap(px(t, sp3)).AlignItems(ui.Center).Wrap().Children(func() {
 		ui.Link(c.Key("about-website"), i18n.T("Website"), websiteURL).FontSize(px(t, fsCaption))
 		ui.Link(c.Key("about-changelog"), i18n.T("Changelog"), changelogURL).FontSize(px(t, fsCaption))
-		ui.Link(c.Key("about-licence-terms"), i18n.T("Licence"), legalDocURL("LICENSE", termsURL)).FontSize(px(t, fsCaption))
-		ui.Link(c.Key("about-licence-notices"), i18n.T("Third-party notices"), legalDocURL("NOTICE", websiteURL)).FontSize(px(t, fsCaption))
+		ui.Link(c.Key("about-licence-agpl"), i18n.T("Licence"), legalDocURL("LICENSE", licenceURL)).FontSize(px(t, fsCaption))
+		ui.Link(c.Key("about-licence-source"), i18n.T("Source code"), repoURL).FontSize(px(t, fsCaption))
+		ui.Link(c.Key("about-licence-notices"), i18n.T("Third-party notices"), legalDocURL("NOTICE", noticeURL)).FontSize(px(t, fsCaption))
 	})
 	ui.Row(c.Key("about-icons")).Gap(px(t, 6)).AlignItems(ui.Center).Wrap().Children(func() {
 		caption(c, i18n.T("Icons: Solar by 480 Design, under CC BY 4.0 (@iconify-json/solar %s).", icons.SolarVersion))
@@ -398,7 +402,7 @@ func (a *app) aboutSettings(c *ui.Context) {
 			a.saveBundle()
 		}
 	})
-	settingRow(c, "about-bug", i18n.T("Report a bug"), i18n.T("Opens a new email to %s in your mail app, with the diagnostics filled in. Nothing is sent until you send it.", supportEmail), func() {
+	settingRow(c, "about-bug", i18n.T("Report a bug"), i18n.T("Opens a new issue on GitHub in your browser, with the diagnostics filled in. Nothing is sent until you submit it."), func() {
 		if ui.Button(c.Key("about-bug"), i18n.T("Report…")).Clicked() {
 			u := a.bugReportURL()
 			if a.win == nil {
