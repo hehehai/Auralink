@@ -114,6 +114,7 @@ func (a *app) quit() {
 	a.closeTray()
 	a.closeMute() // mute_link.go: the output back before the helper goes
 	a.closeFamily()
+	a.stopUpdates() // updates.go
 	a.stopHelper()
 	a.closeShell()
 }

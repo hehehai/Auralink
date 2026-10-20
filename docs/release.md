@@ -29,7 +29,7 @@ tag v0.1.0-beta.2 ─▶ release.yml（macos-26，contents: read）
 
 官网只公开 `update-*.json`（no-cache）和 `*.tar.gz`、`*.delta` 等（缓存一年、immutable），DMG 只能经登录后的下载页拿到。MyGo 的签名在清单里，没有单独的 `.sig` 文件。
 
-更新用的是 MyGo 官方方案（`mygo.Updater` + updater 插件的 `native.Plugin` 窗口），说明见 MyGo 的 `docs/updates.md`、`docs/plugins/updater.md`；beta 通道是我们的补丁 0006（`third_party/mygo-patches/`）。
+更新用 MyGo 的更新 API（`mygo.Updater.Check`、`Update.Install`、`App.Relaunch`，说明见 MyGo 的 `docs/updates.md`），界面是 Auralink 自己的（actnowkit 的 `updates` 状态机，`updates.go`、`updates_view.go`，不再用 updater 插件的窗口）；beta 通道是我们的补丁 0006（`third_party/mygo-patches/`）。
 
 只发 Apple 芯片（darwin/arm64）：辅助进程只编 arm64，Intel Mac 暂不支持。
 
@@ -176,19 +176,15 @@ bash scripts/actnow-publish.sh --app auralink --dir build/darwin-arm64 --changel
    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $v" helper/Support/Info.plist   # macOS
    ```
    app 的 `CFBundleShortVersionString` 是完整版本号（`0.1.0-beta.2`，更新比较用它）；`CFBundleVersion` 由 MyGo 写成数字部分（`0.1.0`，补丁 0007，Apple 要求只含数字和点）。
-2. **写 CHANGELOG.md**：把最上面的 `## [Unreleased]` 改成 `## [0.1.0-beta.2] - 2026-11-02`（标题里的版本号必须和 mygo.json 完全一样，包括 `-beta.2`），英文在前，中文在后，小标题一一对应：
+2. **写两份 CHANGELOG**：把 `CHANGELOG.md`（英文）和 `CHANGELOG.zh-Hans.md`（简体中文）最上面的 `## [Unreleased]` 都改成 `## [0.1.0-beta.2] - 2026-11-02`（标题里的版本号必须和 mygo.json 完全一样，包括 `-beta.2`），两份的版本段一一对应：
    ```markdown
-   ## [0.1.0-beta.2] - 2026-11-02
+   ## [0.1.0-beta.2] - 2026-11-02          ## [0.1.0-beta.2] - 2026-11-02
 
-   ### Fixed
+   ### Fixed                               ### 修复
 
-   - The overlay no longer …
-
-   ### 修复
-
-   - 浮窗不再……
+   - The overlay no longer …               - 浮窗不再……
    ```
-   更新窗口显示整节（MyGo 从 CHANGELOG.md 取，`## [版本]` 到下一个 `## `）。官网用同一节，由发布脚本分成两半：从第一个含汉字的 `### ` 小标题起是 `notesZh`，之前是 `notes`（只写 `### 中文` 这类标记的，这一行去掉）；后台检查清单里的说明包含 `notes`。没有这一节，发布构建失败；没有中文，工作流给出警告。
+   MyGo 把 `CHANGELOG.md` 的这一节写进更新清单；发布脚本把两份文件整份交给官网，官网核对版本段（对不上就拒收：`changelog_mismatch`、`changelog_missing_section`），按语言保存说明。app 的更新面板和更新日志、官网的更新日志页按用户的语言显示其中一份（缺中文时显示英文并注明）。没有这一节，或两份文件的版本对不上，发布构建失败。
 3. 提交、推到 main，等 CI 通过（`gh run list -R hehehai/Auralink --branch main -L 3`）。可以先做一次 §1.5 的试跑。
 4. **打 tag**（tag 必须等于 `v` + mygo.json 的版本，否则工作流直接失败）：
    ```sh
@@ -256,11 +252,11 @@ macOS 按 bundle ID + 代码签名的要求（designated requirement）记住麦
 
 ### 4.1 检查和安装，以及“装好但还没重启”
 
-- 插件每天在后台检查一次官网的更新源（启动后 10 秒起），有新版本时弹出更新窗口（`ShowInactive`，不抢正在打字的 App 的焦点），显示更新说明，提供 **安装更新 / 稍后提醒 / 跳过这个版本**。窗口语言跟随 Auralink 的界面语言（插件只取一次：改了界面语言，要下次启动才跟着变）。
-- 手动入口：应用菜单（关于之后）、菜单栏图标的菜单、⌘K、设置 → 诊断与关于 → 更新（还有“Beta 更新”“自动检查”“自动安装更新”三个开关和上次检查时间）。三处都按 Beta 更新开关的状态检查。
+- Auralink 每天在后台检查一次官网的更新源（启动后 10 秒起；“自动检查”开关，设置里的 `updates.autoCheck`），有新版本时**不弹窗**，只在侧栏底部出现“有新版本”（只显示图标时，图标栏的下载按钮上有一个圆点），不抢正在打字的 App 的焦点。点开是更新面板：版本、日期、更新说明（按 Auralink 当前的语言从官网的更新日志接口 `/api/changelog/auralink` 取，没有中文时显示英文并注明；接口不通时用清单里的英文说明）、“下载并安装” → 进度 → “重新启动以完成更新”；失败时说明 Auralink 没有任何改动，可以重试。状态机是 actnowkit 的 `updates.Manager`（`updates.go`），界面在 `updates_view.go`。
+- 手动入口：应用菜单（关于之后）、菜单栏图标的菜单、⌘K、设置 → 诊断与关于 → 更新（还有“Beta 更新”“自动检查”“自动安装更新”三个开关、上次检查时间和“查看更新日志…”：所有版本，按当前语言）。都按 Beta 更新开关的状态检查，结果在更新面板里。旧版本更新窗口里的“自动检查”“自动安装”选择（`updater.json`）第一次启动时搬进设置。
 - 安装时先下载增量，校验签名，用已安装的 app 拼出新版本、逐个文件核对 SHA-256；任何一步不对就改下载完整包。结果和发布的 app 逐字节一致（代码签名、公证票据都在）。
-- 装好后插件提示重启（`App.Relaunch`：先走 Auralink 的退出流程，停掉辅助进程，再启动新版本）。
-- **“自动安装更新”默认关**（插件的默认值）。开着时后台发现的更新会直接装好，但不会自动重启：MyGo 是在 app 运行时直接替换 bundle 的，旧进程继续跑，磁盘上的辅助进程已经是新版本。为此：
+- 装好后面板提示重启（`App.Relaunch`：先走 Auralink 的退出流程，停掉辅助进程，再启动新版本）；侧栏底部是“重新启动以更新”。
+- **“自动安装更新”默认关**。开着时后台发现的更新会直接装好，但不会自动重启：MyGo 是在 app 运行时直接替换 bundle 的，旧进程继续跑，磁盘上的辅助进程已经是新版本。为此：
   - supervisor 每次启动辅助进程前比较磁盘上 `Info.plist` 的版本和正在运行的版本（`internal/appbundle`）；不一样就不再启动磁盘上的新辅助进程（`helper.FailUpdated`，也不自动重试）；新辅助进程如果说另一个协议版本，同样归为“已更新”，而不是“请重新编译辅助进程”。
   - app 每分钟、每次检查之后看一次磁盘上的版本；变了就在侧边栏底部出一张卡片“已安装更新 / 重启 Auralink 以完成更新”，首页和设置 → 诊断与关于也显示“重启 Auralink”。重启后卡片消失。
 

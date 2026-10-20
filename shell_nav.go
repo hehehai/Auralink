@@ -175,7 +175,8 @@ func (a *app) navRail(c *ui.Context) {
 	})
 	// Settings, with a dot while there are notifications: then it opens
 	// them, with Settings under them (shell_notices.go).
-	ui.Column(c).AlignItems(ui.Center).Padding(px(t, 4), 0, px(t, 6)).Shrink(0).Children(func() {
+	ui.Column(c).AlignItems(ui.Center).Gap(px(t, 2)).Padding(px(t, 4), 0, px(t, 6)).Shrink(0).Children(func() {
+		a.updateRailButton(c) // updates_view.go
 		tip, dot := i18n.T("Settings")+" (⌘,)", ""
 		if n := len(a.notices); n > 0 {
 			tip = i18n.N(n, "%d notification", "%d notifications", n) + " · " + tip
@@ -295,6 +296,7 @@ func (a *app) sidebar(c *ui.Context) {
 		ui.Column(c).Shrink(0).Padding(px(t, sp1), px(t, 10), px(t, sp2)).Children(func() { a.noticeStack(c) })
 	}
 	ui.Column(c).Shrink(0).Padding(px(t, 6), px(t, 10), px(t, 8)).BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
+		a.updateEntry(c) // updates_view.go: an update to install, its download, the restart
 		b := ghostBase(c.Key("nav-settings")).Padding(px(t, 6), px(t, sp2)).Gap(px(t, sp2)).Justify(ui.Start).Label(i18n.T("Settings")).Tooltip(i18n.T("Settings") + " (⌘,)")
 		b.Children(func() {
 			ui.Icon(c, icons.Settings.Get(a.settingsOpen)).Size(px(t, 16), px(t, 16)).TextColor(k.Text2)

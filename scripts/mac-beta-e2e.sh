@@ -149,7 +149,7 @@ deltas() { jq -r '[.deltas[]?.from] | join(" ")' "$WORK/out-$1/darwin-arm64/upda
 # the site publishes it (no disk image: -skip-dmg).
 publish() {
   local out="$WORK/out-$1/darwin-arm64"
-  bash scripts/actnow-publish.sh --app auralink --dir "$out" --changelog CHANGELOG.md --min-macos 15.0 \
+  bash scripts/actnow-publish.sh --app auralink --dir "$out" --changelog CHANGELOG.md --no-changelog-discovery --min-macos 15.0 \
     --url "$SITE" --dry-run >"$WORK/publish-$1.json" 2>"$WORK/publish-$1.log" ||
     { cat "$WORK/publish-$1.log" >&2; exit 1; }
   # shellcheck disable=SC2016 # jq's variables

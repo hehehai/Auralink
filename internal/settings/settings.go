@@ -386,16 +386,29 @@ type Setup struct {
 	Tried bool `json:"tried,omitempty"`
 }
 
-// Updates: what the updater offers (Settings → About → Updates). Its
-// other preferences (automatic checks and installs) are the updater
-// plugin's, in its own updater.json.
+// Updates: the in-app updater's preferences (Settings → About → Updates,
+// updates.go). Up to 0.1.0-beta.2 automatic checks and installs were MyGo's
+// updater plugin's, in its updater.json; the first launch after it carries
+// them over (keepUpdaterChoices).
 type Updates struct {
+	// AutoCheck checks once a day; nil until chosen (or carried over): on
+	// (AutoCheckOn).
+	AutoCheck *bool `json:"autoCheck,omitempty"`
+	// AutoInstall downloads and installs a version the daily check found
+	// without asking; Auralink then asks to restart.
+	AutoInstall bool `json:"autoInstall,omitempty"`
+	// LastCheck is when a check last answered.
+	LastCheck time.Time `json:"lastCheck,omitzero"`
 	// Beta offers beta versions (the feed's beta channel) too. Nil until the
 	// user chooses: then on while the running version is a beta (BetaOn),
 	// so that a beta's users get the next one. No migration: older
 	// documents have none.
 	Beta *bool `json:"beta,omitempty"`
 }
+
+// AutoCheckOn says whether updates are checked once a day (on unless the
+// user turned it off).
+func (u Updates) AutoCheckOn() bool { return u.AutoCheck == nil || *u.AutoCheck }
 
 // BetaOn reports whether updates include betas for the app of version
 // running: the user's choice, else whether version is a pre-release

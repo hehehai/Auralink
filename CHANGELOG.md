@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Auralink. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). Each version's section is what the update window shows: English first, then the same in Chinese under matching headings (docs/release.md).
+All notable changes to Auralink. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). This file is English; CHANGELOG.zh-Hans.md has the same versions in Chinese. Each version's section is what the update panel and actnow.dev's changelog show, in the app's or the page's language (docs/release.md).
 
 ## [Unreleased]
 
@@ -24,8 +24,8 @@ The first public version, a beta: voice input for macOS on remote models, from [
 - A small window (800×520 by default, 680×440 at the least) with no status bar: notifications stack as cards at the foot of the sidebar (a dot on Settings when it shows only icons), and a missing service or a stopped helper becomes a card with the action that fixes it.
 - The menu bar icon: start or stop transcribing, paste the last result, the last three results to copy (one short line each, the whole in the tooltip); it changes while recording. Closing the window keeps Auralink there, and it can open at login.
 - Settings: General (languages, the menu bar, login, the setup guide), Permissions, Audio (the microphones in your order of preference, skipping silence, optimizing the sound, sounds), Overlay style (place, opacity, corners, the recording time, with a live preview over a desktop picture), Shortcuts (every feature's keys and their conflicts), Appearance (the sidebar shrinks to icons in a narrow window), Network (proxy), Privacy, Storage, About (versions, updates, the self-check, reporting a problem); English and Simplified Chinese.
-- Signed with a Developer ID and notarised. Updates from actnow.dev: a daily check, the new version's notes in a window of its own, a download of only what changed, installed when you say so; Check for Updates… in the app menu, the menu bar icon's menu and Settings → About. An update installed while Auralink runs asks for a restart instead of starting the new helper.
-- Beta updates (Settings → About): betas too, or releases only; on by default in a beta. Turning it off never goes back to an older version: a beta stays until a release newer than it.
+- Signed with a Developer ID and notarised. Updates from actnow.dev, in Auralink's own window: a daily check that only shows "Update available" at the foot of the sidebar (a dot on the icon rail), a panel with the new version's notes in Auralink's language (English where a version has no Chinese, marked so), a download of only what changed with its progress, installed when you say so, then Restart to Finish the Update; a failed download leaves Auralink unchanged and offers Try again. Check for Updates… in the app menu, the menu bar icon's menu, the palette and Settings → About, which also shows the changelog of every version in Auralink's language. An update installed while Auralink runs asks for a restart instead of starting the new helper.
+- Beta updates (Settings → About): betas too, or releases only; on by default in a beta. Turning it off never goes back to an older version: a beta stays until a release newer than it. Install updates automatically (off by default) installs what the daily check finds and asks for the restart.
 - **Mute system audio while recording** (Settings → Audio, on by default): the current output device is muted from just after the start sound until the recording stops, so that videos, music or calls are not recorded; a device you muted stays muted, one you unmute during the recording stays on, and a device that cannot be muted leaves the recording as it is (the overlay says so). No permission is needed. If Auralink or its helper stops while muting, the sound comes back at once, or at the next start.
 - **Sounds to choose** (Settings → Audio → Play sounds): the start and the stop sound are each chosen from the ActNow family's sound library (from React Bits Sound Lab: taps, toggles, media, system sounds…; Tally and Wrap by default), or macOS's system sounds, or none. A compact picker searches them (names and tags), filters by type, plays each with ▶ (again to stop) and sets their volume in steps; a Try button plays the choice. A Voxt pair chosen in an earlier build is kept as those system sounds. The output is muted once the start sound has been heard, not after its file's silent end. The family's sounds are in the builds from actnow.dev; a build from the source code plays macOS's system sounds.
 - **ActNow family**: Auralink finds the other ActNow apps on this Mac (AudioSmith, Dicta, Pik…) and tells them what it does and which global shortcuts it uses, so that they can warn about clashes. The app's language and the proxy are shared with them: a change in one applies to all, unless you choose "Use a different setting for this app" (Settings → General, Network). API keys can be shared too: a key saved in Auralink is offered to the other ActNow apps (unless you uncheck "Let other ActNow apps on this Mac use this key"), and a service in Auralink offers the key another ActNow app saved, read only once you click "Use this key". A shortcut another ActNow app also uses is pointed out where you set it (and announced once by the app that set it last), and two ActNow apps no longer paste over each other's clipboard.
@@ -46,43 +46,7 @@ The first public version, a beta: voice input for macOS on remote models, from [
 
 - Apple silicon and macOS 15 or later only (no Intel build yet).
 
-### 中文
-
-第一个公开版本，是 beta 版：只用远程模型的 macOS 语音输入，在 [actnow.dev](https://actnow.dev/auralink) 下载。它会更新到下一个 beta 和之后的正式版（设置 → 诊断与关于 → Beta 更新）。0.1.0-beta.1 构建了但没有发布，它的内容都列在这里。
-
-### 新增
-
-- **转录**：按住快捷键说话，语音识别服务转成文字，语言模型整理（去口头禅、改标点和数字，可加结构和你自己的规则），粘贴到光标处。
-- **翻译**：选中的文字或你说的话，翻译成你选的语言；答案卡片里可以阅读、复制、插入或换一种语言。
-- **转写**：说出怎么改选中的文字，或在没有选中时说出要写什么；回答进卡片，可以插入，也可以继续追问。
-- **应用增强**：按 App 和网站分组的场景规则；**词典**：术语和别名，发给语音识别和语言模型。
-- 首页、设置引导、历史、浮窗和答案卡片、菜单栏图标、静音裁剪和声音优化，以及完整的设置；界面有英文和简体中文。
-- **历史记录右键菜单**：在历史页或首页“最近结果”的一条记录上右键，可以复制结果或识别原文、查看详情、在访达中显示录音、重试，或删除（确认后连同录音一起删除）；历史页里选中一行后也可以按 ⌘C 复制、⌫ 删除。
-- 使用 Developer ID 签名并经过公证。通过 actnow.dev 更新：每天检查一次，在单独的窗口里显示更新说明，只下载有变化的部分，你同意后才安装。
-- Beta 更新（设置 → 诊断与关于）：同时接收 beta 版，或只接收正式版；正在用 beta 时默认打开。关闭后不会降级：已装的 beta 会保留到比它新的正式版发布。
-- **录音时静音系统声音**（设置 → 音频，默认开启）：从开始提示音之后到停止录音为止，当前输出设备静音，免得视频、音乐、通话的声音被录进去；你自己静音的设备保持静音，录音中你取消静音后不会再被静音，不支持软件静音的设备照常录音（浮窗会提示）。不需要任何权限。Auralink 或辅助进程在静音期间意外退出时，声音会立即恢复，最迟在下次启动时恢复。
-- **可选的提示音**（设置 → 音频 → 播放提示音）：开始和结束提示音分别从 ActNow 家族提示音库里选（来自 React Bits Sound Lab：轻触、开关、媒体、系统等分组；默认是“开录”和“收工”），也可以选 macOS 系统声音或无声。选择器很紧凑：可以搜索（名字和标签）、按类型筛选、用 ▶ 逐个试听（再点一下停止）、按档位调音量；试听按钮播放当前选择。以前版本里选的 Voxt 预设会保留为对应的系统声音。录音时静音系统声音在开始提示音能听到的部分播完后就生效，不等文件末尾的静音。家族提示音只在 actnow.dev 发布的版本里；自己从源代码构建的版本播放 macOS 系统声音。
-- **ActNow 家族**：Auralink 会找到这台 Mac 上的其他 ActNow app（AudioSmith、Dicta、Pik 等），并告诉它们自己做什么、用了哪些全局快捷键，方便互相提示冲突。界面语言和代理与它们共用：在一个 app 里改，所有 app 一起生效；也可以选“仅为此 app 单独设置”（设置 → 通用、网络）。API 密钥也可以共用：在 Auralink 里保存的密钥会提供给其他 ActNow app（除非取消勾选“允许这台 Mac 上的其他 ActNow app 使用此密钥”）；配置服务时，如果其他 ActNow app 已经保存了这个厂商的密钥，可以一键使用，点“使用此密钥”之前不会读取它。和其他 ActNow app 用了同一个快捷键时，设置快捷键的地方会提示（后设置的 app 还会发一次通知）；两个 ActNow app 同时粘贴时不会再互相覆盖剪贴板。
-- **历史设置**（历史页搜索框右边的按钮）：保存录音（和 设置 → 隐私 是同一个开关）；选择录音存放的文件夹（已有录音会一起移过去，每段先复制并校验再删原文件；文件夹在没接上的外接盘上时，新录音先存到默认文件夹，等它回来）；查看录音占用的空间；把录音（全部，或当前 tab 的）导出到你选的文件夹，以日期和开头几个词命名；或者全部删除、保留文字。**自动清理**，和 Voxt 一样默认开启：超过 3 个月的记录连同录音一起删除；可以选 1 周到 1 年，或每种功能最多保留 50 到 1000 条，也可以关掉。新设置会立即删掉已有记录时，先告诉你会删几条并请你确认。
-- **重试**：用历史记录保存的录音再做一遍。失败或没有文字的记录，行上的“失败”换成“重试”，详情和右键菜单里也有；其他有录音的记录是“重新识别”。录音重新识别（流式服务按比说话更快的速度送入），再按现在的设置整理、翻译或转写；结果原地更新这条记录（文字、状态、用时），不会粘贴。浮窗里识别失败的提示，点一下打开这条记录并重试。
-- 识别失败、超时或没有识别出文字时，即使“保存录音”关着，这条记录也保留录音 7 天，方便重试；重试成功后删除。
-- **日志**（日志页和日志面板）：单击一行就复制这一行；Shift-单击、⌘-单击或拖动，像在访达里一样选择多行，⌘A 选中全部显示的行；右键可以复制这一行、选中的行或全部显示的行。右上角显示已选中几行，以及“复制”和“取消选择”。
-
-### 变更
-
-- Auralink 静音了哪个输出设备的记录改放在 Application Support，不再放在 ~/Library/Caches，崩溃后即使清理了缓存，扬声器也不会一直静音。日志不再记下密钥、令牌和代理密码。
-- Auralink 免费开源，采用 GNU AGPL-3.0 许可：源代码在 [GitHub](https://github.com/hehehai/Auralink)，欢迎贡献（见 CONTRIBUTING.md，需签署贡献者许可协议）。0.1.0-beta.1 及以前的版本采用 Apache License 2.0。设置 → 诊断与关于显示版权和许可，链接到源代码、官网和更新日志，并打开 app 内附带的许可和第三方声明。“报告问题”打开一个填好诊断信息的 GitHub issue。
-- 下载、更新和更新说明改由 [actnow.dev](https://actnow.dev/auralink/changelog) 提供，不再用 GitHub Releases：登录 actnow.dev/download/auralink 下载。更新来自 actnow.dev/updates/auralink，打开 Beta 更新时读它的 beta 通道，那里始终是最新 beta 和最新正式版中较新的那个。
-- 菜单栏图标改为对话气泡加波形，线条和系统图标一样细；录音时气泡变成实心。
-- 结果出来时插入到你**当时**正在输入的地方，不再只认开始时的 App（和 Voxt 一样）：录音或处理中切到另一个 App 并点进输入框，结果就粘贴到那里；浏览器里的 Notion、Slack 等网页编辑器也算输入框。应用增强分组的“插入后按键”只在开始时的 App 里按（结果是按那个分组生成的），替换选区也只在选区所在的 App 里做。没有选中输入框（访达、桌面、正在阅读的网页）或焦点在密码框里时，结果留在答案卡片里，并说明原因；点一下要输入的位置，再点“插入”。点了 Auralink 自己的窗口时，仍然回到开始时的 App 插入。插入到别的 App 时，历史详情里会写“已插入到 …”。答案卡片的“插入”和“粘贴最近结果”也是同样的规则。
-
-### 已知限制
-
-- 只支持 Apple 芯片和 macOS 15 及以上。
-
 ## [0.1.0-beta.1] - 2026-10-16 (not released)
 
 Built but not released: it updated from GitHub Releases, which no longer serve Auralink's updates (they come from actnow.dev). Its changes are in the next version.
-
-构建了但没有发布：它从 GitHub Releases 更新，而 Auralink 的更新已改由 actnow.dev 提供。它的内容并入了下一个版本。
 

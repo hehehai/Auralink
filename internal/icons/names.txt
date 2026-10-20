@@ -20,6 +20,7 @@ magnifer                # search, palette
 sidebar-minimalistic    # collapse / expand the sidebar
 command                 # palette rows
 keyboard                # shortcut sheet
+download-minimalistic   # an update to install (the sidebar's foot, updates_view.go)
 
 # Settings sections.
 pallete-2               # appearance

@@ -171,8 +171,7 @@ func newTestAppIn(t *testing.T, dir string) (*app, *fakeSupervisor, *ui.Tester) 
 	a.playSound = func(sounds.Target) {} // tests that listen replace it
 	a.measureHook = guessText            // the overlay's texts, without its view
 	a.connectHelper()
-	a.upd = newFakeUpdates() // updates_test.go
-	a.connectUpdates()
+	useTestUpdates(t, a) // updates_test.go: a fake feed and changelog
 	a.startHelper()
 	t.Cleanup(a.quit)
 	return a, fs, ui.NewTester(a.view, windowWidth, windowHeight)

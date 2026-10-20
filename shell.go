@@ -262,7 +262,9 @@ func (a *app) view(c *ui.Context) {
 			}
 		})
 	})
-	a.settingsDialog(c)     // shell_settings.go
+	a.settingsDialog(c) // shell_settings.go
+	a.updatePanel(c)    // updates_view.go: over Settings, whose About asks for it
+	a.historyDialog(c)
 	a.onboarding(c)         // onboarding_view.go
 	a.providerDialogView(c) // providers_dialog.go: over the page and the setup guide
 	a.palette(c)

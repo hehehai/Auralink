@@ -15,8 +15,6 @@ import (
 	"os"
 
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/plugins/updater"
-	"github.com/egoist/mygo/plugins/updater/native"
 
 	// MyGo's own strings (a text field's menu, a dialog's buttons) in
 	// Chinese, when the app shows it (showLanguage).
@@ -57,12 +55,6 @@ func main() {
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
 	}
-	// Updates (updates.go): the update window in native UI, in the
-	// language Auralink shows (App.Locale), checking once a day; it
-	// installs only when the user says so, unless they turn on
-	// Settings → About → Install updates automatically.
-	mygo.Use(native.New(updater.Options{}))
-
 	home, err := mygo.App.Path(mygo.PathUserData)
 	if err != nil {
 		log.Fatal(err)
@@ -96,7 +88,10 @@ func main() {
 	a.muteJournal = outputJournal(home, cacheDir) // mute_link.go
 	a.connectShell(logDir)                        // shell.go
 	a.connectHelper()                             // helperlink.go
-	a.upd, a.bundleStale = pluginUpdates{}, h.stale
+	// Updates (updates.go): the in-app updater over MyGo's updater API,
+	// checking once a day; it installs only when the user says so, unless
+	// they turn on Settings → About → Install updates automatically.
+	a.updLive, a.bundleStale = true, h.stale
 	a.connectUpdates() // updates.go
 
 	mygo.App.WhenReady(func() {
@@ -107,6 +102,7 @@ func main() {
 		a.openTray()          // tray.go: the menu bar icon, close to the menu bar
 		a.connectWindowLife() // tray.go
 		a.watchBundle()       // updates.go: an update installed while it runs
+		a.startUpdates()      // updates.go: the daily check
 		a.expireRecordings()  // history_cleanup.go: recordings kept for a retry, past their time
 		if demoReady != nil {
 			demoReady(a) // demo.go: the recording script's commands

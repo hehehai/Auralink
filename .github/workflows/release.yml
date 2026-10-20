@@ -123,21 +123,27 @@ jobs:
             echo "::error::the tag $GITHUB_REF_NAME is not v$version, the version in mygo.json"
             exit 1
           fi
-          # The update window shows this section (docs/release.md: English, then Chinese).
+          # The update's manifest carries this section (English); the update
+          # panel and actnow.dev show it, or CHANGELOG.zh-Hans.md's, in the
+          # user's language (docs/release.md).
           notes="$(awk -v v="$version" '/^## /{f = index($0, "[" v "]") || $2 == v; next} f' CHANGELOG.md)"
           if [[ -z "${notes//[[:space:]]/}" && "$UPLOAD" != true ]] && grep -q '^## \[Unreleased\]' CHANGELOG.md; then
             # A dry run before the release: Unreleased stands for it (in
             # this checkout only; Clean up puts it back).
             echo "::notice::CHANGELOG.md has no section for $version yet: this dry run uses Unreleased"
-            sed -i '' "s/^## \[Unreleased\]/## [$version] - $(date -u +%F)/" CHANGELOG.md
+            sed -i '' "s/^## \[Unreleased\]/## [$version] - $(date -u +%F)/" CHANGELOG.md CHANGELOG.zh-Hans.md
             notes="$(awk -v v="$version" '/^## /{f = index($0, "[" v "]") || $2 == v; next} f' CHANGELOG.md)"
           fi
           if [[ -z "${notes//[[:space:]]/}" ]]; then
             echo "::error::CHANGELOG.md has no section for $version"
             exit 1
           fi
-          if ! perl -CS -ne '$han = 1 if /\p{Han}/; END { exit !$han }' <<<"$notes"; then
-            echo "::warning::the CHANGELOG.md section of $version has no Chinese: Chinese users see it in English"
+          # CHANGELOG.zh-Hans.md has the same versions, in Chinese: the site
+          # takes both and refuses a release whose files disagree.
+          versions() { awk '$1 == "##" { h = $2; sub(/^\[/, "", h); sub(/\].*$/, "", h); if (h ~ /^[0-9]+\.[0-9]+\.[0-9]+/) print h }' "$1"; }
+          if [[ ! -f CHANGELOG.zh-Hans.md ]] || [[ "$(versions CHANGELOG.md)" != "$(versions CHANGELOG.zh-Hans.md)" ]]; then
+            echo "::error::CHANGELOG.zh-Hans.md does not have CHANGELOG.md's versions ($(versions CHANGELOG.md | tr '\n' ' '))"
+            exit 1
           fi
           # A version with a pre-release part (0.1.0-beta.2) is a beta: the
           # beta channel, which only Beta updates offer.
@@ -290,8 +296,9 @@ jobs:
 
       # The site's script finds the disk image, the archive, the deltas and
       # the manifest, checks the manifest points into this channel's feed,
-      # takes the notes from CHANGELOG.md (English, and from the first
-      # Chinese heading the Chinese) and, publishing, uploads them through
+      # takes the notes from CHANGELOG.md (English) and CHANGELOG.zh-Hans.md
+      # (Chinese; the site checks their versions agree) and, publishing,
+      # uploads them through
       # the release API; the back end checks sizes, hashes, the manifest,
       # the signatures and the notes, stores the files and publishes the
       # version, the manifest last. Otherwise --dry-run checks the same and
@@ -300,7 +307,7 @@ jobs:
         env:
           ACTNOW_INGEST_TOKEN: ${{ env.UPLOAD == 'true' && secrets.ACTNOW_INGEST_TOKEN || '' }}
         run: |
-          args=(--app auralink --dir build/darwin-arm64 --changelog CHANGELOG.md --min-macos 15.0 --version "$VERSION")
+          args=(--app auralink --dir build/darwin-arm64 --changelog CHANGELOG.md --changelog CHANGELOG.zh-Hans.md --min-macos 15.0 --version "$VERSION")
           if [[ "$UPLOAD" != true ]]; then
             args+=(--dry-run)
           fi
@@ -343,4 +350,4 @@ jobs:
             security delete-keychain "$NOTARY_KEYCHAIN" || true
           fi
           rm -f "$RUNNER_TEMP"/certificate.p12
-          git checkout -- mygo.json CHANGELOG.md 2>/dev/null || true
+          git checkout -- mygo.json CHANGELOG.md CHANGELOG.zh-Hans.md 2>/dev/null || true
