@@ -192,6 +192,23 @@ jobs:
           xcodebuild -version
           go version
 
+      - name: Fetch the family's cue sounds
+        # React Bits Sound Lab's audio, from the ActNow family's private
+        # library (never in this repository, NOTICE): with
+        # ACTNOW_SOUNDS_TOKEN (a read-only token of hehehai/actnow-sounds)
+        # the build carries them, without it (pull requests too) the app
+        # plays macOS's system sounds.
+        env:
+          ACTNOW_SOUNDS_TOKEN: ${{ github.event_name != 'pull_request' && secrets.ACTNOW_SOUNDS_TOKEN || '' }}
+        run: |
+          if [[ -z "$ACTNOW_SOUNDS_TOKEN" ]]; then
+            echo "::warning::no ACTNOW_SOUNDS_TOKEN: this build plays system sounds"
+            exit 0
+          fi
+          git clone -q --depth 1 "https://x-access-token:${ACTNOW_SOUNDS_TOKEN}@github.com/hehehai/actnow-sounds" "$RUNNER_TEMP/actnow-sounds"
+          ACTNOW_SOUNDS="$RUNNER_TEMP/actnow-sounds" scripts/sync-sounds.sh
+          rm -rf "$RUNNER_TEMP/actnow-sounds"
+
       - name: Signing keychain and notary credentials
         if: steps.secrets.outputs.signed == 'true'
         env:

@@ -3,8 +3,10 @@
 # private sound library (github.com/hehehai/actnow-sounds) into
 # resources/sounds, which ships in the app (Contents/Resources/sounds).
 # The audio is React Bits Sound Lab's (NOTICE): it may be used inside the
-# app, not redistributed on its own. The copy is committed:
-# keep this repository private.
+# app, not redistributed on its own. This repository is public, so
+# the copy is not committed (.gitignore): release builds run this first
+# (the release workflow), and a build without it plays macOS's system
+# sounds.
 #
 #   scripts/sync-sounds.sh [--optional]
 #

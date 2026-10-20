@@ -11,7 +11,12 @@ import (
 // (resources/sounds, scripts/sync-sounds.sh): the catalogue loads, every
 // file is there and matches its SHA-256, and it has the cues' defaults
 // and every sound meant to start or stop a recording.
+// The sounds are not in the repository (NOTICE): a checkout without
+// them skips this, and TestNoFamilySounds checks what it plays instead.
 func TestBundledSounds(t *testing.T) {
+	if _, err := os.Stat("resources/sounds/catalog.json"); err != nil {
+		t.Skip("no resources/sounds (scripts/sync-sounds.sh): a build from source")
+	}
 	cat, err := sounds.Load(os.DirFS("resources"), "sounds")
 	if err != nil {
 		t.Fatal(err)

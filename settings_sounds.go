@@ -74,6 +74,13 @@ func loadCueSounds() *sounds.Catalog {
 	if err != nil {
 		return nil
 	}
+	return cueSoundsIn(res)
+}
+
+// cueSoundsIn is the family's sounds in the folder res (its sounds/), or
+// nil: the repository has none (they may not be redistributed, NOTICE),
+// so a build without scripts/sync-sounds.sh plays system sounds.
+func cueSoundsIn(res string) *sounds.Catalog {
 	cat, err := sounds.Load(os.DirFS(res), "sounds")
 	if err != nil {
 		return nil
@@ -246,7 +253,21 @@ func (a *app) previewPlaying() (string, time.Duration) {
 // trySound plays the cue's sound now (Try).
 func (a *app) trySound(c cue) {
 	ev := cueEvent(c)
-	a.previewSound(ev, a.soundPrefs().Choice(ev), ev.ID)
+	a.previewSound(ev, a.cueChoice(ev), ev.ID)
+}
+
+// cueChoice is the event's sound as it plays: the choice, or its system
+// fallback for a family sound this build does not have (a build from
+// source, without resources/sounds).
+func (a *app) cueChoice(ev sounds.Event) string {
+	ch := a.soundPrefs().Choice(ev)
+	if ch == "" || ch == sounds.None || sounds.IsSystem(ch) || ev.Fallback == "" {
+		return ch
+	}
+	if _, ok := a.soundCat.Sound(ch); ok {
+		return ch
+	}
+	return sounds.System(ev.Fallback)
 }
 
 // soundsRow is the Play sounds row, and under it while on a line per cue.
@@ -269,7 +290,7 @@ func (a *app) soundsRow(c *ui.Context) {
 				label, name = i18n.T("When recording stops"), i18n.T("Stop sound")
 			}
 			settingRow(c, "audio-cue-"+ev.ID, label, "", func() {
-				choice := a.soundPrefs().Choice(ev)
+				choice := a.cueChoice(ev)
 				soundPicker(c.Key("pick-"+ev.ID), soundPickerSpec{
 					Name:      name,
 					Event:     ev,
