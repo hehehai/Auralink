@@ -157,7 +157,7 @@ gh workflow run release.yml -R hehehai/Auralink --ref main -f dry_run=true -f no
 gh run watch -R hehehai/Auralink
 ```
 
-CHANGELOG 里还没有这个版本的一节时，试跑把 `## [Unreleased]` 当作这一节（只在 runner 的工作目录里改）。日志里 “Signing keychain” 一步应该打印 `Signing as Developer ID Application: wei guan (779M533DL5) (<SHA-1>)`。“Verify the app” 一步会检查：app 和辅助进程的签名（`codesign --verify --deep --strict`）、两者的 `audio-input` entitlement、hardened runtime、时间戳、同一个 Team 而且就是 `APPLE_TEAM_ID`、`spctl -a -vv`（应为 `source=Notarized Developer ID`）、app 和 dmg 的 `stapler validate`、更新清单、`CFBundleVersion` 只有数字（不公证时只做前几项）。脚本是 [scripts/release-verify.sh](../scripts/release-verify.sh)。“Publish to actnow.dev (dry run)” 一步列出要上传的文件（DMG、更新包、增量、清单）、大小和 SHA-256，以及请求体（版本、通道、notes 和 notesZh 的开头）。
+CHANGELOG 里还没有这个版本的一节时，试跑把 `## [Unreleased]` 当作这一节（只在 runner 的工作目录里改）。日志里 “Signing keychain” 一步应该打印 `Signing as Developer ID Application: wei guan (779M533DL5) (<SHA-1>)`。“Verify the app” 一步会检查：app 和辅助进程的签名（`codesign --verify --deep --strict`）、两者的 `audio-input` entitlement、hardened runtime、时间戳、同一个 Team 而且就是 `APPLE_TEAM_ID`、`spctl -a -vv`（应为 `source=Notarized Developer ID`）、app 和 dmg 的 `stapler validate`、更新清单、`CFBundleVersion` 只有数字（试跑不公证时跳过 Gatekeeper 和 staple 两项：模式 `unnotarized`）。脚本是 [scripts/release-verify.sh](../scripts/release-verify.sh)。“Publish to actnow.dev (dry run)” 一步列出要上传的文件（DMG、更新包、增量、清单）、大小和 SHA-256，以及请求体（版本、通道、notes 和 notesZh 的开头）。
 
 在本机对一次构建做同样的检查（不需要 token，不发请求）：
 

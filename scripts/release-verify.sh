@@ -6,6 +6,7 @@
 # after `go tool mygo build`.
 #
 #   scripts/release-verify.sh build/darwin-arm64 developer-id
+#   scripts/release-verify.sh build/darwin-arm64 unnotarized   # Developer ID, notarize off (a dry run)
 #   scripts/release-verify.sh build/darwin-arm64 ad-hoc
 #   scripts/release-verify.sh DIR ad-hoc --no-dmg   # a build with -skip-dmg
 #
@@ -14,7 +15,8 @@
 set -euo pipefail
 
 dir="${1:?the build directory, e.g. build/darwin-arm64}"
-mode="${2:?developer-id or ad-hoc}"
+mode="${2:?developer-id, unnotarized or ad-hoc}"
+case "$mode" in developer-id | unnotarized | ad-hoc) ;; *) echo "unknown mode $mode" >&2; exit 2 ;; esac
 want_dmg=1
 [[ "${3:-}" == --no-dmg ]] && want_dmg=0
 app="$dir/Auralink.app"
@@ -60,7 +62,7 @@ check "the helper is arm64" test "$(lipo -archs "$helper")" = arm64
 dmg="$(compgen -G "$dir/*.dmg" | head -1 || true)"
 ((want_dmg)) && check "a disk image" test -n "$dmg"
 
-if [[ "$mode" == developer-id ]]; then
+if [[ "$mode" == developer-id || "$mode" == unnotarized ]]; then
   for code in "$app" "$helper"; do
     name="$(basename "$code")"
     check "$name: Developer ID Application" has "$code" '^Authority=Developer ID Application: '
@@ -71,15 +73,18 @@ if [[ "$mode" == developer-id ]]; then
   team_helper="$(details "$helper" | sed -n 's/^TeamIdentifier=//p')"
   check "one team ($team_app) signs both" test -n "$team_app" -a "$team_app" = "$team_helper"
   [[ -n "${EXPECT_TEAM:-}" ]] && check "the team is APPLE_TEAM_ID's" test "$team_app" = "$EXPECT_TEAM"
-  verdict="$(spctl -a -vv -t exec "$app" 2>&1 || true)"
-  check "Gatekeeper accepts the app (notarized)" grep -q 'source=Notarized Developer ID' <<<"$verdict"
-  check "the app's ticket is stapled" xcrun stapler validate "$app"
-  [[ -n "$dmg" ]] && check "the disk image's ticket is stapled" xcrun stapler validate "$dmg"
-  [[ -n "$dmg" ]] && check "Gatekeeper accepts the disk image" spctl -a -vv -t open --context context:primary-signature "$dmg"
+  # Notarization: only a notarized build has tickets Gatekeeper accepts.
+  if [[ "$mode" == developer-id ]]; then
+    verdict="$(spctl -a -vv -t exec "$app" 2>&1 || true)"
+    check "Gatekeeper accepts the app (notarized)" grep -q 'source=Notarized Developer ID' <<<"$verdict"
+    check "the app's ticket is stapled" xcrun stapler validate "$app"
+    [[ -n "$dmg" ]] && check "the disk image's ticket is stapled" xcrun stapler validate "$dmg"
+    [[ -n "$dmg" ]] && check "Gatekeeper accepts the disk image" spctl -a -vv -t open --context context:primary-signature "$dmg"
+  fi
   manifest="$dir/update-darwin-arm64.json"
   check "the update archive" bash -c "compgen -G '$dir/*-$version-darwin-arm64.tar.gz'"
   check "the update manifest says $version" bash -c "jq -e --arg v '$version' '.version == \$v and (.signature | length > 0)' '$manifest'"
-else
+elif [[ "$mode" == ad-hoc ]]; then
   check "signed ad hoc" has "$app" '^Signature=adhoc$'
 fi
 # CFBundleVersion is the version's numbers (MyGo patch 0007), as Apple wants.

@@ -284,7 +284,9 @@ jobs:
         env:
           # The team the app must be signed by (Developer ID builds).
           EXPECT_TEAM: ${{ steps.secrets.outputs.signed == 'true' && secrets.APPLE_TEAM_ID || '' }}
-        run: scripts/release-verify.sh build/darwin-arm64 "${{ steps.secrets.outputs.signed == 'true' && env.NOTARIZE == 'true' && 'developer-id' || 'ad-hoc' }}"
+        # Developer ID builds with notarize off (a dry run) are signed but
+        # have no tickets: "unnotarized" checks all but Gatekeeper's.
+        run: scripts/release-verify.sh build/darwin-arm64 "${{ steps.secrets.outputs.signed != 'true' && 'ad-hoc' || env.NOTARIZE == 'true' && 'developer-id' || 'unnotarized' }}"
 
       # The site's script finds the disk image, the archive, the deltas and
       # the manifest, checks the manifest points into this channel's feed,
