@@ -12,3 +12,6 @@ mygo_windows_*.syso
 # The family's cue sounds (scripts/sync-sounds.sh): React Bits Sound Lab's,
 # which may ship inside the app but not be redistributed: never committed.
 /resources/sounds/
+
+# Scratch directories of a chat (e.g. .tmp-icons, "Not committed")
+/.tmp-*/
