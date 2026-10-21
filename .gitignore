@@ -8,3 +8,6 @@ mygo_windows_*.syso
 /helper/.swiftpm/
 /resources/darwin-arm64/helper/
 /Auralink
+
+# Scratch directories of a chat (e.g. .tmp-icons, "Not committed")
+/.tmp-*/
