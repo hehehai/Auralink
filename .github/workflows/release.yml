@@ -126,13 +126,26 @@ jobs:
           # The update's manifest carries this section (English); the update
           # panel and actnow.dev show it, or CHANGELOG.zh-Hans.md's, in the
           # user's language (docs/release.md).
-          notes="$(awk -v v="$version" '/^## /{f = index($0, "[" v "]") || $2 == v; next} f' CHANGELOG.md)"
+          section() {
+            local file="$1" line in_section=false
+            while IFS= read -r line || [[ -n "$line" ]]; do
+              if [[ "$line" == "## "* ]]; then
+                [[ "$in_section" == true ]] && break
+                if [[ "$line" == "## [$version]"* ]]; then
+                  in_section=true
+                fi
+                continue
+              fi
+              [[ "$in_section" == true ]] && printf '%s\n' "$line"
+            done < "$file"
+          }
+          notes="$(section CHANGELOG.md)"
           if [[ -z "${notes//[[:space:]]/}" && "$UPLOAD" != true ]] && grep -q '^## \[Unreleased\]' CHANGELOG.md; then
             # A dry run before the release: Unreleased stands for it (in
             # this checkout only; Clean up puts it back).
             echo "::notice::CHANGELOG.md has no section for $version yet: this dry run uses Unreleased"
             sed -i '' "s/^## \[Unreleased\]/## [$version] - $(date -u +%F)/" CHANGELOG.md CHANGELOG.zh-Hans.md
-            notes="$(awk -v v="$version" '/^## /{f = index($0, "[" v "]") || $2 == v; next} f' CHANGELOG.md)"
+            notes="$(section CHANGELOG.md)"
           fi
           if [[ -z "${notes//[[:space:]]/}" ]]; then
             echo "::error::CHANGELOG.md has no section for $version"
@@ -140,7 +153,15 @@ jobs:
           fi
           # CHANGELOG.zh-Hans.md has the same versions, in Chinese: the site
           # takes both and refuses a release whose files disagree.
-          versions() { awk '$1 == "##" { h = $2; sub(/^\[/, "", h); sub(/\].*$/, "", h); if (h ~ /^[0-9]+\.[0-9]+\.[0-9]+/) print h }' "$1"; }
+          versions() {
+            local file="$1" line version_in_file
+            while IFS= read -r line || [[ -n "$line" ]]; do
+              [[ "$line" == "## ["* ]] || continue
+              version_in_file="${line#'## ['}"
+              version_in_file="${version_in_file%%]*}"
+              [[ "$version_in_file" == [0-9]* ]] && printf '%s\n' "$version_in_file"
+            done < "$file"
+          }
           if [[ ! -f CHANGELOG.zh-Hans.md ]] || [[ "$(versions CHANGELOG.md)" != "$(versions CHANGELOG.zh-Hans.md)" ]]; then
             echo "::error::CHANGELOG.zh-Hans.md does not have CHANGELOG.md's versions ($(versions CHANGELOG.md | tr '\n' ' '))"
             exit 1
