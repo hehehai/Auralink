@@ -4,6 +4,8 @@ Auralink 的重要变更。格式参照 [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+## [0.1.0-beta.2] - 2026-10-22
+
 第一个公开版本，是 beta 版：只用远程模型的 macOS 语音输入，在 [actnow.dev](https://actnow.dev/auralink) 下载。它会更新到下一个 beta 和之后的正式版（设置 → 诊断与关于 → Beta 更新）。0.1.0-beta.1 构建了但没有发布，它的内容都列在这里。
 
 ### 新增

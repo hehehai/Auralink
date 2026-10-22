@@ -4,6 +4,8 @@ All notable changes to Auralink. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [0.1.0-beta.2] - 2026-10-22
+
 The first public version, a beta: voice input for macOS on remote models, from [actnow.dev](https://actnow.dev/auralink). It updates to the next beta and to the release that follows (Settings → About → Beta updates). 0.1.0-beta.1 was built but not released; its changes are listed here.
 
 ### Added
