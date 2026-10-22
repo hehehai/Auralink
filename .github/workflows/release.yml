@@ -140,14 +140,14 @@ jobs:
             done < "$file"
           }
           notes="$(section CHANGELOG.md)"
-          if [[ -z "${notes//[[:space:]]/}" && "$UPLOAD" != true ]] && grep -q '^## \[Unreleased\]' CHANGELOG.md; then
+          if [[ -z "$notes" && "$UPLOAD" != true ]] && grep -q '^## \[Unreleased\]' CHANGELOG.md; then
             # A dry run before the release: Unreleased stands for it (in
             # this checkout only; Clean up puts it back).
             echo "::notice::CHANGELOG.md has no section for $version yet: this dry run uses Unreleased"
             sed -i '' "s/^## \[Unreleased\]/## [$version] - $(date -u +%F)/" CHANGELOG.md CHANGELOG.zh-Hans.md
             notes="$(section CHANGELOG.md)"
           fi
-          if [[ -z "${notes//[[:space:]]/}" ]]; then
+          if [[ -z "$notes" ]]; then
             echo "::error::CHANGELOG.md has no section for $version"
             exit 1
           fi
