@@ -89,8 +89,10 @@ func (r *run) write(raw, selection string) {
 		ctx, cancel := context.WithTimeout(r.ctx, cfg.DeliverTime)
 		res := deliver.Check(ctx, cfg.Text, deliver.Request{Text: "-", Target: r.req.Target, Self: cfg.Self, Replace: true})
 		cancel()
+		if r.ctx.Err() == nil {
+			r.logf("info", "delivery check: %s", res.Describe(r.req.Target))
+		}
 		if res.Reason != deliver.ReasonNone && r.ctx.Err() == nil {
-			r.logf("info", "the answer goes to the card: %s", res.Reason)
 			o.card = res.Reason
 			r.m.update(r, func(s *Snapshot) { s.Card, s.Delivery = true, res.Reason })
 		}

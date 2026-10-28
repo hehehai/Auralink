@@ -34,6 +34,8 @@ func TestDeliverFollowsFocus(t *testing.T) {
 		{name: "still in Slack", focus: proto.FocusResult{PID: slack.PID, Role: "AXTextArea", Editable: true}, into: slack},
 		{name: "TextEdit's field", focus: field, into: textEdit},
 		{name: "a web editor in another app (AXEditableAncestor)", focus: proto.FocusResult{PID: textEdit.PID, App: &textEdit, Role: "AXGroup", Editable: true}, into: textEdit},
+		{name: "Slack's web page being read (the start app)", focus: proto.FocusResult{PID: slack.PID, App: &slack, Role: "AXWebArea"}, reason: deliver.ReasonNotEditable},
+		{name: "Slack's web editor (the start app)", focus: proto.FocusResult{PID: slack.PID, App: &slack, Role: "AXGroup", Editable: true}, into: slack},
 		{name: "a web page being read in another app", focus: proto.FocusResult{PID: textEdit.PID, App: &textEdit, Role: "AXWebArea"}, reason: deliver.ReasonNotEditable},
 		{name: "Finder's list", focus: proto.FocusResult{PID: finder.PID, App: &finder, Role: "AXOutline"}, reason: deliver.ReasonNotEditable},
 		{name: "nothing focused in Finder", focus: proto.FocusResult{PID: finder.PID, App: &finder, Error: "no focused element"}, reason: deliver.ReasonNotEditable},
@@ -92,7 +94,7 @@ func TestDeliverFollowsFocus(t *testing.T) {
 				if len(presses[0]) != 0 || e[0].Delivery != "insert" || e[0].InsertedBundle != tc.into.BundleID || e[0].InsertedName != tc.into.Name {
 					t.Errorf("presses %+v, entry %+v", presses, e[0])
 				}
-				if !h.logged("inserted into com.apple.TextEdit, not com.tinyspeck.slackmacgap") {
+				if !h.logged("inserted into com.apple.TextEdit (the user switched apps)") {
 					t.Errorf("logs %q", h.logs)
 				}
 			} else if len(presses[0]) != 1 || e[0].InsertedBundle != "" || e[0].InsertedName != "" {
@@ -158,6 +160,48 @@ func TestWriteFollowsFocus(t *testing.T) {
 			}
 			if len(targets) != 0 || end.Inserted || !end.Card || end.Delivery != tc.reason || streamed != (tc.sel != "") {
 				t.Errorf("card: pasted into %v, %+v (streamed into the card %v)", targets, end, streamed)
+			}
+		})
+	}
+}
+
+// TestArcPage: a Transcribe session started in Arc. The page's text
+// (AXWebArea, not editable) takes no paste: the answer goes to the card
+// and no paste is sent. A web page's input (editable) takes it.
+func TestArcPage(t *testing.T) {
+	arc := proto.App{PID: 900, BundleID: "company.thebrowser.Browser", Name: "Arc"}
+	for _, tc := range []struct {
+		name  string
+		focus proto.FocusResult
+		into  bool
+	}{
+		{name: "the page's text", focus: proto.FocusResult{PID: arc.PID, App: &arc, Role: "AXWebArea"}},
+		{name: "a web page's input", focus: proto.FocusResult{PID: arc.PID, App: &arc, Role: "AXTextArea", Editable: true}, into: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, &fakeStreamer{final: "hello aura link"}, nil, nil)
+			id, err := h.m.Start(StartRequest{Kind: store.KindTranscribe, Target: arc})
+			if err != nil {
+				t.Fatal(err)
+			}
+			h.rec.waitFor(t, "recording", func(s Snapshot) bool { return s.State == Recording })
+			h.text.setFocus(tc.focus)
+			h.speak(id, 3)
+			end := h.rec.wait(t)
+			h.text.mu.Lock()
+			pasted := h.text.pasted
+			h.text.mu.Unlock()
+			if tc.into {
+				if len(pasted) != 1 || !end.Inserted || end.InsertedInto.PID != arc.PID {
+					t.Errorf("pasted %q, %+v", pasted, end)
+				}
+				return
+			}
+			if len(pasted) != 0 || end.Inserted || !end.Card || end.Delivery != deliver.ReasonNotEditable {
+				t.Errorf("pasted %q, %+v", pasted, end)
+			}
+			if !h.logged("focus role=AXWebArea editable=false app=company.thebrowser.Browser -> card (no text field)") {
+				t.Errorf("logs %q", h.logs)
 			}
 		})
 	}

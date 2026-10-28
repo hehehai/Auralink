@@ -139,7 +139,16 @@ DEEPSEEK_API_KEY=...
   - 第 5 步：译文不会替换到备忘录里，进卡片，tooltip 说 TextEdit 已经不在前台。
   - 第 6 步：TextEdit 回到前台，文字插进 TextEdit（不会插进 Auralink 自己的输入框）。
   - 第 7 步：文字插进 Notion / Slack 的编辑区（helper 读 `AXEditableAncestor`，网页的可编辑区域算作输入框）；如果进了卡片，把 `helper.log` 里这次 `textio.focus` 的 role 和 editable 发回来。
-- **不对时看**：日志里 `inserted into … not …`（换了 App）或 `not inserted (…; … in front)`，以及 `helper.log` 的 focus 结果。
+- **不对时看**：日志里 `delivery: focus role=… editable=… app=… -> …`（每次交付一行，见 §1.5a），以及 `helper.log` 的 focus 结果。
+
+**1.5a 网页正文和网页输入框（10-28：只有焦点可编辑才粘贴）**
+- **做**：
+  1. 在 Arc 里打开一个有正文的网页（例如新闻页），点一下正文的空白处（不是输入框），开始录音，说一句话，停止录音。
+  2. 同一个 Arc 页面里，点进网页的输入框（例如 x.com 的发帖框，或 lab.rubii.ai 的输入框），开始录音，说一句话，停止录音。
+- **应看到**：
+  - 第 1 步：浮窗变成卡片，文字不插进正文；卡片的“插入”tooltip 说“没有选中输入框”。日志是 `delivery: focus role=AXWebArea editable=false app=company.thebrowser.Browser -> card (no text field)`（不记文字）。卡片的“插入”点了也只出同样的提示，不会静默粘贴。
+  - 第 2 步：文字插进输入框，不弹卡片；日志是 `… editable=true … -> inserted`。
+- **不对时看**：第 2 步如果进了卡片，把日志里的那行和 `helper.log` 的 focus 结果（role、editable）发回来（Arc 的 contenteditable 可能判断不准，需要记下 role）。
 
 **1.6 粘贴最近结果**
 - **做**：按 ⌃⌘V。然后退出 Auralink（菜单栏 → 退出），重新打开，再按一次 ⌃⌘V。

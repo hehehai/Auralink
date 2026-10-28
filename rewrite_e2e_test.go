@@ -142,17 +142,18 @@ func TestRewriteConversation(t *testing.T) {
 }
 
 // TestRewriteNothingTakesText: nothing selected and nothing takes text:
-// the card as always (Voxt's has no Insert then); ours inserts when
-// asked, whatever has the focus: the user chose to.
+// the card as always (Voxt's has no Insert then); its Insert pastes only
+// into a focus that takes text, and says so otherwise.
 func TestRewriteNothingTakesText(t *testing.T) {
 	chat := &fakeChat{text: `{"title":"Note","content":"A note."}`}
 	a, _ := rewriteOnce(t, "readonly,", chat, "write a note")
 	if !a.answer.open || a.sess.Inserted || len(a.pasted()) != 0 {
 		t.Fatalf("card %+v", a.answer)
 	}
+	// The card's Insert follows the same rule: no text field, no paste.
 	a.insertAnswer()
-	a.pump("the insert", func() bool { return !a.answer.open })
-	if p := a.pasted(); len(p) != 1 || p[0].Text != "A note." {
-		t.Errorf("pasted %+v", p)
+	a.pump("the insert", func() bool { return a.answer.msg != "" && !a.answer.inserting })
+	if p := a.pasted(); len(p) != 0 || !a.answer.open {
+		t.Errorf("pasted %+v, card %+v", p, a.answer)
 	}
 }

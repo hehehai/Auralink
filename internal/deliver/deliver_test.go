@@ -34,6 +34,7 @@ func (f *fakeIO) Paste(_ context.Context, p proto.PasteParams) (proto.PasteResul
 
 var (
 	slack    = proto.App{PID: 812, BundleID: "com.tinyspeck.slackmacgap", Name: "Slack"}
+	arc      = proto.App{PID: 900, BundleID: "company.thebrowser.Browser", Name: "Arc"}
 	textEdit = proto.App{PID: 530, BundleID: "com.apple.TextEdit", Name: "TextEdit"}
 )
 
@@ -57,19 +58,21 @@ func TestInsert(t *testing.T) {
 		{name: "switched to another app's text field", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{elsewhere}, paste: posted}, inserted: true, pastes: 1, to: 530},
 		{name: "switched to an app with nothing focused", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 530, Error: "no focused element"}}}, reason: ReasonNotEditable},
 		{name: "switched to a web page being read", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 530, Role: "AXWebArea"}}}, reason: ReasonNotEditable},
-		{name: "switched, the card's Insert still needs a field", req: Request{Text: "hi", Target: slack, AnyEditable: true}, io: fakeIO{focus: []proto.FocusResult{{PID: 530, Role: "AXButton"}}}, reason: ReasonNotEditable},
-		{name: "switched, the card's Insert", req: Request{Text: "hi", Target: slack, AnyEditable: true}, io: fakeIO{focus: []proto.FocusResult{elsewhere}, paste: posted}, inserted: true, pastes: 1, to: 530},
 		{name: "a password field", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXTextField", Subrole: "AXSecureTextField", Editable: true}}}, reason: ReasonSecure},
-		{name: "a password field, the user chose", req: Request{Text: "hi", Target: slack, AnyEditable: true}, io: fakeIO{focus: []proto.FocusResult{{PID: 530, Role: "AXTextField", Subrole: "AXSecureTextField", Editable: true}}}, reason: ReasonSecure},
 		{name: "nothing focused", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812}}}, reason: ReasonNotEditable},
 		{name: "a button", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXButton"}}}, reason: ReasonNotEditable},
-		{name: "a button, the user chose", req: Request{Text: "hi", Target: slack, AnyEditable: true}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXButton"}}, paste: posted}, inserted: true, pastes: 1},
-		{name: "a web area may be an editor", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXWebArea"}}, paste: posted}, inserted: true, pastes: 1},
+		{name: "a button, the card's Insert too", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXButton", App: &slack}}}, reason: ReasonNotEditable},
+		{name: "Arc's web page text (AXWebArea, not editable) goes to the card", req: Request{Text: "hi", Target: arc}, io: fakeIO{focus: []proto.FocusResult{{PID: 900, App: &arc, Role: "AXWebArea"}}}, reason: ReasonNotEditable},
+		{name: "a group of a web page goes to the card", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXGroup"}}}, reason: ReasonNotEditable},
+		{name: "static text goes to the card", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXStaticText"}}}, reason: ReasonNotEditable},
+		{name: "an unknown role goes to the card", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXSomethingNew"}}}, reason: ReasonNotEditable},
+		{name: "a web page's editable region pastes", req: Request{Text: "hi", Target: arc}, io: fakeIO{focus: []proto.FocusResult{{PID: 900, App: &arc, Role: "AXWebArea", Editable: true}}, paste: posted}, inserted: true, pastes: 1, to: 900},
+		{name: "a contenteditable group pastes", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXGroup", Editable: true}}, paste: posted}, inserted: true, pastes: 1},
 		{name: "a selection needs an editable element", req: Request{Text: "hi", Target: slack, Replace: true}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXWebArea"}}}, reason: ReasonNotEditable},
 		{name: "an editable selection", req: Request{Text: "hi", Target: slack, Replace: true}, io: fakeIO{focus: []proto.FocusResult{textArea}, paste: posted}, inserted: true, pastes: 1},
 		{name: "a selection, another app in front", req: Request{Text: "hi", Target: slack, Replace: true}, io: fakeIO{focus: []proto.FocusResult{elsewhere}}, reason: ReasonNotFront},
 		{name: "a selection, start app unknown", req: Request{Text: "hi", Replace: true}, io: fakeIO{focus: []proto.FocusResult{elsewhere}}, reason: ReasonNoTarget},
-		{name: "AX could not tell", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Error: "-25212"}}, paste: posted}, inserted: true, pastes: 1},
+		{name: "AX could not tell: tried", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Error: "-25212"}}, paste: posted}, inserted: true, pastes: 1},
 		{name: "front changed before the paste", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{textArea}, paste: proto.PasteResult{Front: &proto.App{PID: 530, Name: "TextEdit"}}}, reason: ReasonNotFront, pastes: 1},
 		{name: "no accessibility", req: Request{Text: "hi", Target: slack}, io: fakeIO{focusErr: &proto.Error{Code: proto.CodePermissionDenied, Message: "no"}}, reason: ReasonNoAccess},
 		{name: "paste refused", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{textArea}, pasteErr: &proto.Error{Code: proto.CodePermissionDenied}}, reason: ReasonNoAccess, pastes: 1},
@@ -173,5 +176,56 @@ func TestInsertAnotherApp(t *testing.T) {
 	}
 	if res := Check(context.Background(), io, Request{Text: "x", Target: slack, Replace: true}); res.Reason != ReasonNotFront || len(io.pasted) != 0 {
 		t.Errorf("check a selection's replacement in another app %+v", res)
+	}
+}
+
+// TestWritableRule: only an editable element (or one that could not be
+// read) takes text in the start app.
+func TestWritableRule(t *testing.T) {
+	for _, tc := range []struct {
+		f    proto.FocusResult
+		want bool
+	}{
+		{proto.FocusResult{Role: "AXTextArea", Editable: true}, true},
+		{proto.FocusResult{Role: "AXWebArea", Editable: true}, true},
+		{proto.FocusResult{Role: "AXWebArea"}, false},
+		{proto.FocusResult{Role: "AXGroup"}, false},
+		{proto.FocusResult{Role: "AXStaticText"}, false},
+		{proto.FocusResult{Role: "AXButton"}, false},
+		{proto.FocusResult{}, false},
+		{proto.FocusResult{Error: "no focused element"}, true},
+	} {
+		if got := Writable(tc.f); got != tc.want {
+			t.Errorf("Writable(%+v) = %v", tc.f, got)
+		}
+	}
+}
+
+// TestDescribe: the log line says the focus and the outcome, never the
+// text.
+func TestDescribe(t *testing.T) {
+	arcWeb := proto.FocusResult{PID: 900, App: &arc, Role: "AXWebArea"}
+	for _, tc := range []struct {
+		name string
+		res  Result
+		want string
+	}{
+		{"Arc's page text goes to the card", Result{Focus: arcWeb, Reason: ReasonNotEditable},
+			"focus role=AXWebArea editable=false app=company.thebrowser.Browser -> card (no text field)"},
+		{"inserted", Result{Focus: proto.FocusResult{PID: 812, App: &slack, Role: "AXTextArea", Editable: true}, Inserted: true, To: slack, Pasted: true},
+			"focus role=AXTextArea editable=true app=com.tinyspeck.slackmacgap -> inserted"},
+		{"a password field", Result{Focus: proto.FocusResult{PID: 812, App: &slack, Role: "AXTextField", Subrole: "AXSecureTextField"}, Reason: ReasonSecure},
+			"focus role=AXTextField editable=false app=com.tinyspeck.slackmacgap subrole=AXSecureTextField -> card (password field)"},
+		{"unknown focus, tried", Result{Focus: proto.FocusResult{PID: 812, Error: "-25212", App: &slack}, Pasted: true, Inserted: true, To: slack},
+			"focus unknown (-25212) app=com.tinyspeck.slackmacgap -> tried paste, inserted"},
+		{"switched", Result{Focus: proto.FocusResult{PID: 530, App: &textEdit, Role: "AXTextArea", Editable: true}, Inserted: true, To: textEdit, Pasted: true},
+			"focus role=AXTextArea editable=true app=com.apple.TextEdit -> inserted into com.apple.TextEdit (the user switched apps)"},
+		{"check", Result{Focus: proto.FocusResult{PID: 812, App: &slack, Role: "AXTextArea", Editable: true}},
+			"focus role=AXTextArea editable=true app=com.tinyspeck.slackmacgap -> would insert"},
+		{"no focus read", Result{Reason: ReasonCard}, "focus not read -> card (card choice)"},
+	} {
+		if got := tc.res.Describe(slack); got != tc.want {
+			t.Errorf("%s:\n got %q\nwant %q", tc.name, got, tc.want)
+		}
 	}
 }

@@ -161,6 +161,14 @@ func TestAnswerCardButtons(t *testing.T) {
 	}
 	card("c2")
 	frames(tt)
+	if err := tt.Click("Insert"); err != nil { // static text in the app the user started in: no paste, the same prompt
+		t.Fatal(err)
+	}
+	frames(tt)
+	if !a.answer.open || len(pasted) != 0 || a.answer.msg != "No text field is focused: click where the text should go, then insert." {
+		t.Errorf("insert on static text: %+v %+v", a.answer, pasted)
+	}
+	focus = proto.FocusResult{PID: 812, Role: "AXTextArea", Editable: true}
 	if err := tt.Click("Insert"); err != nil {
 		t.Fatal(err)
 	}

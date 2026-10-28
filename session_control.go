@@ -153,6 +153,7 @@ func (a *app) pasteLast(target proto.App) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		res := deliver.Insert(ctx, io, deliver.Request{Text: text, Target: target})
+		a.logDelivery("paste last", res, target)
 		a.post(func() {
 			if !res.Inserted {
 				a.showNotice(sessionNotice{text: uitext.DeliveryText(res, target)})

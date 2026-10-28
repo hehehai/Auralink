@@ -8,9 +8,9 @@
 // the caller shows the answer card, which offers Insert and Copy.
 //
 // The start app (Request.Target, in front when the shortcut was pressed)
-// still matters in three ways: an element there is given the benefit of
-// the doubt (the user pressed the shortcut in it), a selection is
-// replaced only there, and its auto key is pressed only there. When
+// still matters in two ways: a selection is replaced only there, and its
+// auto key is pressed only there. Its focused element must take text
+// (Writable) as another app's must: a web page's text is not an input. When
 // Auralink itself came to the front (a click on its window), the start
 // app is activated again first (macx.Activate): nothing is ever typed
 // into Auralink, nor into a password field.
@@ -85,10 +85,6 @@ type Request struct {
 	// none) gives the front back to Target before pasting.
 	Self     int
 	Activate func(pid int) bool
-	// AnyEditable skips the check of Target's focused element (the answer
-	// card's Insert: the user looked and chose); another app's must
-	// still take text.
-	AnyEditable bool
 	// Replace: the text replaces a selection made in Target. It goes
 	// only there, and only into an element Accessibility calls editable
 	// (text selected on a web page must not be "replaced" by a paste
@@ -106,6 +102,7 @@ type Result struct {
 	Front     proto.App
 	Focus     proto.FocusResult
 	Paste     proto.PasteResult
+	Pasted    bool // textio.paste was called (Describe says it was tried)
 	Activated bool // the target was activated again first
 	Err       error
 	Elapsed   time.Duration
@@ -117,26 +114,14 @@ func (r Result) Moved(target proto.App) bool {
 	return r.To.PID != 0 && r.To.PID != target.PID
 }
 
-// nonText are focused roles that never take text.
-var nonText = map[string]bool{
-	"AXButton": true, "AXCheckBox": true, "AXRadioButton": true, "AXPopUpButton": true, "AXMenuButton": true,
-	"AXMenuItem": true, "AXMenuBarItem": true, "AXImage": true, "AXList": true, "AXOutline": true, "AXTable": true,
-	"AXRow": true, "AXCell": true, "AXSlider": true, "AXTabGroup": true, "AXToolbar": true, "AXDisclosureTriangle": true,
-	"AXIncrementor": true, "AXColorWell": true, "AXSplitter": true, "AXStaticText": true, "AXLink": true, "AXHeading": true,
-}
-
-// Writable says whether the start app's focused element takes text: an
-// editable one, or one Auralink cannot tell (no Accessibility answer, a
-// web area, a group: contenteditable editors look so), but not nothing
-// at all, nor a button, a list or another control that never does.
+// Writable says whether the focused element of the start app takes
+// text: Accessibility calls it editable (a settable value, a text role,
+// or a web page's editable region). Only a focus that cannot be read
+// (Error) is tried, as before. A web area, a group, static text or a
+// button is not: the paste would land where nobody types, and the
+// helper would report it posted anyway.
 func Writable(f proto.FocusResult) bool {
-	if f.Editable || f.Error != "" {
-		return true
-	}
-	if f.Role == "" {
-		return false
-	}
-	return !nonText[f.Role]
+	return f.Editable || f.Error != ""
 }
 
 // Secure says whether the focused element is a password field.
@@ -176,6 +161,7 @@ func insert(ctx context.Context, io TextIO, r Request) Result {
 		Text: r.Text, KeepClipboard: r.KeepClipboard, RestoreDelayMS: r.RestoreDelayMS,
 		TargetPID: res.To.PID, Press: press, PressDelayMS: r.PressDelayMS,
 	})
+	res.Pasted = true
 	if err != nil {
 		return failed(res, err)
 	}
@@ -228,7 +214,7 @@ func check(ctx context.Context, io TextIO, r Request) Result {
 			why = ReasonNotEditable
 		}
 	case inTarget:
-		if !r.AnyEditable && !Writable(focus) {
+		if !Writable(focus) {
 			why = ReasonNotEditable
 		}
 	case !focus.Editable || focus.Error != "":

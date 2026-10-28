@@ -390,17 +390,12 @@ func TestSessionStreamingCard(t *testing.T) {
 	if !strings.Contains(a.hotkeysSent, "Active:true") {
 		t.Error("Escape should close the card")
 	}
+	// The card's Insert in the app the user started in, whose focus is
+	// static text: the same prompt as the delivery, no paste.
 	a.insertAnswer()
-	a.pump("the insert", func() bool { return !a.answer.open })
-	if p := a.pasted(); len(p) != 1 || p[0].Text != "你好，Auralink" {
-		t.Errorf("pasted %+v", p)
-	}
-	a.pump("the history", func() bool {
-		es := a.history()
-		return len(es) == 1 && es[0].Delivery == "insert"
-	})
-	if a.ov.mode != ovHidden {
-		t.Errorf("overlay %s", a.ov.mode)
+	a.pump("the insert", func() bool { return a.answer.msg != "" && !a.answer.inserting })
+	if p := a.pasted(); len(p) != 0 || !a.answer.open || a.answer.msg != "No text field is focused: click where the text should go, then insert." {
+		t.Errorf("pasted %+v, card %+v", p, a.answer)
 	}
 }
 

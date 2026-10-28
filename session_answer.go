@@ -196,10 +196,10 @@ func (a *app) copyAnswer(copyText func(string)) {
 	})
 }
 
-// insertAnswer inserts the card's text where the user is typing: the
-// app the session started in (the user chose to, so any focused element
-// there will do; when Auralink is in front, that app comes back first), or
-// a text field in the app in front now. The card hides while it pastes
+// insertAnswer inserts the card's text where the user is typing, by the
+// same rule as a result (deliver.Insert): the focused element must take
+// text, in the app the session started in or in the app in front now.
+// When Auralink is in front, the session's app comes back first. The card hides while it pastes
 // and comes back if that did not work (Voxt's).
 func (a *app) insertAnswer() {
 	card := a.answer
@@ -212,8 +212,9 @@ func (a *app) insertAnswer() {
 	a.async(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		res := deliver.Insert(ctx, text, deliver.Request{Text: card.text, Target: card.target, AnyEditable: true, Self: os.Getpid(),
+		res := deliver.Insert(ctx, text, deliver.Request{Text: card.text, Target: card.target, Self: os.Getpid(),
 			Activate: func(pid int) bool { ok, _ := activateTarget(pid); return ok }})
+		a.logDelivery("card's Insert", res, card.target)
 		a.post(func() {
 			if !a.answer.open || a.answer.id != card.id {
 				return

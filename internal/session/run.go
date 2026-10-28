@@ -207,6 +207,7 @@ func (r *run) finish(st State, problem *Problem, result string, o finishOpts) {
 	case result == "" || r.req.Try:
 	case o.card != "":
 		dres.Reason = o.card
+		r.logf("info", "delivery: %s", dres.Describe(r.req.Target))
 		r.m.update(r, func(s *Snapshot) { s.Result, s.Card = result, true })
 	default:
 		r.m.update(r, func(s *Snapshot) { s.State, s.Result = Delivering, result })
@@ -217,14 +218,7 @@ func (r *run) finish(st State, problem *Problem, result string, o finishOpts) {
 		if dres.Err != nil {
 			r.logf("warning", "insert: %v", dres.Err)
 		}
-		switch {
-		case dres.Inserted && dres.Moved(r.req.Target):
-			r.logf("info", "inserted into %s, not %s (the user switched apps; no auto key) in %v", dres.To.BundleID, r.req.Target.BundleID, dres.Elapsed.Round(time.Millisecond))
-		case dres.Inserted:
-			r.logf("info", "inserted in %v", dres.Elapsed.Round(time.Millisecond))
-		default:
-			r.logf("info", "not inserted (%s; %s in front) in %v", dres.Reason, dres.Front.BundleID, dres.Elapsed.Round(time.Millisecond))
-		}
+		r.logf("info", "delivery: %s", dres.Describe(r.req.Target))
 	}
 	snap := r.m.Current()
 	total := r.now().Sub(snap.StartedAt)
