@@ -101,14 +101,23 @@ public enum PasteRunner {
             await env.sleep(ms: max(0, pressAt - env.nowMs()))
             for k in keys { env.postKey(k) }
         }
+        // Not confirmed: the field may still read the clipboard (a busy app
+        // reads it late), so the text stays there and the old clipboard is
+        // not put back. The app says so on its card; the user pastes by hand.
         var restored = false
         var taken = false
-        if restore {
+        var left = false
+        if restore && landed != .no {
             restored = await env.restoreClipboard(snap, unlessChangedFrom: ours)
             taken = !restored
+        } else if landed == .no {
+            // Our text is still there unless someone wrote to the clipboard.
+            let now = await env.changeCount()
+            left = now == ours
         }
         return PasteResult(posted: true, restored: restored, clipboardTaken: taken, ms: ms(),
-                           confirmed: landed.rawValue, confirmedMs: landed == .yes ? roundTenth(env.nowMs() - vAt) : nil)
+                           confirmed: landed.rawValue, confirmedMs: landed == .yes ? roundTenth(env.nowMs() - vAt) : nil,
+                           leftOnClipboard: left ? true : nil)
     }
 
     /// Waits for the value of the same element to grow by the text (the

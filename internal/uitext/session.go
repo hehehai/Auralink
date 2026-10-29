@@ -35,6 +35,9 @@ func DeliveryText(res deliver.Result, target proto.App) string {
 	case deliver.ReasonFailed:
 		return i18n.T("Could not insert: %v", res.Err)
 	case deliver.ReasonNotLanded:
+		if res.Paste.LeftOnClipboard {
+			return i18n.T("Pasted, but the field did not show the text. The text is on the clipboard: paste it with ⌘V where it goes.")
+		}
 		return i18n.T("Pasted, but the field did not show the text: check it. If it is missing, insert it again or copy it.")
 	}
 	return ""

@@ -402,9 +402,12 @@ public struct PasteResult: Codable, Sendable {
     public var confirmed: String?
     /// When the value had grown by the text (confirmed yes), ms after ⌘V.
     public var confirmedMs: Double?
+    /// Not confirmed and the text is still on the clipboard: the old one was
+    /// not put back (nil: it was not left there).
+    public var leftOnClipboard: Bool?
 
     public init(posted: Bool, restored: Bool, clipboardTaken: Bool, ms: Double, front: App? = nil,
-                confirmed: String? = nil, confirmedMs: Double? = nil) {
+                confirmed: String? = nil, confirmedMs: Double? = nil, leftOnClipboard: Bool? = nil) {
         self.posted = posted
         self.restored = restored
         self.clipboardTaken = clipboardTaken
@@ -412,6 +415,7 @@ public struct PasteResult: Codable, Sendable {
         self.front = front
         self.confirmed = confirmed
         self.confirmedMs = confirmedMs
+        self.leftOnClipboard = leftOnClipboard
     }
 }
 

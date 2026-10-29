@@ -191,14 +191,43 @@ final class PasteRunnerTests: XCTestCase {
     }
 
     /// The target never reads (say, its field is not focused after all): the
-    /// helper says so ("no"), presses nothing, and gives the clipboard back.
+    /// helper says so ("no"), presses nothing, and leaves the text on the
+    /// clipboard for the user to paste by hand (the old one is not put back).
     func testNoLandingIsReportedAndNothingIsPressed() async {
         let env = FakePaste(front: Self.target, clipboard: Self.original, latency: nil, axReadable: true)
         let res = await run(params(press: [KeyPress(key: 36, modifiers: nil)]), env)
         XCTAssertTrue(res.posted)
         XCTAssertEqual(res.confirmed, "no")
+        XCTAssertEqual(res.leftOnClipboard, true)
+        XCTAssertFalse(res.restored)
+        XCTAssertFalse(res.clipboardTaken)
         XCTAssertTrue(env.keys.isEmpty, "a key was pressed after a paste that did not land")
-        XCTAssertEqual(env.clipboard, Self.original)
+        XCTAssertEqual(env.clipboard, [[Self.utf8: Data(Self.text.utf8)]])
+    }
+
+    /// Regression: Arc read the clipboard 1.6 s after ⌘V, after the helper had
+    /// said "no" and put the old clipboard back: the late read pasted the OLD
+    /// text. A "no" keeps the text on the clipboard, so the late read gets it.
+    func testLateValueAfterTheWindowDoesNotRestoreTheClipboard() async {
+        let env = FakePaste(front: Self.target, clipboard: Self.original, latency: 1600, axReadable: true)
+        let res = await run(params(), env)
+        XCTAssertEqual(res.confirmed, "no")
+        XCTAssertEqual(env.targetInserts, [Self.text], "the late read got \(env.targetInserts)")
+        XCTAssertEqual(env.clipboardText(), Self.text)
+        XCTAssertEqual(res.leftOnClipboard, true)
+    }
+
+    /// A "no" when someone wrote to the clipboard meanwhile: their copy stays,
+    /// and the result does not claim to be on the clipboard.
+    func testNoLandingAfterAUserCopyKeepsTheUsersCopy() async {
+        let env = FakePaste(front: Self.target, clipboard: Self.original, latency: nil, axReadable: true)
+        let user: ClipboardItems = [[Self.utf8: Data("用户刚复制的".utf8)]]
+        env.schedule(after: 10) { env.clipboard = user; env.changes += 1 }
+        let res = await run(params(), env)
+        XCTAssertEqual(res.confirmed, "no")
+        XCTAssertEqual(env.clipboard, user)
+        XCTAssertNil(res.leftOnClipboard)
+        XCTAssertFalse(res.restored)
     }
 
     /// A paste the field shows at once is confirmed, and the clipboard goes
@@ -209,6 +238,9 @@ final class PasteRunnerTests: XCTestCase {
         XCTAssertEqual(res.confirmed, "yes")
         XCTAssertEqual(res.confirmedMs, 40)
         XCTAssertLessThan(res.ms, 200)
+        XCTAssertTrue(res.restored)
+        XCTAssertNil(res.leftOnClipboard)
+        XCTAssertEqual(env.clipboard, Self.original)
     }
 
     /// Without a readable value the helper cannot confirm; it waits the

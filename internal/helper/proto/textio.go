@@ -99,6 +99,10 @@ type PasteResult struct {
 	Confirmed string `json:"confirmed,omitempty"`
 	// ConfirmedMS is when the value had grown, ms after ⌘V (Confirmed "yes").
 	ConfirmedMS float64 `json:"confirmedMs,omitempty"`
+	// LeftOnClipboard: the text was not confirmed, so the old clipboard was
+	// not put back and the text is still on the clipboard (the user can
+	// paste it by hand). Restored is false then.
+	LeftOnClipboard bool `json:"leftOnClipboard,omitempty"`
 }
 
 // The values of PasteResult.Confirmed.

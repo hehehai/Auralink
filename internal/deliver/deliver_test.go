@@ -63,8 +63,11 @@ func TestInsert(t *testing.T) {
 		{name: "nothing focused", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812}}}, reason: ReasonNotEditable},
 		{name: "a button", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXButton"}}}, reason: ReasonNotEditable},
 		{name: "a button, the card's Insert too", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXButton", App: &slack}}}, reason: ReasonNotEditable},
-		{name: "Arc's web page text (AXWebArea, not editable) goes to the card", req: Request{Text: "hi", Target: arc}, io: fakeIO{focus: []proto.FocusResult{{PID: 900, App: &arc, Role: "AXWebArea"}}}, reason: ReasonNotEditable},
-		{name: "a group of a web page goes to the card", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXGroup"}}}, reason: ReasonNotEditable},
+		{name: "the start app's web area (Arc's page, not editable) pastes", req: Request{Text: "hi", Target: arc}, io: fakeIO{focus: []proto.FocusResult{{PID: 900, App: &arc, Role: "AXWebArea"}}, paste: posted}, inserted: true, pastes: 1, to: 900},
+		{name: "a group of the start app pastes", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXGroup"}}, paste: posted}, inserted: true, pastes: 1},
+		{name: "another app's group goes to the card", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 530, App: &textEdit, Role: "AXGroup"}}}, reason: ReasonNotEditable},
+		{name: "a password field in the start app is refused", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXGroup", Subrole: "AXSecureTextField"}}}, reason: ReasonSecure},
+		{name: "a button in the start app goes to the card", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXButton"}}}, reason: ReasonNotEditable},
 		{name: "static text goes to the card", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXStaticText"}}}, reason: ReasonNotEditable},
 		{name: "an unknown role goes to the card", req: Request{Text: "hi", Target: slack}, io: fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXSomethingNew"}}}, reason: ReasonNotEditable},
 		{name: "a web page's editable region pastes", req: Request{Text: "hi", Target: arc}, io: fakeIO{focus: []proto.FocusResult{{PID: 900, App: &arc, Role: "AXWebArea", Editable: true}}, paste: posted}, inserted: true, pastes: 1, to: 900},
@@ -202,6 +205,31 @@ func TestWritableRule(t *testing.T) {
 	}
 }
 
+// TestTargetWritable: the start app's focus takes a result when it is
+// editable or a generic container; never a password field, never a control.
+func TestTargetWritable(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		f    proto.FocusResult
+		want bool
+	}{
+		{"text area", proto.FocusResult{Role: "AXTextArea", Editable: true}, true},
+		{"web area", proto.FocusResult{Role: "AXWebArea"}, true},
+		{"group", proto.FocusResult{Role: "AXGroup"}, true},
+		{"unknown", proto.FocusResult{Role: "AXUnknown"}, true},
+		{"unreadable focus is tried", proto.FocusResult{Error: "-25212"}, true},
+		{"password field", proto.FocusResult{Role: "AXTextField", Subrole: "AXSecureTextField", Editable: true}, false},
+		{"password field in a group", proto.FocusResult{Role: "AXGroup", Subrole: "AXSecureTextField"}, false},
+		{"button", proto.FocusResult{Role: "AXButton"}, false},
+		{"static text", proto.FocusResult{Role: "AXStaticText"}, false},
+		{"nothing focused", proto.FocusResult{}, false},
+	} {
+		if got := targetWritable(tc.f); got != tc.want {
+			t.Errorf("%s: targetWritable = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
 // TestDescribe: the log line says the focus and the outcome, never the
 // text.
 func TestDescribe(t *testing.T) {
@@ -262,6 +290,19 @@ func TestNotLandedKeepsTheCard(t *testing.T) {
 	io := &fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXTextArea", Editable: true}}, paste: proto.PasteResult{Posted: true, Confirmed: proto.LandedNo}}
 	res := Insert(context.Background(), io, Request{Text: "hi", Target: slack})
 	if got := res.Describe(slack); !strings.HasSuffix(got, "card (not confirmed)") {
+		t.Errorf("describe: %q", got)
+	}
+}
+
+// TestNotLandedOnClipboard: the log says the text is still on the
+// clipboard when the helper left it there.
+func TestNotLandedOnClipboard(t *testing.T) {
+	io := &fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXTextArea", Editable: true}}, paste: proto.PasteResult{Posted: true, Confirmed: proto.LandedNo, LeftOnClipboard: true}}
+	res := Insert(context.Background(), io, Request{Text: "hi", Target: slack})
+	if res.Reason != ReasonNotLanded || !res.Paste.LeftOnClipboard {
+		t.Fatalf("reason %q, paste %+v", res.Reason, res.Paste)
+	}
+	if got := res.Describe(slack); !strings.HasSuffix(got, "card (not confirmed, text left on the clipboard)") {
 		t.Errorf("describe: %q", got)
 	}
 }

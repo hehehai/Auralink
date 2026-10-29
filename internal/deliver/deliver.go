@@ -10,7 +10,10 @@
 // The start app (Request.Target, in front when the shortcut was pressed)
 // still matters in two ways: a selection is replaced only there, and its
 // auto key is pressed only there. Its focused element must take text
-// (Writable) as another app's must: a web page's text is not an input. When
+// (targetWritable: editable, or a generic container role such as a web
+// area, as Voxt pastes into them; never a password field). Another app's
+// must be editable (Writable): the user did not press the shortcut there,
+// and a web page's text is not an input. When
 // Auralink itself came to the front (a click on its window), the start
 // app is activated again first (macx.Activate): nothing is ever typed
 // into Auralink, nor into a password field.
@@ -67,7 +70,8 @@ const (
 	ReasonCard Reason = "card"
 	ReasonLong Reason = "long" // 0.1.0's (the history may hold it)
 	// ReasonNotLanded: the helper posted ⌘V, but the focused field did not
-	// show the text (Result.Paste.Confirmed "no"): the card keeps it.
+	// show the text (Result.Paste.Confirmed "no"): the card keeps it, and
+	// Result.Paste.LeftOnClipboard says the text is still on the clipboard.
 	ReasonNotLanded Reason = "notLanded"
 )
 
@@ -132,14 +136,34 @@ func (r Result) Moved(target proto.App) bool {
 	return r.To.PID != 0 && r.To.PID != target.PID
 }
 
-// Writable says whether the focused element of the start app takes
-// text: Accessibility calls it editable (a settable value, a text role,
-// or a web page's editable region). Only a focus that cannot be read
-// (Error) is tried, as before. A web area, a group, static text or a
-// button is not: the paste would land where nobody types, and the
-// helper would report it posted anyway.
+// Writable says whether the focused element of another app takes text:
+// Accessibility calls it editable (a settable value, a text role, or a
+// web page's editable region). Only a focus that cannot be read (Error)
+// is tried, as before. A web area, a group, static text or a button is
+// not: the paste would land where nobody types, and the helper would
+// report it posted anyway.
 func Writable(f proto.FocusResult) bool {
 	return f.Editable || f.Error != ""
+}
+
+// genericRoles are the containers the start app's focus may sit on (Arc's
+// page is an AXWebArea, its toolbar groups are AXGroup): Voxt pastes into
+// them, and the start app is the one the user typed in. Controls (buttons,
+// static text) are not among them.
+var genericRoles = map[string]bool{
+	"AXWebArea":    true,
+	"AXGroup":      true,
+	"AXUnknown":    true,
+	"AXScrollArea": true,
+	"AXSplitGroup": true,
+	"AXLayoutArea": true,
+	"AXLayoutItem": true,
+}
+
+// targetWritable says whether the focused element of the start app takes
+// a result: Writable, or a generic role. A password field never does.
+func targetWritable(f proto.FocusResult) bool {
+	return !Secure(f) && (Writable(f) || genericRoles[f.Role])
 }
 
 // Secure says whether the focused element is a password field.
@@ -240,7 +264,7 @@ func check(ctx context.Context, io TextIO, r Request) Result {
 			why = ReasonNotEditable
 		}
 	case inTarget:
-		if !Writable(focus) {
+		if !targetWritable(focus) {
 			why = ReasonNotEditable
 		}
 	case !focus.Editable || focus.Error != "":

@@ -161,7 +161,8 @@ func (f *fake) textio(m proto.Message) {
 		case "unknown":
 			confirmed = proto.LandedUnknown
 		}
-		f.result(m.ID, proto.PasteResult{Posted: true, Restored: !p.KeepClipboard, MS: 2, Confirmed: confirmed})
+		left := confirmed == proto.LandedNo
+		f.result(m.ID, proto.PasteResult{Posted: true, Restored: !p.KeepClipboard && !left, MS: 2, Confirmed: confirmed, LeftOnClipboard: left})
 	}
 }
 

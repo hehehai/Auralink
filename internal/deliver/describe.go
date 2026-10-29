@@ -54,6 +54,8 @@ func (r Result) Describe(target proto.App) string {
 		b.WriteString("inserted")
 	case r.Inserted:
 		b.WriteString("pasted, not confirmed")
+	case r.Reason == ReasonNotLanded && r.Paste.LeftOnClipboard:
+		b.WriteString("card (not confirmed, text left on the clipboard)")
 	case r.Reason == ReasonNotLanded:
 		b.WriteString("card (not confirmed)")
 	case r.Reason == ReasonNone:

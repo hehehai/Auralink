@@ -1099,6 +1099,7 @@
   "Not confirmed": "未确认",
   "Pasted with ⌘V, but the field did not show it: it may not be there": "已用 ⌘V 粘贴，但输入框没有显示这段文字：可能没有落地",
   "Pasted, but the field did not show the text: check it. If it is missing, insert it again or copy it.": "已粘贴，但输入框里没有看到这段文字：请检查。如果没有，请再插入一次或复制。",
+  "Pasted, but the field did not show the text. The text is on the clipboard: paste it with ⌘V where it goes.": "已粘贴，但输入框里没有看到这段文字。文字已放进剪贴板，可手动粘贴（⌘V）到要插入的位置。",
   "Checking…": "正在检查…",
   "Confirm the key": "确认密钥",
   "Keychain error": "钥匙串出错",
