@@ -320,6 +320,8 @@ func entryMarks(c *ui.Context, e store.Entry) {
 		return
 	}
 	switch e.Delivery {
+	case "paste":
+		tagChip(c, i18n.T("Not confirmed")).Tooltip(i18n.T("Pasted with ⌘V, but the field did not show it: it may not be there"))
 	case "card":
 		tagChip(c, i18n.T("Not inserted")).Tooltip(i18n.T("Shown in the answer card, and not inserted"))
 	case "copy":

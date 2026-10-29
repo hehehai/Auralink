@@ -34,6 +34,8 @@ func DeliveryText(res deliver.Result, target proto.App) string {
 		return i18n.T("A password field is focused: Auralink never types into one.")
 	case deliver.ReasonFailed:
 		return i18n.T("Could not insert: %v", res.Err)
+	case deliver.ReasonNotLanded:
+		return i18n.T("Pasted, but the field did not show the text: check it. If it is missing, insert it again or copy it.")
 	}
 	return ""
 }
@@ -175,6 +177,8 @@ func WhyInCard(r deliver.Reason, selection bool, name string) string {
 		return i18n.T("A password field is focused, and Auralink never types into one: copy it, or click another field and insert.")
 	case deliver.ReasonNoAccess:
 		return i18n.T("Allow Accessibility to insert results where you type.")
+	case deliver.ReasonNotLanded:
+		return i18n.T("Pasted, but the field did not show the text: check it. If it is missing, insert it again or copy it.")
 	}
 	return ""
 }

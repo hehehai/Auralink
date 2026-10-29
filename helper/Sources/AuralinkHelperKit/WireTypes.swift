@@ -398,13 +398,20 @@ public struct PasteResult: Codable, Sendable {
     public var clipboardTaken: Bool
     public var ms: Double
     public var front: App?
+    /// yes / no / unknown (Landed); nil from a helper that did not check.
+    public var confirmed: String?
+    /// When the value had grown by the text (confirmed yes), ms after ⌘V.
+    public var confirmedMs: Double?
 
-    public init(posted: Bool, restored: Bool, clipboardTaken: Bool, ms: Double, front: App? = nil) {
+    public init(posted: Bool, restored: Bool, clipboardTaken: Bool, ms: Double, front: App? = nil,
+                confirmed: String? = nil, confirmedMs: Double? = nil) {
         self.posted = posted
         self.restored = restored
         self.clipboardTaken = clipboardTaken
         self.ms = ms
         self.front = front
+        self.confirmed = confirmed
+        self.confirmedMs = confirmedMs
     }
 }
 

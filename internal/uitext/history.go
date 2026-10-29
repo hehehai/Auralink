@@ -77,6 +77,11 @@ func DeliveryLabel(e store.Entry) string {
 			return i18n.T("Inserted into %s", e.InsertedName)
 		}
 		return i18n.T("Inserted")
+	case "paste":
+		if e.InsertedName != "" {
+			return i18n.T("Pasted into %s (not confirmed)", e.InsertedName)
+		}
+		return i18n.T("Pasted (not confirmed)")
 	case "card":
 		return i18n.T("Shown in the answer card")
 	case "copy":

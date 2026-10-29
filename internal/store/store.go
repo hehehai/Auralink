@@ -90,7 +90,8 @@ type Entry struct {
 	PromptText string
 	Result     string
 	TargetLang string
-	// Delivery: "insert" (pasted where the cursor was), "copy" or "card"
+	// Delivery: "insert" (pasted, and the field showed it), "paste" (pasted,
+	// not confirmed), "copy" or "card"
 	// (shown in the answer card).
 	Delivery string
 	// InsertedBundle and InsertedName are the app the result was pasted

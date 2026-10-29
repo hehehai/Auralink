@@ -62,8 +62,11 @@ const (
 type PasteParams struct {
 	Text string `json:"text"`
 	// KeepClipboard leaves Text on the clipboard instead of restoring.
-	KeepClipboard  bool `json:"keepClipboard,omitempty"`
-	RestoreDelayMS int  `json:"restoreDelayMs,omitempty"` // default 500
+	KeepClipboard bool `json:"keepClipboard,omitempty"`
+	// RestoreDelayMS is how long the target gets to read the clipboard:
+	// the helper waits for the text to show in the field (a readable value)
+	// and gives the clipboard back as soon as it does, else after this long.
+	RestoreDelayMS int `json:"restoreDelayMs,omitempty"` // default 1500
 	// TargetPID, when set, must be the app in front: otherwise nothing is
 	// pasted (Posted false, Front says who is in front). The app activates
 	// the target itself (macx.Activate) when it has to.
@@ -80,7 +83,8 @@ type KeyPress struct {
 	Modifiers []string `json:"modifiers,omitempty"`
 }
 
-// PasteResult says what happened.
+// PasteResult says what happened. Posted only says ⌘V was sent; Confirmed
+// says whether the focused field showed the text.
 type PasteResult struct {
 	Posted bool `json:"posted"`
 	// Restored: the old clipboard is back. ClipboardTaken: someone wrote
@@ -89,7 +93,20 @@ type PasteResult struct {
 	ClipboardTaken bool    `json:"clipboardTaken"`
 	MS             float64 `json:"ms"`
 	Front          *App    `json:"front,omitempty"` // when not posted: the app in front
+	// Confirmed is Landed*: "yes" (the focused value grew by the text),
+	// "no" (it did not change within the window; the keys were not sent),
+	// "unknown" (no value could be read). Empty from an older helper.
+	Confirmed string `json:"confirmed,omitempty"`
+	// ConfirmedMS is when the value had grown, ms after ⌘V (Confirmed "yes").
+	ConfirmedMS float64 `json:"confirmedMs,omitempty"`
 }
+
+// The values of PasteResult.Confirmed.
+const (
+	LandedYes     = "yes"
+	LandedNo      = "no"
+	LandedUnknown = "unknown"
+)
 
 // ---- browser.url ----
 

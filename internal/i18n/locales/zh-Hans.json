@@ -1093,5 +1093,10 @@
   "the language model answered nothing": "语言模型没有返回内容",
   "um make it shorter, no, more formal": "嗯，精简一点，不对，改正式一点",
   "um so the meeting moves to Thursday at three, no, at four": "嗯那个会议改到周四三点，不对，四点",
-  "website": "网站"
+  "website": "网站",
+  "Pasted (not confirmed)": "已粘贴（未确认）",
+  "Pasted into %s (not confirmed)": "已粘贴到 %s（未确认）",
+  "Not confirmed": "未确认",
+  "Pasted with ⌘V, but the field did not show it: it may not be there": "已用 ⌘V 粘贴，但输入框没有显示这段文字：可能没有落地",
+  "Pasted, but the field did not show the text: check it. If it is missing, insert it again or copy it.": "已粘贴，但输入框里没有看到这段文字：请检查。如果没有，请再插入一次或复制。"
 }

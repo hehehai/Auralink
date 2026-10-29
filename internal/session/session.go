@@ -188,6 +188,8 @@ type Snapshot struct {
 	// app the user went to and focused a text field in. Target stays the
 	// app the scene was chosen for.
 	InsertedInto proto.App
+	// Landed is the helper's confirmation of the insert (deliver.Result.Landed).
+	Landed string
 	// Scene is the app enhancement group the session falls in (scene.go);
 	// nil until it is decided.
 	Scene *appctx.Match

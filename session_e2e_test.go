@@ -510,7 +510,7 @@ func (p *pasteText) Paste(_ context.Context, pp proto.PasteParams) (proto.PasteR
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.text = append(p.text, pp.Text)
-	return proto.PasteResult{Posted: true}, nil
+	return proto.PasteResult{Posted: true, Confirmed: proto.LandedYes}, nil
 }
 
 // TestE2ESessionReal runs the speech sample through each real speech

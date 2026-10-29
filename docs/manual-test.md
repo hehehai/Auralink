@@ -150,6 +150,18 @@ DEEPSEEK_API_KEY=...
   - 第 2 步：文字插进输入框，不弹卡片；日志是 `… editable=true … -> inserted`。
 - **不对时看**：第 2 步如果进了卡片，把日志里的那行和 `helper.log` 的 focus 结果（role、editable）发回来（Arc 的 contenteditable 可能判断不准，需要记下 role）。
 
+**1.5b 粘贴落地确认（10-29：⌘V 发出 ≠ 文字进了输入框）**
+- **做**：
+  1. 在 Arc 的网页输入框（例如 lab.rubii.ai）开始录音，说一句话，停止录音。重复 3 次。
+  2. 在 TextEdit 正文里同样做 1 次。
+  3. 每次之后看输入框，并看日志和 `helper.log` 里对应的 `textio.paste` 结果。
+- **应看到**：
+  - 输入框里出现刚说的文字，和历史的文字一致。日志是 `… -> inserted`（字段的值确实变长了），`textio.paste` 结果里 `"confirmed":"yes"`、`confirmedMs` 是几十毫秒。
+  - 如果输入框里**没有**文字：日志是 `card (not confirmed)`，结果留在卡片里，历史的交付方式是“卡片”。这是正确的，请把那行日志和 `helper.log` 的 `textio.paste` 结果发回来。
+  - 如果日志是 `… -> pasted, not confirmed`：文字可能进去了，也可能没有；Accessibility 读不到这个输入框的值（Arc 的 contenteditable 常见）。历史里显示“已粘贴（未确认）”。请检查输入框，并把日志行和 `helper.log` 的 focus 结果（role）发回来。
+  - `textio.paste` 里 `confirmed` 为 `"no"` 时，粘贴之后不会再按回车（自动按键不发出）。
+- **不对时看**：输入框里有文字而日志是 `pasted, not confirmed`（或反过来），把两者和 `helper.log` 的 `textio.paste` 行一起发回来。
+
 **1.6 粘贴最近结果**
 - **做**：按 ⌃⌘V。然后退出 Auralink（菜单栏 → 退出），重新打开，再按一次 ⌃⌘V。
 - **应看到**：两次都粘出最近一次转录的结果。重启后的结果是从历史里读的。
