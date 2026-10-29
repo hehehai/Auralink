@@ -34,7 +34,7 @@ func TestDeliverFollowsFocus(t *testing.T) {
 		{name: "still in Slack", focus: proto.FocusResult{PID: slack.PID, Role: "AXTextArea", Editable: true}, into: slack},
 		{name: "TextEdit's field", focus: field, into: textEdit},
 		{name: "a web editor in another app (AXEditableAncestor)", focus: proto.FocusResult{PID: textEdit.PID, App: &textEdit, Role: "AXGroup", Editable: true}, into: textEdit},
-		{name: "Slack's web page being read (the start app)", focus: proto.FocusResult{PID: slack.PID, App: &slack, Role: "AXWebArea"}, reason: deliver.ReasonNotEditable},
+		{name: "Slack's web page being read (the start app)", focus: proto.FocusResult{PID: slack.PID, App: &slack, Role: "AXWebArea"}, into: slack},
 		{name: "Slack's web editor (the start app)", focus: proto.FocusResult{PID: slack.PID, App: &slack, Role: "AXGroup", Editable: true}, into: slack},
 		{name: "a web page being read in another app", focus: proto.FocusResult{PID: textEdit.PID, App: &textEdit, Role: "AXWebArea"}, reason: deliver.ReasonNotEditable},
 		{name: "Finder's list", focus: proto.FocusResult{PID: finder.PID, App: &finder, Role: "AXOutline"}, reason: deliver.ReasonNotEditable},
@@ -166,8 +166,8 @@ func TestWriteFollowsFocus(t *testing.T) {
 }
 
 // TestArcPage: a Transcribe session started in Arc. The page's text
-// (AXWebArea, not editable) takes no paste: the answer goes to the card
-// and no paste is sent. A web page's input (editable) takes it.
+// (AXWebArea, not editable) takes the paste, as in Voxt: the start app's
+// generic roles count. A web page's input (editable) takes it too.
 func TestArcPage(t *testing.T) {
 	arc := proto.App{PID: 900, BundleID: "company.thebrowser.Browser", Name: "Arc"}
 	for _, tc := range []struct {
@@ -175,7 +175,7 @@ func TestArcPage(t *testing.T) {
 		focus proto.FocusResult
 		into  bool
 	}{
-		{name: "the page's text", focus: proto.FocusResult{PID: arc.PID, App: &arc, Role: "AXWebArea"}},
+		{name: "the page's text", focus: proto.FocusResult{PID: arc.PID, App: &arc, Role: "AXWebArea"}, into: true},
 		{name: "a web page's input", focus: proto.FocusResult{PID: arc.PID, App: &arc, Role: "AXTextArea", Editable: true}, into: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -200,8 +200,15 @@ func TestArcPage(t *testing.T) {
 			if len(pasted) != 0 || end.Inserted || !end.Card || end.Delivery != deliver.ReasonNotEditable {
 				t.Errorf("pasted %q, %+v", pasted, end)
 			}
-			if !h.logged("focus role=AXWebArea editable=false app=company.thebrowser.Browser -> card (no text field)") {
-				t.Errorf("logs %q", h.logs)
+			want := "focus role=AXWebArea editable=false app=company.thebrowser.Browser -> card (no text field)"
+			if tc.into {
+				want = "focus role=AXWebArea editable=false app=company.thebrowser.Browser -> inserted"
+				if tc.focus.Editable {
+					want = "focus role=AXTextArea editable=true app=company.thebrowser.Browser -> inserted"
+				}
+			}
+			if !h.logged(want) {
+				t.Errorf("logs %q, want %q", h.logs, want)
 			}
 		})
 	}
