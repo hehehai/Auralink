@@ -40,8 +40,9 @@ type soundsState struct {
 	sounds struct {
 		previewing string // the cue whose Try shows the accent ("" none)
 		seq        int    // numbers the previews: a preview's timer ends only its own
-		// playing is the choice a preview plays until playingEnd (the
-		// picker's ▶ in the accent).
+		// playing is the choice a preview plays, until its timer ends it
+		// (the picker's ▶ in the accent); playingEnd is when that is, for
+		// the redraw.
 		playing    string
 		playingEnd time.Time
 	}
@@ -219,6 +220,13 @@ func (a *app) previewSound(ev sounds.Event, choice, key string) {
 			d = sounds.UnknownLength
 		}
 		a.sounds.playing, a.sounds.playingEnd = choice, time.Now().Add(d)
+		// The end is the timer's (a.later), not the wall clock's: a slow
+		// machine cannot end a preview between two frames.
+		a.later(d, func() {
+			if a.sounds.seq == seq {
+				a.sounds.playing = ""
+			}
+		})
 	}
 	a.later(max(t.Length(a.soundCat)+cueMargin, previewMin), func() {
 		if a.sounds.seq == seq {
@@ -242,12 +250,7 @@ func (a *app) previewPlaying() (string, time.Duration) {
 	if a.sounds.playing == "" {
 		return "", 0
 	}
-	left := time.Until(a.sounds.playingEnd)
-	if left <= 0 {
-		a.sounds.playing = ""
-		return "", 0
-	}
-	return a.sounds.playing, left
+	return a.sounds.playing, max(time.Until(a.sounds.playingEnd), time.Millisecond)
 }
 
 // trySound plays the cue's sound now (Try).
