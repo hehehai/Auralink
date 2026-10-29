@@ -4,7 +4,7 @@ All notable changes to Auralink. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
-## [0.1.0-beta.2] - 2026-10-22
+## [0.1.0-beta.2] - 2026-10-29
 
 The first public version, a beta: voice input for macOS on remote models, from [actnow.dev](https://actnow.dev/auralink). It updates to the next beta and to the release that follows (Settings → About → Beta updates). 0.1.0-beta.1 was built but not released; its changes are listed here.
 
@@ -43,6 +43,11 @@ The first public version, a beta: voice input for macOS on remote models, from [
 - Downloads, updates and release notes come from [actnow.dev](https://actnow.dev/auralink/changelog) instead of GitHub Releases: sign in at actnow.dev/download/auralink to download. Updates come from actnow.dev/updates/auralink, and Beta updates read its beta channel, which always offers the newer of the latest beta and the latest release.
 - The menu bar icon is now a speech bubble with a waveform, in thin lines like the system's own icons; while recording, the bubble turns solid.
 - A result goes where you are typing when it is ready, not only into the app you started in (as in Voxt): move to another app and click into a text field while Auralink records or works, and it is pasted there; web editors such as Notion or Slack in the browser count as text fields. The app's group's key after the paste is pressed only in the app you started in, whose group shaped the result, and a selection is replaced only in the app it was selected in. Where no text field is focused (Finder, the desktop, a page you are reading) or the focus is in a password field, the result waits in the answer card, which says why; click where it should go, then Insert. Clicking Auralink's own window still sends it back to the app you started in. The history shows the app it was inserted into when that is another one. Insert in the answer card and Paste the last result follow the same rules.
+
+### Fixed
+- A result is inserted only when the text really appears in the field: Auralink reads the field before and after the paste. A field that does not take the text (a web page's body, a button) gets the result in the card, not a silent paste.
+- The clipboard is put back only after the app has read the pasted text, so a slow app no longer gets the old clipboard contents.
+- The log says why a result was inserted, kept in the card or not confirmed, and why a shortcut did not start a recording.
 
 ### Known limitations
 
