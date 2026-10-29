@@ -1,85 +1,28 @@
 package main
 
 // API keys shared with the ActNow family (internal/actnow; spec §8). A
-// service's key may be the family's key of its vendor (the login
-// Keychain's "ActNow" / "vendor.<id>", with credentials.json beside it),
-// which the service's setup then names (settings.Provider.CredentialRef).
-// A service's dialog offers the family's key without reading it, and
-// reads it only once the user chose "Use this key" (credentials.Store.Use:
-// not even a connection test reads it before); a key the user saves there
-// goes to the family when "Let other ActNow apps on this Mac use this key"
-// stays checked. The dialog's parts are providers_dialog.go's.
+// service's own Keychain item (asr.<id>, llm.<id>) is the authority; the
+// family's key of its vendor (the login Keychain's "ActNow" / "vendor.<id>",
+// with credentials.json beside it) is a copy made when the user shares a key,
+// or a key a service names (settings.Provider.CredentialRef) while it has no
+// key of its own. A service's dialog offers the family's key without reading
+// it, and reads it only once the user chose "Use this key" (credentials.Store.Use:
+// not even a connection test reads it before). This file has the family's
+// dialog state and the sharing helpers; reading is family_keys_read.go and
+// providers_keys.go, saving family_keys_save.go, the dialog's parts
+// family_keys_view.go.
 
 import (
 	"context"
-	"errors"
 	"log"
 	"slices"
 	"strings"
 
 	"github.com/hehehai/Auralink/internal/actnow"
 	"github.com/hehehai/Auralink/internal/providers"
-	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/actnowkit/credentials"
 	"github.com/hehehai/actnowkit/family"
 )
-
-// keySource reads the keys of the services set up, off the main thread:
-// a service's own Keychain item, or the family's key it uses.
-type keySource struct {
-	own    keyring
-	shared *credentials.Store // nil outside the family
-	refs   map[string]string  // account → vendor, of the services on a family key
-}
-
-// keysFor is the keySource of settings s.
-func keysFor(s settings.Settings, own keyring, shared *credentials.Store) keySource {
-	k := keySource{own: own, shared: shared, refs: map[string]string{}}
-	for _, kind := range []providers.Kind{providers.ASR, providers.LLM} {
-		for _, p := range providerList(s, kind) {
-			if v := actnow.RefVendor(p); v != "" {
-				k.refs[providers.Account(kind, p.ID)] = v
-			}
-		}
-	}
-	return k
-}
-
-// keySource is the app's, as its settings are now (main thread).
-func (a *app) keySource() keySource { return keysFor(a.prefs, a.keys, a.famCreds.Load()) }
-
-// Get returns the key of account: the family's when its service uses it
-// ("" when Auralink may no longer read it, or it is gone: a missing key),
-// else its own item.
-func (k keySource) Get(account string) (string, error) {
-	vendor, ok := k.refs[account]
-	if !ok {
-		return k.own.Get(account)
-	}
-	if k.shared == nil {
-		return "", nil
-	}
-	v, err := k.shared.Secret(context.Background(), vendor)
-	if errors.Is(err, credentials.ErrNotConsented) || errors.Is(err, credentials.ErrMissing) {
-		return "", nil
-	}
-	return v, err
-}
-
-// Mask is the mask of account's key, "" for none: the family's hint for
-// a family key (the secret is not read), else the own item's.
-func (k keySource) Mask(account string) (string, error) {
-	vendor, ok := k.refs[account]
-	if !ok {
-		v, err := k.own.Get(account)
-		return maskKey(v), err
-	}
-	if k.shared == nil || !k.shared.Using(vendor) {
-		return "", nil
-	}
-	e, _ := k.shared.Offer(vendor)
-	return e.Hint, nil
-}
 
 // sharedKeysChanged answers a change of the family's keys (another app
 // saved, replaced or deleted one): the masks of the services on family
@@ -106,6 +49,7 @@ type dialogFamily struct {
 	vendor  string             // the family vendor of the service's key, "" for none
 	offer   *credentials.Entry // the family's key of the vendor, when the dialog opened
 	ownKey  bool               // the service has a key of its own saved
+	using   bool               // this app agreed to use the family's key (the offer's users)
 	differs bool               // … which is not the family's
 	share   bool               // "Let other ActNow apps on this Mac use this key"
 	ref     string             // the setup's credentialRef as the dialog has it
@@ -147,7 +91,9 @@ func (a *app) loadDialogFamily() {
 	acc := providers.Account(kind, id)
 	a.async(func() {
 		e, offered := cs.Offer(vendor)
-		users := cs.OtherUsers(vendor)
+		users := a.installedUsers(cs.OtherUsers(vendor))
+		e0, _ := cs.Offer(vendor)
+		using := slices.Contains(e0.Users, cs.BundleID)
 		mine, _ := own.Get(acc)
 		differs := false
 		if offered && mine != "" {
@@ -163,7 +109,7 @@ func (a *app) loadDialogFamily() {
 			if offered {
 				d.fam.offer = &e
 			}
-			d.fam.ownKey, d.fam.differs = mine != "", differs
+			d.fam.ownKey, d.fam.differs, d.fam.using = mine != "", differs, using
 			d.fam.users = a.appNames(users)
 			if ref == "" && !d.fam.joined {
 				d.fam.share = mine == "" // a key saved before is shared only when asked
@@ -198,11 +144,28 @@ func (a *app) appNames(ids []string) []string {
 }
 
 // offerShown reports whether the dialog offers the family's key in place
-// of the key field (spec §8.3): the service has no key, the family has
-// one, the user did not set it aside or type one.
+// of the key field (spec §8.3): the service has no key of its own, the
+// family has one, and the service either names none yet or names one this
+// app has not agreed to use (its key is shown otherwise); the user did not
+// set the offer aside or type a key.
 func (a *app) offerShown() bool {
 	f := a.provDlg.fam
-	return f.offer != nil && f.ref == "" && !f.ownKey && !f.other && strings.TrimSpace(a.provDlg.key) == ""
+	return f.offer != nil && (f.ref == "" || !f.using) && !f.joined && !f.ownKey && !f.other && strings.TrimSpace(a.provDlg.key) == ""
+}
+
+// installedUsers keeps the family apps that are installed among ids: a
+// user left behind by an app that was removed does not count (its
+// metadata may stay in credentials.json).
+func (a *app) installedUsers(ids []string) []string {
+	var out []string
+	for _, id := range ids {
+		for _, f := range a.famFound {
+			if f.BundleID == id && f.Installed {
+				out = append(out, id)
+			}
+		}
+	}
+	return out
 }
 
 // useSharedKey is "Use this key": Auralink joins the key's users and
@@ -262,129 +225,6 @@ func (a *app) vendorInUse(vendor, account string) bool {
 		}
 	}
 	return false
-}
-
-// keyJob is what saving the dialog does with its key, decided on the main
-// thread: it sets p's credentialRef, and run (on a goroutine) writes the
-// Keychain and the family's file and returns the key's new mask (changed
-// false: the mask stays).
-type keyJob struct {
-	run func() (mask string, changed bool, err error)
-}
-
-// dialogKeyJob decides keyJob from the dialog: a typed key goes to the
-// family (shared) or the service's own item; Remove removes it (for this
-// app or for all apps, removeAll); a family key chosen is used; a saved
-// key checked to share is copied to the family (spec §15.2 step 6: read
-// back, the old item kept); a family key unchecked becomes the service's
-// own.
-func (a *app) dialogKeyJob(p *settings.Provider, key string, remove, removeAll bool, label string) keyJob {
-	d := &a.provDlg
-	f := d.fam
-	acc := providers.Account(d.kind, p.ID)
-	own, cs := a.keys, a.famCreds.Load()
-	oldRef := actnow.RefVendor(func() settings.Provider { q, _ := providers.Setup(a.prefs, d.kind, p.ID); return q }())
-	vendor := f.vendor
-	shared := vendor != "" && cs != nil && !a.famReadOnly
-	opts := actnow.SaveOptions(vendor, *p)
-	left := oldRef // the family key the service leaves, if any
-	if left == "" && f.joined {
-		left = vendor // chosen in this dialog, and not kept
-	}
-	stop := func() error { // leave the family key no other service uses
-		if left == "" || cs == nil || a.vendorInUse(left, acc) {
-			return nil
-		}
-		return cs.StopUsing(context.Background(), left)
-	}
-	ctx := context.Background()
-	switch {
-	case key != "" && shared && f.share:
-		p.CredentialRef = actnow.Ref(vendor)
-		return keyJob{func() (string, bool, error) {
-			return credentials.Hint(key), true, cs.Save(ctx, vendor, key, opts)
-		}}
-	case key != "":
-		p.CredentialRef = ""
-		return keyJob{func() (string, bool, error) {
-			if err := own.Set(acc, label, key); err != nil {
-				return "", false, err
-			}
-			return maskKey(key), true, stop()
-		}}
-	case remove && oldRef != "":
-		p.CredentialRef = ""
-		return keyJob{func() (string, bool, error) {
-			if removeAll && cs != nil {
-				return "", true, cs.DeleteForAll(ctx, oldRef)
-			}
-			return "", true, stop()
-		}}
-	case remove:
-		return keyJob{func() (string, bool, error) {
-			if err := own.Set(acc, label, ""); err != nil {
-				return "", false, err
-			}
-			return "", true, stop()
-		}}
-	case f.ref != "" && oldRef == "":
-		p.CredentialRef = f.ref
-		hint := ""
-		if f.offer != nil {
-			hint = f.offer.Hint
-		}
-		return keyJob{func() (string, bool, error) { return hint, true, nil }}
-	case shared && f.share && oldRef == "" && f.ownKey:
-		p.CredentialRef = actnow.Ref(vendor)
-		return keyJob{func() (string, bool, error) {
-			v, err := own.Get(acc)
-			if err == nil && v == "" {
-				err = credentials.ErrMissing
-			}
-			if err == nil {
-				err = cs.Save(ctx, vendor, v, opts)
-			}
-			if err == nil {
-				var back string
-				if back, err = cs.Secret(ctx, vendor); err == nil && back != strings.TrimSpace(v) {
-					err = errors.New("the shared key does not read back as written")
-				}
-			}
-			return credentials.Hint(v), true, err
-		}}
-	case oldRef != "" && !f.share && cs != nil:
-		p.CredentialRef = ""
-		return keyJob{func() (string, bool, error) {
-			v, err := cs.Secret(ctx, oldRef)
-			if err == nil {
-				err = own.Set(acc, label, v)
-			}
-			if err != nil {
-				return "", false, err
-			}
-			return maskKey(v), true, stop()
-		}}
-	}
-	p.CredentialRef = d.fam.ref
-	return keyJob{func() (string, bool, error) { return "", false, nil }}
-}
-
-// eraseSharedKeys is Settings → Storage's "Erase everything" for the
-// family's keys the services use (spec §8.3): Auralink stops using a key
-// other apps use, and deletes one only it uses. Off the main thread.
-func eraseSharedKeys(cs *credentials.Store, vendors []string) {
-	ctx := context.Background()
-	for _, v := range vendors {
-		var err error
-		if len(cs.OtherUsers(v)) > 0 {
-			err = cs.StopUsing(ctx, v)
-		} else if cs.Using(v) {
-			err = cs.DeleteForAll(ctx, v)
-		}
-		if err != nil {
-			log.Printf("family: erasing the shared %s key: %v", v, err)
-		}
-	}
 }
 
 // sharedVendors are the family keys the services set up use.

@@ -48,6 +48,9 @@ type familyState struct {
 	// famConflicts are Auralink's shortcuts on another app's keys
 	// (family_shortcuts.go).
 	famConflicts []shortcuts.Conflict
+	// famSettled: the family was read, or is not there (connectFamily);
+	// until then a service's family key is not known (providers_keys.go).
+	famSettled bool
 }
 
 // familyLink is the family directory and Auralink in it. Its fields are
@@ -94,12 +97,14 @@ func (a *app) connectFamily() {
 	a.async(func() {
 		fl := open()
 		if fl == nil {
+			a.post(a.familySettled)
 			return
 		}
 		fl.self.Version, fl.self.Beta, fl.self.DataDir = version, beta, data
 		info, err := fl.dir.Ensure(fl.self.BundleID)
 		if err != nil {
 			log.Printf("family: %s: %v", fl.dir.Root, err)
+			a.post(a.familySettled)
 			return
 		}
 		if n := fl.dir.CleanAllTemps(); n > 0 {
@@ -129,6 +134,7 @@ func (a *app) connectFamily() {
 			}
 			a.familyRead(r)
 			a.stampShortcuts(a.prefs.Features)
+			a.familySettled() // providers_keys.go: the services' family keys are read
 		})
 		if w != nil {
 			go func() {

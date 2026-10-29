@@ -704,6 +704,17 @@ MAC_DIR=code/Auralink-ov scripts/mac.sh --pull build/overlay-check     # 把结�
   - 第 1 步：Auralink 正常；改完后 `futureThing` 还在，`rev` 是 101。
   - 第 2 步：代理一行下面是“AudioSmith 更新了共享格式，请更新 Auralink 后再修改这些设置。”（名字是改了 `schema` 之前最后写 `settings.json` 的 app；是 Auralink 自己时写装了的其他 app）；改代理只影响 Auralink，`settings.json` 一个字节都没变。
 
+
+**11.5 API 钥匙的保存与读回（10-29，约 6 分钟；只用假钥匙，不用真的服务）**
+- **准备**：用一个测试用的假密钥（例如 `sk-test-0000000000ab`，不是真的）。**不要**用正式的钥匙或真实服务的密钥。
+- **只装 Auralink（场景 A）**：设置 → 模型服务 → 语音识别 → 阿里云，填入假密钥，保存（不勾选共享框，框不显示时就是不共享）。退出，再打开。
+  - **应看到**：卡片显示掩码（`sk-…ab`），不是“未保存密钥”。日志（⇧⌘L）里有 `key asr.aliyun: read back from the Keychain: found`，没有密钥本身。
+  - 再开日志页：最上面是之前运行的记录，中间一行“以上是之前运行时的记录”。
+- **装过 AudioSmith 后卸载（场景 B）**：另装 AudioSmith 并保存一个 DeepSeek 假密钥，然后卸载 AudioSmith（删掉 app）。打开 Auralink，DeepSeek 的服务不应受影响；Auralink 自己保存的阿里云钥匙仍显示掩码。
+- **共享的钥匙读不到（场景 C）**：只在测试机上做。在“钥匙串访问”里删掉 `ActNow` 的 `vendor.dashscope` 条目（只删这一条）。打开 Auralink：阿里云卡片不显示“未保存密钥”，而是“共享密钥已不存在 · 请重新输入”（有自己的条目时则仍是掩码，不受影响）。
+- **应看到的日志**：`key … in the ActNow family's key: missing (the family's key is no longer in the Keychain)` 或 `not confirmed`，没有 `No key saved` 之类的误报。
+- **只在测试机上做，不要删真实用户的条目。**
+
 ---
 
 ## 结果怎么报

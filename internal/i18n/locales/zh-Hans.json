@@ -1098,5 +1098,16 @@
   "Pasted into %s (not confirmed)": "已粘贴到 %s（未确认）",
   "Not confirmed": "未确认",
   "Pasted with ⌘V, but the field did not show it: it may not be there": "已用 ⌘V 粘贴，但输入框没有显示这段文字：可能没有落地",
-  "Pasted, but the field did not show the text: check it. If it is missing, insert it again or copy it.": "已粘贴，但输入框里没有看到这段文字：请检查。如果没有，请再插入一次或复制。"
+  "Pasted, but the field did not show the text: check it. If it is missing, insert it again or copy it.": "已粘贴，但输入框里没有看到这段文字：请检查。如果没有，请再插入一次或复制。",
+  "Checking…": "正在检查…",
+  "Confirm the key": "确认密钥",
+  "Keychain error": "钥匙串出错",
+  "Key missing": "密钥不见了",
+  "Saved in %s · click to use it": "保存在 %s 中 · 点击使用",
+  "another ActNow app": "另一个 ActNow app",
+  "Could not read the key · check Keychain access": "无法读取密钥 · 请检查钥匙串权限",
+  "The shared key is gone · enter it again": "共享密钥已不存在 · 请重新输入",
+  "Could not read the key from the Keychain. Check that Auralink may use the login Keychain, then open this again.": "无法从钥匙串读取密钥。请确认 Auralink 可以使用登录钥匙串，然后重新打开此窗口。",
+  "The ActNow family's key this service used is no longer in the Keychain: enter the key again.": "此服务使用的 ActNow 共享密钥已不在钥匙串里：请重新输入密钥。",
+  "The lines above are from earlier runs, read back from the log file.": "以上是之前运行时的记录（从日志文件读回）。"
 }

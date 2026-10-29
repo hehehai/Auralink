@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/actnow"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
 	"github.com/hehehai/Auralink/internal/providers"
@@ -109,12 +110,19 @@ func (a *app) providerDialogView(c *ui.Context) {
 			})
 		}
 		mask := a.keyMasks[acc]
-		if f := d.fam; f.ref != "" && mask == "" && f.offer != nil {
-			mask = f.offer.Hint // the family's key, chosen in this dialog
+		if f := d.fam; f.joined && mask == "" && f.offer != nil {
+			mask = f.offer.Hint // the family's key, chosen in this dialog (not saved yet)
+		}
+		info := a.keyInfos[acc]
+		if info.state == actnow.KeyFailed && d.key == "" {
+			notice(c, "prov-key-err", noticeWarn, i18n.T("Could not read the key from the Keychain. Check that Auralink may use the login Keychain, then open this again."), info.errText(), nil, nil)
 		}
 		if a.offerShown() {
 			a.sharedKeyOffer(c, name) // family_keys_view.go: the ActNow family's key
 		} else {
+			if info.state == actnow.KeyGone && d.key == "" {
+				caption(c, i18n.T("The ActNow family's key this service used is no longer in the Keychain: enter the key again."))
+			}
 			a.keyField(c, acc, mask)
 			a.sharedKeyNotes(c, name, mask) // family_keys_view.go
 		}
@@ -261,10 +269,10 @@ func (a *app) saveProviderDialog(removeAll bool) {
 	}
 	label := "Auralink " + uitext.ProviderName(kind, p)
 	d.saving, d.err = true, ""
-	job := a.dialogKeyJob(&p, key, remove, removeAll, label) // family_keys.go
+	plan := a.dialogKeyPlan(p, key, remove, removeAll, label) // family_keys_save.go
 	op, family, service, ring := keyOp(key, remove), d.fam.vendor != "" && d.fam.share, providers.Name(kind, p), a.logs
 	a.async(func() {
-		mask, changed, err := job.run()
+		ref, err := plan.run()
 		if op != "" {
 			sev, line := keyOpLine(acc, service, op, family, err) // diagnostics_keys.go
 			appendLine(ring, sev, diagSource, line)
@@ -273,13 +281,13 @@ func (a *app) saveProviderDialog(removeAll bool) {
 			a.provDlg.saving = false
 			if err != nil {
 				a.provDlg.err, a.provDlg.errMore = i18n.T("Could not save the key in the Keychain."), err.Error()
+				a.loadKeyMasks([]string{acc}) // what the Keychain holds now
 				return
 			}
-			if changed {
-				a.keyMasks[acc] = mask
-			}
+			p.CredentialRef = ref
 			delete(a.provTests, acc)
 			a.updateSettings(func(s *settings.Settings) { providers.Put(s, kind, p) })
+			a.loadKeyMasks([]string{acc}) // read back what was saved (providers_keys.go)
 			a.checkServices()
 			a.provDlg = providerDialog{}
 			a.toast(i18n.T("%s saved", uitext.ProviderName(kind, p)))

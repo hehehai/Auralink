@@ -153,6 +153,7 @@ func (a *app) connectShell(logDir string) {
 		early := a.logs.Tail(math.MaxInt, "") // newest first
 		a.logs.Close()
 		a.logs = logs.New(logs.Options{Dir: logDir, Bus: a.bus, Redact: redact.Text}) // keys, tokens, proxy passwords out (family spec §13)
+		a.preloadLogHistory(logDir)                                                   // logs_history.go: the earlier runs' lines
 		for i := len(early) - 1; i >= 0; i-- {
 			a.logs.Append(early[i])
 		}

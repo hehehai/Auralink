@@ -49,10 +49,16 @@ Account names only: `asr.aliyun`, `llm.deepseek`. Keys and masks never appear.
 
 | Line | Level | Meaning |
 |---|---|---|
-| `key asr.aliyun in the Keychain: found` | INFO | A saved key was read. |
+| `key asr.aliyun in the Keychain: found` | INFO | Auralink's own item holds the key (the authority; a family key a service names is read only when its own item is empty). |
 | `key llm.deepseek in the Keychain: missing` | INFO | No saved key. |
 | `key llm.deepseek in the Keychain: error (-25308, user interaction not allowed)` | WARNING | The Keychain refused the read. `-25308` is the Keychain's code for "user interaction is not allowed": the Keychain could not ask for access (usually it is locked, or the process cannot show a prompt). |
-| `key asr.doubao in the ActNow family's key: found` | INFO | The service uses a key shared with the ActNow family. |
+| `key asr.doubao in the ActNow family's key: found` | INFO | The service has no key of its own and uses the ActNow family's key (agreed to). |
+| `key asr.aliyun in the ActNow family's key: not confirmed (saved by <bundle id>; not used here yet)` | WARNING | The service names a family key that this app has not agreed to use: the card says "click to use it". Nothing was read. |
+| `key asr.aliyun in the ActNow family's key: missing (the family's key is no longer in the Keychain)` | WARNING | The family's item is gone (deleted in another app); the service must be given its key again. |
+| `key asr.aliyun in the ActNow family's key: error (<class>)` | WARNING | The family's key could not be read (Keychain access). |
+| `key asr.aliyun: read back from the Keychain: found` / `: missing` | INFO / WARNING | After a save, Auralink's own item was read back (never the key). |
+| `key asr.aliyun: copied from the ActNow family's key into the Keychain; no longer shared` | INFO | At the start, a service with a family reference and no own key got the agreed key copied into its own item; the reference was dropped. |
+| `key asr.aliyun: copying the ActNow family's key into the Keychain failed (<class>); it stays shared` | WARNING | The copy failed; the key is still read from the family. |
 | `key asr.aliyun (Aliyun): saved in the Keychain` | INFO | A key was saved from the Model services dialog. |
 | `key asr.aliyun (Aliyun): saving in the Keychain failed (<class>)` | WARNING | Saving failed. |
 | `key llm.deepseek (DeepSeek): removed in the Keychain` / `removing … failed (<class>)` | INFO / WARNING | Remove. |

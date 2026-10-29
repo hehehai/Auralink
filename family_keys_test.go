@@ -27,6 +27,7 @@ type fakeSecurity struct {
 	mu    sync.Mutex
 	items map[string]string // service/account → secret
 	reads []string
+	fail  map[string]error // service/account → what a read fails with
 }
 
 var addRE = regexp.MustCompile(`-s "([^"]*)" -a "([^"]*)" -l "[^"]*" -X ([0-9a-f]+)`)
@@ -50,6 +51,9 @@ func (f *fakeSecurity) run(stdin string, args ...string) ([]byte, []byte, error)
 		f.items[m[1]+"/"+m[2]] = string(b)
 	case "find-generic-password":
 		key := arg("-s") + "/" + arg("-a")
+		if err := f.fail[key]; err != nil {
+			return nil, nil, err
+		}
 		v, ok := f.items[key]
 		if !ok {
 			return nil, nil, credentials.ErrNotFound
@@ -97,9 +101,8 @@ func llmSetup(a *app, id string) settings.Provider {
 	return p
 }
 
-// TestFamilyKeySave: a new key is the family's when the box stays
-// checked (the default): the shared item, not Auralink's own; sessions
-// read it.
+// TestFamilyKeySave: a new key is Auralink's own item and, with the box
+// checked (the default), the family's too; sessions read the own item.
 func TestFamilyKeySave(t *testing.T) {
 	fx, sec := withFamilyKeys(t)
 	fx.Register(audioSmith)
@@ -115,7 +118,7 @@ func TestFamilyKeySave(t *testing.T) {
 	}
 	click(t, tt, "Save")
 	drain()
-	if sec.item("deepseek") != "sk-deepseek-0000001234" || a.keys.(*memKeyring).m["llm.deepseek"] != "" {
+	if sec.item("deepseek") != "sk-deepseek-0000001234" || a.keys.(*memKeyring).m["llm.deepseek"] != "sk-deepseek-0000001234" {
 		t.Errorf("shared %q, own %v", sec.item("deepseek"), a.keys.(*memKeyring).m)
 	}
 	if p := llmSetup(a, "deepseek"); p.CredentialRef != "actnow:vendor.deepseek" {
@@ -143,8 +146,8 @@ func TestFamilyKeySave(t *testing.T) {
 }
 
 // TestFamilyKeyAlone: with no other ActNow app installed, the dialog has
-// no sharing checkbox (user 10-17); a new key is still the family's, as
-// the checkbox's default says, for the apps installed later.
+// no sharing checkbox (user 10-17), and a new key is not shared: it is
+// Auralink's own, and no family item or metadata is left behind.
 func TestFamilyKeyAlone(t *testing.T) {
 	fx, sec := withFamilyKeys(t)
 	a, _, tt := newTestApp(t)
@@ -159,8 +162,8 @@ func TestFamilyKeyAlone(t *testing.T) {
 	}
 	click(t, tt, "Save")
 	drain()
-	if sec.item("deepseek") != "sk-deepseek-0000001234" || !slices.Equal(users(t, fx, "deepseek"), []string{testBundleID}) {
-		t.Errorf("shared %q", sec.item("deepseek"))
+	if sec.item("deepseek") != "" || len(users(t, fx, "deepseek")) != 0 || a.keys.(*memKeyring).m["llm.deepseek"] != "sk-deepseek-0000001234" {
+		t.Errorf("shared %q, users %v, own %v", sec.item("deepseek"), users(t, fx, "deepseek"), a.keys.(*memKeyring).m)
 	}
 }
 
@@ -280,11 +283,12 @@ func TestFamilyKeyCancelAndDelete(t *testing.T) {
 	if _, ok := smith.Offer("stepfun"); ok {
 		t.Error("the family still lists it")
 	}
-	// The speech service has no key now.
+	// The speech service kept its own copy: Auralink's own item is the
+	// authority, so the deletion for all apps does not take it away.
 	a.sharedKeysChanged()
 	drain()
-	if a.hasKey("asr.stepfun") {
-		t.Error("the speech service still has a key")
+	if !a.hasKey("asr.stepfun") || sec.item("stepfun") != "" {
+		t.Error("the speech service lost its own key")
 	}
 }
 

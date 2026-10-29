@@ -86,6 +86,33 @@ func New(o Options) *Ring {
 // when the file writer falls behind, lines miss the file (not the ring)
 // and a note of how many is written later.
 func (r *Ring) Append(e core.LogEntry) {
+	e = r.normal(e)
+	r.mu.Lock()
+	r.keep(e)
+	if r.queue != nil {
+		select {
+		case r.queue <- e:
+		default:
+			r.dropped++
+		}
+	}
+	r.mu.Unlock()
+	r.opts.Bus.Publish(core.LogAppended{Entry: e})
+}
+
+// Preload puts lines read back from the log file (ReadTail) before this
+// run's lines, oldest first: in memory only, not written to the file and
+// not published, so a line is never in the file twice.
+func (r *Ring) Preload(es []core.LogEntry) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, e := range es {
+		r.keep(r.normal(e))
+	}
+}
+
+// normal fills in a line's defaults and takes its secrets out.
+func (r *Ring) normal(e core.LogEntry) core.LogEntry {
 	if e.Time.IsZero() {
 		e.Time = time.Now()
 	}
@@ -96,7 +123,11 @@ func (r *Ring) Append(e core.LogEntry) {
 	if r.opts.Redact != nil {
 		e.Message = r.opts.Redact(e.Message)
 	}
-	r.mu.Lock()
+	return e
+}
+
+// keep stores a line in the ring as the next one (r.mu held).
+func (r *Ring) keep(e core.LogEntry) {
 	r.seq++
 	e.Seq = r.seq
 	r.lines[r.next] = e
@@ -104,15 +135,6 @@ func (r *Ring) Append(e core.LogEntry) {
 	if r.next == 0 {
 		r.full = true
 	}
-	if r.queue != nil {
-		select {
-		case r.queue <- e:
-		default:
-			r.dropped++
-		}
-	}
-	r.mu.Unlock()
-	r.opts.Bus.Publish(core.LogAppended{Entry: e})
 }
 
 // Tail returns up to n newest lines of source ("" = all; a source ending
@@ -168,7 +190,92 @@ func (r *Ring) Path() string {
 
 // Format renders a line as the files and "Copy" show it.
 func Format(e core.LogEntry) string {
-	return fmt.Sprintf("%s %-7s %-12s %s", e.Time.Format("2006-01-02 15:04:05.000"), strings.ToUpper(string(e.Level)), e.Source, e.Message)
+	return fmt.Sprintf("%s %-7s %-12s %s", e.Time.Format(timeLayout), strings.ToUpper(string(e.Level)), e.Source, e.Message)
+}
+
+// timeLayout is the time of a formatted line (Format).
+const timeLayout = "2006-01-02 15:04:05.000"
+
+// Parse reads a line Format wrote; ok is false for any other line.
+func Parse(line string) (e core.LogEntry, ok bool) {
+	const width = len(timeLayout)
+	if len(line) < width+1 {
+		return e, false
+	}
+	t, err := time.ParseInLocation(timeLayout, line[:width], time.Local)
+	if err != nil {
+		return e, false
+	}
+	rest := strings.TrimLeft(line[width:], " ")
+	level, rest := token(rest)
+	source, rest := token(rest)
+	if level == "" || source == "" {
+		return e, false
+	}
+	e.Time, e.Source, e.Message = t, source, rest
+	switch strings.ToLower(level) {
+	case "debug", "info", "success", "warning", "error":
+		e.Level = core.Severity(strings.ToLower(level))
+	default:
+		return core.LogEntry{}, false
+	}
+	return e, true
+}
+
+// token splits the first word off s (words have no spaces) and the rest
+// without the spaces after it.
+func token(s string) (word, rest string) {
+	word, rest, _ = strings.Cut(s, " ")
+	return word, strings.TrimLeft(rest, " ")
+}
+
+// ReadTail reads the newest lines of the log file at path: the last
+// maxBytes bytes of it, of which the newest maxLines lines, oldest first.
+// A line the file did not write (a message's second line, say) keeps its
+// text as an "app" line, at the time of the line before it. A missing
+// file is an error (os.IsNotExist).
+func ReadTail(path string, maxBytes int64, maxLines int) ([]core.LogEntry, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	size := st.Size()
+	var start int64
+	if size > maxBytes {
+		start = size - maxBytes
+	}
+	buf := make([]byte, size-start)
+	if _, err := f.ReadAt(buf, start); err != nil && err != io.EOF {
+		return nil, err
+	}
+	lines := strings.Split(string(buf), "\n")
+	if start > 0 && len(lines) > 0 {
+		lines = lines[1:] // cut by the byte limit
+	}
+	var out []core.LogEntry
+	last := st.ModTime()
+	for _, l := range lines {
+		l = strings.TrimRight(l, "\r")
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+		e, ok := Parse(l)
+		if ok {
+			last = e.Time
+		} else {
+			e = core.LogEntry{Time: last, Level: core.SeverityInfo, Source: "app", Message: l}
+		}
+		out = append(out, e)
+	}
+	if len(out) > maxLines {
+		out = out[len(out)-maxLines:]
+	}
+	return out, nil
 }
 
 func (r *Ring) writeFiles(queue <-chan core.LogEntry) {

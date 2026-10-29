@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/hehehai/Auralink/internal/actnow"
 	"github.com/hehehai/Auralink/internal/core"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
@@ -55,6 +56,8 @@ type providersState struct {
 	// keyMasks are the saved keys' masks by account, "" for none; an
 	// account not in it was not read yet.
 	keyMasks map[string]string
+	// keyInfos are the states of the same keys (providers_keys.go).
+	keyInfos map[string]keyInfo
 	// keysKnown: the keys were read once (checkServices waits for it).
 	keysKnown bool
 	// provTests are the last connection tests, by account.
@@ -97,6 +100,7 @@ func (a *app) openProviders() {
 		a.keys = newKeyring()
 	}
 	a.keyMasks = map[string]string{}
+	a.keyInfos = map[string]keyInfo{}
 	a.provTests = map[string]providerTest{}
 	var accounts []string
 	for _, kind := range []providers.Kind{providers.ASR, providers.LLM} {
@@ -118,39 +122,6 @@ func providerList(s settings.Settings, kind providers.Kind) []settings.Provider 
 	}
 	return s.Providers.LLM
 }
-
-// loadKeyMasks reads the keys of accounts from the keyring, in the
-// background, and keeps their masks.
-func (a *app) loadKeyMasks(accounts []string) {
-	if len(accounts) == 0 {
-		return
-	}
-	ks := a.keySource() // family_keys.go: a family key's hint, not the key
-	a.async(func() {
-		masks := map[string]string{}
-		reads := make([]keyRead, 0, len(accounts))
-		for _, acc := range accounts {
-			m, err := ks.Mask(acc)
-			_, family := ks.refs[acc]
-			reads = append(reads, keyRead{account: acc, family: family, mask: m, err: err})
-			if err != nil {
-				m = ""
-			}
-			masks[acc] = m
-		}
-		a.post(func() {
-			for k, v := range masks {
-				a.keyMasks[k] = v
-			}
-			a.logKeyReads(reads) // diagnostics_keys.go
-			a.keysKnown = true
-			a.checkServices() // shell_notices.go
-		})
-	})
-}
-
-// hasKey reports whether a key is saved for account (as last read).
-func (a *app) hasKey(account string) bool { return a.keyMasks[account] != "" }
 
 // ---- The page ----
 
@@ -303,13 +274,17 @@ func (a *app) providerState(c *ui.Context, kind providers.Kind, p settings.Provi
 	t := c.Theme()
 	k := tok(t)
 	acc := providers.Account(kind, p.ID)
+	info := a.keyInfos[acc]
+	if configured && info.state == actnow.KeyUnknown {
+		return k.G[5], i18n.T("Checking…")
+	}
 	switch providers.Missing(kind, p, configured, a.hasKey(acc)) {
 	case providers.MissingSetup:
 		return k.G[5], i18n.T("Not set up")
 	case providers.MissingOff:
 		return k.G[5], i18n.T("Off")
 	case providers.MissingKey:
-		return k.Warning, i18n.T("No key saved")
+		return k.Warning, a.keyStateText(info)
 	case providers.MissingEndpoint:
 		return k.Warning, i18n.T("No endpoint")
 	}
@@ -355,13 +330,15 @@ func (a *app) providerCard(c *ui.Context, kind providers.Kind, pr providers.Pres
 			}
 			ui.Row(c).Gap(px(t, sp1)).AlignItems(ui.Center).Height(px(t, 30)).Children(func() {
 				mask, read := a.keyMasks[acc]
+				info := a.keyInfos[acc]
 				keyText, keyCol := mask, k.Text2
 				switch {
-				case mask == "" && !read:
+				case mask != "":
+				case !read || info.state == actnow.KeyUnknown:
 					keyText = "…"
-				case mask == "" && missing == providers.MissingKey:
-					keyText, keyCol = state, k.Warning
-				case mask == "":
+				case missing == providers.MissingKey:
+					keyText, keyCol = a.keyCardText(info), k.Warning
+				default:
 					keyText, keyCol = i18n.T("No key"), k.Text3
 				}
 				ui.Icon(c, icons.KeyMinimalisticSquare.Linear).Size(px(t, 14), px(t, 14)).TextColor(keyCol).Shrink(0)
