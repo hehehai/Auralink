@@ -57,7 +57,7 @@ func runLogsCheck(dir string) {
 		src   string
 		msg   string
 	}{
-		{core.SeverityInfo, "app", "Auralink 0.1.0-beta.3 started"},
+		{core.SeverityInfo, "app", "Auralink 0.1.0-beta.4 started"},
 		{core.SeverityInfo, "helper", "helper ready (protocol 1)"},
 		{core.SeverityInfo, "app", "family: AudioSmith found (release 0.4.0)"},
 		{core.SeverityDebug, "helper:capture", "input: MacBook Air Microphone, 48 kHz"},

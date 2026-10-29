@@ -8,6 +8,14 @@ All notable changes to Auralink. The format follows [Keep a Changelog](https://k
 - A key saved in a service's dialog is kept in Auralink's own Keychain item and is found again after a restart. The family's copy is made only when the sharing box is checked. A key that cannot be used yet (not confirmed, gone, or unreadable) says so and what to do, instead of "No key saved". A service that named a family key without its own copy gets the key copied in at the start.
 - The logs page starts with the newest lines of the log file from earlier runs (up to 2000 lines or 1 MB), marked as earlier runs.
 
+## [0.1.0-beta.4] - 2026-10-29
+
+### Fixed
+- An API key you save stays: Auralink keeps it in its own Keychain item (asr.<service>, llm.<service>) and reads that first. A key shared with another ActNow app is used only once you agree, and a key that cannot be read says why, instead of "No key saved".
+- Removing another ActNow app no longer takes Auralink's keys with it; a new key is shared to the family only when you tick "Let other ActNow apps on this Mac use this key".
+- The logs page shows the lines of earlier runs as well (the last 2000 lines or 1 MB of the log file), marked as earlier.
+- Diagnostics log the key states, the read-back after a save, and why a shortcut did not start a recording.
+
 ## [0.1.0-beta.3] - 2026-10-29
 
 ### Fixed
