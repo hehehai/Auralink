@@ -133,7 +133,7 @@ func TestAnswerCardButtons(t *testing.T) {
 		if a.ov.shown {
 			t.Error("the card shows while it pastes")
 		}
-		return proto.PasteResult{Posted: true}, nil
+		return proto.PasteResult{Posted: true, Confirmed: proto.LandedYes}, nil
 	}
 	card := func(id string) {
 		snap(a, session.Snapshot{ID: id, State: session.Recording})

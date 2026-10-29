@@ -226,6 +226,7 @@ func (r *run) finish(st State, problem *Problem, result string, o finishOpts) {
 		s.Result, s.Problem = result, problem
 		s.Recording = r.keepsRecording()
 		s.Inserted = dres.Inserted
+		s.Landed = dres.Landed
 		if dres.Inserted {
 			s.InsertedInto = dres.To
 		}
@@ -327,7 +328,7 @@ func (r *run) keep(s Snapshot, status store.Status) {
 	}
 	switch {
 	case s.Inserted:
-		e.Delivery = "insert"
+		e.Delivery = deliver.Record(s.Landed)
 		if to := s.InsertedInto; to.PID != 0 && to.PID != s.Target.PID {
 			e.InsertedBundle, e.InsertedName = to.BundleID, to.Name // where it went; the app and the rule stay the start app's
 		}

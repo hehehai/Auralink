@@ -206,3 +206,43 @@ func TestArcPage(t *testing.T) {
 		})
 	}
 }
+
+// TestPostedIsNotInserted: ⌘V posted is not the text in the field. When the
+// helper says the field did not show it, the result stays in the card and
+// the history says so (it said "insert" while nothing had landed, 10-29).
+// When nothing could be read, the history says "paste": not confirmed.
+func TestPostedIsNotInserted(t *testing.T) {
+	field := proto.FocusResult{PID: textEdit.PID, App: &textEdit, Role: "AXTextArea", Editable: true}
+	for _, tc := range []struct {
+		name     string
+		landed   string
+		inserted bool
+		card     bool
+		delivery string // the history's
+	}{
+		{"the field showed it", "", true, false, "insert"},
+		{"the field did not show it", proto.LandedNo, false, true, "card"},
+		{"no value could be read", proto.LandedUnknown, true, false, "paste"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, &fakeStreamer{final: "hello aura link"}, nil, func(c *Config, s *settings.Settings) {
+				c.Self = 77
+			})
+			h.text.landed = tc.landed
+			id := h.start()
+			h.rec.waitFor(t, "recording", func(s Snapshot) bool { return s.State == Recording })
+			h.text.setFocus(field)
+			h.speak(id, 3)
+			end := h.rec.wait(t)
+			if len(h.text.pastes()) != 1 {
+				t.Fatalf("pasted %q", h.text.pastes())
+			}
+			if end.Inserted != tc.inserted || end.Card != tc.card {
+				t.Errorf("inserted %v card %v: %+v", end.Inserted, end.Card, end)
+			}
+			if e := h.hist.all(); len(e) != 1 || e[0].Delivery != tc.delivery {
+				t.Errorf("history %+v, want delivery %q", e, tc.delivery)
+			}
+		})
+	}
+}

@@ -225,7 +225,7 @@ func (a *app) insertAnswer() {
 				if res.Moved(card.target) {
 					into = res.To // the user clicked into another app
 				}
-				a.setDelivery(card.id, "insert", into)
+				a.setDelivery(card.id, deliver.Record(res.Landed), into)
 				a.closeAnswer()
 				return
 			}

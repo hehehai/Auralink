@@ -20,3 +20,7 @@
 {"to":"app","msg":{"id":"c27","result":{"posted":false,"restored":false,"clipboardTaken":false,"ms":0.3,"front":{"pid":530,"bundleId":"com.apple.finder","name":"Finder"}}}}
 {"to":"helper","msg":{"id":"c28","method":"textio.paste","params":{"text":"Hi"}}}
 {"to":"app","msg":{"id":"c28","result":{"posted":true,"restored":false,"clipboardTaken":true,"ms":512.6}}}
+{"to":"helper","msg":{"id":"c40","method":"textio.paste","params":{"text":"你好","targetPid":812}}}
+{"to":"app","msg":{"id":"c40","result":{"posted":true,"restored":true,"clipboardTaken":false,"ms":52.3,"confirmed":"yes","confirmedMs":41.2}}}
+{"to":"helper","msg":{"id":"c41","method":"textio.paste","params":{"text":"Hi","targetPid":812,"restoreDelayMs":1500}}}
+{"to":"app","msg":{"id":"c41","result":{"posted":true,"restored":true,"clipboardTaken":false,"ms":1502.1,"confirmed":"no"}}}

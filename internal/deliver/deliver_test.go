@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/hehehai/Auralink/internal/helper/proto"
@@ -212,13 +213,13 @@ func TestDescribe(t *testing.T) {
 	}{
 		{"Arc's page text goes to the card", Result{Focus: arcWeb, Reason: ReasonNotEditable},
 			"focus role=AXWebArea editable=false app=company.thebrowser.Browser -> card (no text field)"},
-		{"inserted", Result{Focus: proto.FocusResult{PID: 812, App: &slack, Role: "AXTextArea", Editable: true}, Inserted: true, To: slack, Pasted: true},
+		{"inserted", Result{Focus: proto.FocusResult{PID: 812, App: &slack, Role: "AXTextArea", Editable: true}, Inserted: true, Landed: proto.LandedYes, To: slack, Pasted: true},
 			"focus role=AXTextArea editable=true app=com.tinyspeck.slackmacgap -> inserted"},
 		{"a password field", Result{Focus: proto.FocusResult{PID: 812, App: &slack, Role: "AXTextField", Subrole: "AXSecureTextField"}, Reason: ReasonSecure},
 			"focus role=AXTextField editable=false app=com.tinyspeck.slackmacgap subrole=AXSecureTextField -> card (password field)"},
-		{"unknown focus, tried", Result{Focus: proto.FocusResult{PID: 812, Error: "-25212", App: &slack}, Pasted: true, Inserted: true, To: slack},
+		{"unknown focus, tried", Result{Focus: proto.FocusResult{PID: 812, Error: "-25212", App: &slack}, Pasted: true, Inserted: true, Landed: proto.LandedYes, To: slack},
 			"focus unknown (-25212) app=com.tinyspeck.slackmacgap -> tried paste, inserted"},
-		{"switched", Result{Focus: proto.FocusResult{PID: 530, App: &textEdit, Role: "AXTextArea", Editable: true}, Inserted: true, To: textEdit, Pasted: true},
+		{"switched", Result{Focus: proto.FocusResult{PID: 530, App: &textEdit, Role: "AXTextArea", Editable: true}, Inserted: true, Landed: proto.LandedYes, To: textEdit, Pasted: true},
 			"focus role=AXTextArea editable=true app=com.apple.TextEdit -> inserted into com.apple.TextEdit (the user switched apps)"},
 		{"check", Result{Focus: proto.FocusResult{PID: 812, App: &slack, Role: "AXTextArea", Editable: true}},
 			"focus role=AXTextArea editable=true app=com.tinyspeck.slackmacgap -> would insert"},
@@ -227,5 +228,40 @@ func TestDescribe(t *testing.T) {
 		if got := tc.res.Describe(slack); got != tc.want {
 			t.Errorf("%s:\n got %q\nwant %q", tc.name, got, tc.want)
 		}
+	}
+}
+
+// TestPostedIsNotConfirmed: ⌘V posted is not the text in the field. The
+// helper's Confirmed says what the field showed; "no" must not count as
+// inserted (the history said "insert" while nothing had landed: 10-29).
+func TestPostedIsNotConfirmed(t *testing.T) {
+	textArea := proto.FocusResult{PID: 812, Role: "AXTextArea", Editable: true}
+	for _, tc := range []struct {
+		name      string
+		confirmed string
+		inserted  bool
+		landed    string
+		reason    Reason
+	}{
+		{"field showed the text", proto.LandedYes, true, proto.LandedYes, ReasonNone},
+		{"field did not change", proto.LandedNo, false, proto.LandedNo, ReasonNotLanded},
+		{"no value could be read", proto.LandedUnknown, true, proto.LandedUnknown, ReasonNone},
+		{"an older helper says nothing", "", true, proto.LandedUnknown, ReasonNone},
+	} {
+		io := &fakeIO{focus: []proto.FocusResult{textArea}, paste: proto.PasteResult{Posted: true, Confirmed: tc.confirmed}}
+		res := Insert(context.Background(), io, Request{Text: "hi", Target: slack})
+		if res.Inserted != tc.inserted || res.Reason != tc.reason || res.Landed != tc.landed {
+			t.Errorf("%s: inserted %v reason %q landed %q, want %v %q %q", tc.name, res.Inserted, res.Reason, res.Landed, tc.inserted, tc.reason, tc.landed)
+		}
+	}
+}
+
+// TestNotLandedKeepsTheCard: a paste that did not land goes to the card,
+// and its log line says so.
+func TestNotLandedKeepsTheCard(t *testing.T) {
+	io := &fakeIO{focus: []proto.FocusResult{{PID: 812, Role: "AXTextArea", Editable: true}}, paste: proto.PasteResult{Posted: true, Confirmed: proto.LandedNo}}
+	res := Insert(context.Background(), io, Request{Text: "hi", Target: slack})
+	if got := res.Describe(slack); !strings.HasSuffix(got, "card (not confirmed)") {
+		t.Errorf("describe: %q", got)
 	}
 }

@@ -19,6 +19,7 @@ var reasonText = map[Reason]string{
 	ReasonFailed:      "failed",
 	ReasonCard:        "card choice",
 	ReasonLong:        "too long",
+	ReasonNotLanded:   "not confirmed",
 }
 
 // Describe says in one line, for the log, what a delivery found and did:
@@ -43,11 +44,18 @@ func (r Result) Describe(target proto.App) string {
 	if r.Pasted && f.Error != "" {
 		b.WriteString("tried paste, ")
 	}
+	confirmed := r.Landed == proto.LandedYes
 	switch {
-	case r.Inserted && r.Moved(target):
+	case r.Inserted && r.Moved(target) && confirmed:
 		fmt.Fprintf(&b, "inserted into %s (the user switched apps)", bundleOf(r.To))
-	case r.Inserted:
+	case r.Inserted && r.Moved(target):
+		fmt.Fprintf(&b, "pasted into %s, not confirmed (the user switched apps)", bundleOf(r.To))
+	case r.Inserted && confirmed:
 		b.WriteString("inserted")
+	case r.Inserted:
+		b.WriteString("pasted, not confirmed")
+	case r.Reason == ReasonNotLanded:
+		b.WriteString("card (not confirmed)")
 	case r.Reason == ReasonNone:
 		b.WriteString("would insert")
 	case r.Reason == ReasonNotFront && r.Front.BundleID != "":

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -355,6 +356,8 @@ type fakeText struct {
 	// refuse: the paste finds this app in front instead (the focus moved
 	// between the check and the paste).
 	refuse *proto.App
+	// landed is the Confirmed of the pastes ("" is yes): no, or unknown.
+	landed string
 
 	mu      sync.Mutex
 	pasted  []string
@@ -384,7 +387,8 @@ func (f *fakeText) Paste(_ context.Context, p proto.PasteParams) (proto.PasteRes
 	f.pasted = append(f.pasted, p.Text)
 	f.presses = append(f.presses, p.Press)
 	f.targets = append(f.targets, p.TargetPID)
-	return proto.PasteResult{Posted: true, Restored: true}, nil
+	confirmed := cmp.Or(f.landed, proto.LandedYes)
+	return proto.PasteResult{Posted: true, Restored: true, Confirmed: confirmed}, nil
 }
 
 func (f *fakeText) pastes() []string {

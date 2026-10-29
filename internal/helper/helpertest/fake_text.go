@@ -152,7 +152,16 @@ func (f *fake) textio(m proto.Message) {
 				fh.Close()
 			}
 		}
-		f.result(m.ID, proto.PasteResult{Posted: true, Restored: !p.KeepClipboard, MS: 2})
+		// paste=no: ⌘V posted but the field did not change; paste=unknown:
+		// no value could be read (the default is that the text landed).
+		confirmed := proto.LandedYes
+		switch f.opts["paste"] {
+		case "no":
+			confirmed = proto.LandedNo
+		case "unknown":
+			confirmed = proto.LandedUnknown
+		}
+		f.result(m.ID, proto.PasteResult{Posted: true, Restored: !p.KeepClipboard, MS: 2, Confirmed: confirmed})
 	}
 }
 

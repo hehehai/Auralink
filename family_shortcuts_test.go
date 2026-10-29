@@ -123,7 +123,7 @@ func (f *fakePaste) Paste(context.Context, proto.PasteParams) (proto.PasteResult
 	r, err := famruntime.Read(f.fx.Family, testBundleID)
 	f.flagged, f.at = err == nil && r.Pasting, time.Now()
 	f.deliverd++
-	return proto.PasteResult{Posted: true}, nil
+	return proto.PasteResult{Posted: true, Confirmed: proto.LandedYes}, nil
 }
 
 // TestFamilyPaste: Auralink waits (at most 500 ms) while another app

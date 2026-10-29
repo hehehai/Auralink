@@ -544,7 +544,7 @@ func (m *macText) Paste(_ context.Context, p proto.PasteParams) (proto.PasteResu
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.pasted = append(m.pasted, p.Text)
-	return proto.PasteResult{Posted: true}, nil
+	return proto.PasteResult{Posted: true, Confirmed: proto.LandedYes}, nil
 }
 
 // macSession is a session.Manager as the app wires it (session_link.go):

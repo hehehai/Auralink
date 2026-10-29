@@ -23,6 +23,7 @@
 package deliver
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"time"
@@ -65,6 +66,9 @@ const (
 	// these, not Insert.
 	ReasonCard Reason = "card"
 	ReasonLong Reason = "long" // 0.1.0's (the history may hold it)
+	// ReasonNotLanded: the helper posted ⌘V, but the focused field did not
+	// show the text (Result.Paste.Confirmed "no"): the card keeps it.
+	ReasonNotLanded Reason = "notLanded"
 )
 
 // Request is one insert.
@@ -77,8 +81,9 @@ type Request struct {
 	// start app's group's: pressed only when the text goes into Target.
 	Press        []proto.KeyPress
 	PressDelayMS int
-	// KeepClipboard leaves the text on the clipboard; RestoreDelayMS
-	// waits before restoring it (0: the helper's 500).
+	// KeepClipboard leaves the text on the clipboard; RestoreDelayMS is how
+	// long the target gets to read it when its field cannot be read (0: the
+	// helper's 1500; a readable field is confirmed sooner).
 	KeepClipboard  bool
 	RestoreDelayMS int
 	// Self is Auralink's pid. When Auralink is in front, Activate (nil:
@@ -98,14 +103,27 @@ type Result struct {
 	Reason   Reason
 	// To is the app the text went into (Check: would go into); Front is
 	// the app in front when it was not inserted.
-	To        proto.App
-	Front     proto.App
-	Focus     proto.FocusResult
-	Paste     proto.PasteResult
-	Pasted    bool // textio.paste was called (Describe says it was tried)
+	To     proto.App
+	Front  proto.App
+	Focus  proto.FocusResult
+	Paste  proto.PasteResult
+	Pasted bool // textio.paste was called (Describe says it was tried)
+	// Landed is the helper's Paste.Confirmed: proto.LandedYes, LandedNo or
+	// LandedUnknown ("" before a paste).
+	Landed    string
 	Activated bool // the target was activated again first
 	Err       error
 	Elapsed   time.Duration
+}
+
+// Record is the history's word for an insert (store.Entry.Delivery):
+// "insert" when the field showed the text, "paste" when ⌘V was sent and
+// nothing confirmed it (an older helper, or no value to read).
+func Record(landed string) string {
+	if landed == proto.LandedYes {
+		return "insert"
+	}
+	return "paste"
 }
 
 // Moved reports whether the text went (or would go) into another app
@@ -171,6 +189,14 @@ func insert(ctx context.Context, io TextIO, r Request) Result {
 		if p.Front != nil {
 			res.Front = *p.Front
 		}
+		return res
+	}
+	// Posted only says ⌘V was sent. The helper says whether the field
+	// showed the text; "no" keeps the result in the card, so that it is
+	// not recorded as inserted. An older helper says nothing: unknown.
+	res.Landed = cmp.Or(p.Confirmed, proto.LandedUnknown)
+	if res.Landed == proto.LandedNo {
+		res.Reason = ReasonNotLanded
 		return res
 	}
 	res.Inserted = true

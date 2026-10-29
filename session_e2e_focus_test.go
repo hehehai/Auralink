@@ -133,7 +133,7 @@ func TestPasteLastFollowsFocus(t *testing.T) {
 		var p proto.PasteParams
 		json.Unmarshal(raw, &p)
 		pasted = append(pasted, p)
-		return proto.PasteResult{Posted: true}, nil
+		return proto.PasteResult{Posted: true, Confirmed: proto.LandedYes}, nil
 	}
 	a.mgr.SetLast("Hi.")
 	slack := helpertest.Apps["com.tinyspeck.slackmacgap"]
