@@ -12,7 +12,7 @@ It runs no models on your Mac. You choose the speech and language services (Step
 
 Auralink is a pared-down rewrite of [Voxt](https://github.com/hehehai/voxt), by the same author: Voxt's dictation, translation and rewriting, with remote models only, and without meetings, file transcription, notes or local models. Its interface and engineering come from [AudioSmith](https://github.com/hehehai/AudioSmith).
 
-> **Status: 0.1.0-beta.2, a beta.** Everything below is built and tested. Download it from [actnow.dev](https://actnow.dev/download/auralink) (sign in first); the product page is [actnow.dev/auralink](https://actnow.dev/auralink), with the [changelog](https://actnow.dev/auralink/changelog). Auralink is free and open source (GNU AGPL-3.0).
+> **Status: 0.1.0-beta.3, a beta.** Everything below is built and tested. Download it from [actnow.dev](https://actnow.dev/download/auralink) (sign in first); the product page is [actnow.dev/auralink](https://actnow.dev/auralink), with the [changelog](https://actnow.dev/auralink/changelog). Auralink is free and open source (GNU AGPL-3.0).
 
 <sub>Screenshots and recordings: Auralink 0.1.0-beta.1 on macOS 26, with sample data, StepFun for speech and DeepSeek for the language model.</sub>
 

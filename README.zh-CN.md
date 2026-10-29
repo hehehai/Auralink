@@ -12,7 +12,7 @@ Auralink 是一个精简的 macOS 语音输入 app。在任意 App 里按下快�
 
 Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重写：保留 Voxt 的听写、翻译和改写，只用远程模型，去掉了会议、文件转录、笔记和本地模型。界面和工程沿用 [AudioSmith](https://github.com/hehehai/AudioSmith)。
 
-> **状态：0.1.0-beta.2，beta 版。** 下面的功能都已完成并通过测试。在 [actnow.dev](https://actnow.dev/download/auralink) 下载（需要先登录）；产品页是 [actnow.dev/auralink](https://actnow.dev/auralink)，[更新日志](https://actnow.dev/auralink/changelog)也在官网。Auralink 免费开源（GNU AGPL-3.0）。
+> **状态：0.1.0-beta.3，beta 版。** 下面的功能都已完成并通过测试。在 [actnow.dev](https://actnow.dev/download/auralink) 下载（需要先登录）；产品页是 [actnow.dev/auralink](https://actnow.dev/auralink)，[更新日志](https://actnow.dev/auralink/changelog)也在官网。Auralink 免费开源（GNU AGPL-3.0）。
 
 <sub>截图和录屏：Auralink 0.1.0-beta.1，macOS 26，演示数据；语音识别用阶跃星辰，语言模型用 DeepSeek。</sub>
 
