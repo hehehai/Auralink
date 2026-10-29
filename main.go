@@ -20,6 +20,7 @@ import (
 	// Chinese, when the app shows it (showLanguage).
 	_ "github.com/egoist/mygo/locales/zh-Hans"
 	"github.com/hehehai/Auralink/internal/datadir"
+	"github.com/hehehai/Auralink/internal/diag"
 	"github.com/hehehai/Auralink/internal/i18n"
 )
 
@@ -59,22 +60,28 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	logDir, _ := mygo.App.Path(mygo.PathLogs)
+	// What the start finds in the default folder, before it acts on it
+	// (diagnostics.go).
+	facts := startFacts{home: home, files: datadir.FilesIn(home)}
 	// The data folder may have moved (Settings → Storage); a move or an
 	// erase asked for finishes here, before the library opens.
 	dataDir, err := datadir.Resolve(home) // internal/datadir
 	if err != nil {
+		recordStartFailure(logDir, "start: the data folder could not be used ("+diag.ErrorClass(err)+")")
 		showFatal(err)
 		return
 	}
+	facts.dataDir, facts.dbExisted = dataDir, datadir.DatabaseExists(dataDir)
 	resources, _ := mygo.App.Path(mygo.PathResources)
 	wd, _ := os.Getwd()
 	legalDocs = findLegalDocs(resources, wd) // settings_about.go: LICENSE, NOTICE
-	logDir, _ := mygo.App.Path(mygo.PathLogs)
 	cacheDir, _ := mygo.App.Path(mygo.PathCache)
 
 	// Wiring: one call per area, each defined in the file of that area.
 	lib, err := openLibrary(dataDir) // library.go
 	if err != nil {
+		recordStartFailure(logDir, "start: the database could not be opened ("+diag.ErrorClass(err)+")")
 		showFatal(err) // shell.go: explains, then quits
 		return
 	}
@@ -101,6 +108,7 @@ func main() {
 		a.startHelper()       // helperlink.go
 		a.openTray()          // tray.go: the menu bar icon, close to the menu bar
 		a.connectWindowLife() // tray.go
+		a.logStartup(facts)   // diagnostics.go
 		a.watchBundle()       // updates.go: an update installed while it runs
 		a.startUpdates()      // updates.go: the daily check
 		a.expireRecordings()  // history_cleanup.go: recordings kept for a retry, past their time

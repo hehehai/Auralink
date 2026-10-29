@@ -121,7 +121,15 @@ type Store struct {
 	documents  *documentRepo
 	history    *historyRepo
 	dictionary *dictionaryRepo
+	opened     OpenInfo
 }
+
+// OpenInfo says what Open found and did: the schema version the database
+// had (0 for a new one) and the version it has now.
+type OpenInfo struct{ Found, Now int }
+
+// Opened is what Open found and did.
+func (s *Store) Opened() OpenInfo { return s.opened }
 
 var _ store.Store = (*Store)(nil)
 
@@ -170,7 +178,7 @@ func Open(ctx context.Context, dir string) (*Store, error) {
 			return nil, fmt.Errorf("sqlitestore: migration %d: %w", m.version, err)
 		}
 	}
-	s := &Store{db: db, dir: dir, path: path}
+	s := &Store{db: db, dir: dir, path: path, opened: OpenInfo{Found: v, Now: latest}}
 	s.documents = &documentRepo{db: db}
 	s.history = &historyRepo{db: db, dir: filepath.Join(dir, audioDir)}
 	s.dictionary = &dictionaryRepo{db: db}

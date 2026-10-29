@@ -125,6 +125,12 @@ func (a *app) diagnosticsText() string {
 	for _, c := range a.checks {
 		line("Check "+c.id, c.status+" "+c.detail)
 	}
+	if lines := recentLogLines(a.logs, diagLogMax, diagLogWithin); len(lines) > 0 { // diagnostics.go
+		b.WriteString("Recent log lines:\n")
+		for _, l := range lines {
+			b.WriteString(l + "\n")
+		}
+	}
 	return b.String()
 }
 

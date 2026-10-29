@@ -17,6 +17,7 @@ import (
 	"context"
 	"io"
 	"log"
+	"math"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -147,8 +148,14 @@ func (a *app) openShell(lib *library) {
 func (a *app) connectShell(logDir string) {
 	a.logDir = logDir // Settings → Storage, Diagnostics
 	if logDir != "" {
+		// The lines written before the files (the Keychain's reads at
+		// start, diagnostics.go) move to the files' ring.
+		early := a.logs.Tail(math.MaxInt, "") // newest first
 		a.logs.Close()
 		a.logs = logs.New(logs.Options{Dir: logDir, Bus: a.bus, Redact: redact.Text}) // keys, tokens, proxy passwords out (family spec §13)
+		for i := len(early) - 1; i >= 0; i-- {
+			a.logs.Append(early[i])
+		}
 		log.SetOutput(io.MultiWriter(os.Stderr, a.logs.Writer("app")))
 	}
 	mygo.App.OnOpenURL(func(u string) { a.post(func() { a.openURL(u) }) })

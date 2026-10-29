@@ -19,6 +19,8 @@ type library struct {
 	store    *sqlitestore.Store
 	bus      *core.Bus
 	settings *settings.Store
+	// What opening found, for the start-up log (diagnostics.go).
+	settingsErr error
 }
 
 // openLibrary opens (creating or migrating) the store in dataDir and the
@@ -33,6 +35,7 @@ func openLibrary(dataDir string) (*library, error) {
 	l := &library{store: st, bus: bus}
 	l.settings, err = settings.Open(ctx, st.Documents(), func(ev settings.Changed) { bus.Publish(ev) })
 	if err != nil {
+		l.settingsErr = err
 		log.Printf("settings: %v", err) // the defaults, until the next change saves them
 	}
 	return l, nil

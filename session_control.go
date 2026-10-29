@@ -6,9 +6,12 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
+	"github.com/hehehai/Auralink/internal/core"
 	"github.com/hehehai/Auralink/internal/deliver"
 	"github.com/hehehai/Auralink/internal/helper"
 	"github.com/hehehai/Auralink/internal/helper/proto"
@@ -33,21 +36,28 @@ func (a *app) transcribeBlocker() *sessionNotice { return a.sessionBlocker(store
 // translate a selection without one) and a language model (Translate,
 // Rewrite). It returns the notice that says what is missing, or nil.
 func (a *app) sessionBlocker(kind store.Kind) *sessionNotice {
+	n, _ := a.blockedBy(kind)
+	return n
+}
+
+// blockedBy is sessionBlocker with the reason in English, for the log
+// (diagnostics: session_diag.go); the reason is "" when nothing blocks.
+func (a *app) blockedBy(kind store.Kind) (*sessionNotice, string) {
 	if !a.helperReady() {
-		return &sessionNotice{text: i18n.T("The helper is not running."), action: actionHelper}
+		return &sessionNotice{text: i18n.T("The helper is not running."), action: actionHelper}, "the helper is " + string(a.hstatus.State)
 	}
 	f := providers.FeatureOf(a.prefs, string(kind))
 	if kind != store.KindTranslate {
 		if _, ok := providers.Choose(a.prefs, providers.ASR, f.ASR, a.hasKey); !ok {
-			return &sessionNotice{text: i18n.T("No speech service is set up."), action: actionProviders}
+			return &sessionNotice{text: i18n.T("No speech service is set up."), action: actionProviders}, "no speech service is set up"
 		}
 	}
 	if kind != store.KindTranscribe {
 		if _, ok := providers.Choose(a.prefs, providers.LLM, f.LLM, a.hasKey); !ok {
-			return &sessionNotice{text: i18n.T("No language model is set up."), action: actionProviders}
+			return &sessionNotice{text: i18n.T("No language model is set up."), action: actionProviders}, "no language model is set up"
 		}
 	}
-	return nil
+	return nil, ""
 }
 
 // startTranscribe starts a Transcribe session (startSession).
@@ -69,10 +79,16 @@ func (a *app) startSession(req session.StartRequest) *sessionNotice {
 // startSessionID is startSession that also returns the session's id ("" when
 // none started), so a Try area can tell its own session from any other.
 func (a *app) startSessionID(req session.StartRequest) (string, *sessionNotice) {
-	if a.mgr == nil || a.sess.State.Live() {
+	if a.mgr == nil {
+		a.diagLog(core.SeverityInfo, sessionSource, fmt.Sprintf("start %s not started: the session manager is not ready", req.Kind))
 		return "", nil
 	}
-	if n := a.sessionBlocker(req.Kind); n != nil {
+	if a.sess.State.Live() {
+		a.logRefused(req.Kind, a.sess) // session_diag.go
+		return "", nil
+	}
+	if n, why := a.blockedBy(req.Kind); n != nil {
+		a.diagLog(core.SeverityInfo, sessionSource, fmt.Sprintf("start %s not started: %s", req.Kind, why))
 		if !req.Try {
 			a.showNotice(*n)
 		}
@@ -84,6 +100,9 @@ func (a *app) startSessionID(req session.StartRequest) (string, *sessionNotice) 
 	a.notice = nil
 	id, err := a.mgr.Start(req)
 	if err != nil {
+		if errors.Is(err, session.ErrBusy) {
+			a.logRefused(req.Kind, a.mgr.Current()) // session_diag.go
+		}
 		return "", nil // a session runs already
 	}
 	return id, nil

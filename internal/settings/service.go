@@ -41,7 +41,12 @@ type Store struct {
 	update sync.Mutex // serializes Update: read, save, swap
 	mu     sync.RWMutex
 	cur    Settings
+	stored bool // the document was there when Open read it
 }
+
+// Stored reports whether the settings were read from a saved document
+// (false: the defaults, for a new library).
+func (s *Store) Stored() bool { return s.stored }
 
 var _ Service = (*Store)(nil)
 
@@ -56,6 +61,7 @@ func Open(ctx context.Context, docs Documents, publish func(Changed)) (*Store, e
 	if err != nil {
 		return s, fmt.Errorf("settings: %w", err)
 	}
+	s.stored = ok
 	if !ok {
 		return s, nil
 	}

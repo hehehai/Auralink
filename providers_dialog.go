@@ -262,8 +262,13 @@ func (a *app) saveProviderDialog(removeAll bool) {
 	label := "Auralink " + uitext.ProviderName(kind, p)
 	d.saving, d.err = true, ""
 	job := a.dialogKeyJob(&p, key, remove, removeAll, label) // family_keys.go
+	op, family, service, ring := keyOp(key, remove), d.fam.vendor != "" && d.fam.share, providers.Name(kind, p), a.logs
 	a.async(func() {
 		mask, changed, err := job.run()
+		if op != "" {
+			sev, line := keyOpLine(acc, service, op, family, err) // diagnostics_keys.go
+			appendLine(ring, sev, diagSource, line)
+		}
 		a.post(func() {
 			a.provDlg.saving = false
 			if err != nil {

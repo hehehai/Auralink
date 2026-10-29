@@ -56,6 +56,7 @@ func (a *app) hotkeyFired(e proto.HotkeyEventParams) {
 		}
 	}
 	d := hotkey.Route(e, a.hotkeyPhase(), a.sess.HoldBinding)
+	a.logShortcut(e, d) // session_diag.go: the presses that start nothing
 	switch d.Action {
 	case hotkey.Start:
 		hold := ""
@@ -77,6 +78,7 @@ func (a *app) hotkeyFired(e proto.HotkeyEventParams) {
 		switch place := a.tryPlace(kind, target); place {
 		case placeNone:
 		case placeIgnore:
+			a.diagLog(core.SeverityInfo, sessionSource, fmt.Sprintf("start %s not started: Auralink is in front, on a page with no Try area for it", kind))
 			a.tryIgnored(kind) // onboarding.go
 			return
 		default:

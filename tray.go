@@ -16,6 +16,8 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/transfer"
+	"github.com/hehehai/Auralink/internal/core"
+	"github.com/hehehai/Auralink/internal/diag"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/store"
 	"github.com/hehehai/Auralink/internal/trayicon"
@@ -28,6 +30,8 @@ type trayState struct {
 	trayLive bool     // the icon shows the recording one
 	quitting bool     // Quit was chosen: closing the window must not hide it
 	recent   []string // the last results, newest first (trayRecentN at most)
+	// trayErr is why the icon could not be made (diag.ErrorClass), "" for none.
+	trayErr string
 	// copyText puts text on the clipboard (mygo.Clipboard); tests record.
 	copyText func(string) error
 }
@@ -60,10 +64,13 @@ func (a *app) applyTray() {
 	// (Voxt: 18×18 pt, template); while recording it has a dot.
 	t, err := mygo.NewTray(mygo.TrayOptions{Icon: trayicon.Icon(live), IconIsTemplate: true, ToolTip: "Auralink"})
 	if err != nil {
+		a.trayErr = diag.ErrorClass(err)
+		a.diagLog(core.SeverityWarning, diagSource, "menu bar icon could not be made ("+a.trayErr+")")
 		a.toast(i18n.T("The menu bar icon could not be made: %v", err))
 		return
 	}
-	a.tray, a.trayLive = t, live
+	a.tray, a.trayLive, a.trayErr = t, live, ""
+	a.diagLog(core.SeverityInfo, diagSource, "menu bar icon created")
 	a.buildTrayMenu()
 	a.loadTrayRecent()
 }
@@ -183,18 +190,26 @@ func (a *app) connectWindowLife() {
 		return
 	}
 	a.win.OnClose(func(e *mygo.CloseEvent) {
-		if a.prefs.General.CloseToTray && !a.quitting && a.tray != nil {
+		hide, line := closeDecision(a.prefs.General, a.quitting, a.tray != nil) // diagnostics.go
+		a.diagLog(core.SeverityInfo, diagSource, line)
+		if hide {
 			e.PreventDefault()
 			a.win.Hide()
 		}
 	})
-	a.win.OnClosed(func() { mygo.App.Quit() })
+	a.win.OnClosed(func() {
+		a.diagLog(core.SeverityInfo, diagSource, "quit: window closed")
+		mygo.App.Quit()
+	})
 	mygo.App.OnActivate(func(hasVisibleWindows bool) {
 		if !a.win.IsVisible() {
 			a.win.Show()
 		}
 	})
-	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
+		a.quitting = true
+		a.diagLog(core.SeverityInfo, diagSource, "quit requested")
+	})
 	mygo.App.OnDidBecomeActive(func() {
 		a.post(func() {
 			a.recheckPermissions()

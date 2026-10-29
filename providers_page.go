@@ -59,6 +59,8 @@ type providersState struct {
 	keysKnown bool
 	// provTests are the last connection tests, by account.
 	provTests map[string]providerTest
+	// keyStates is the last key state logged, by account (diagnostics_keys.go).
+	keyStates map[string]string
 	// featSel holds the "used by" selects' labels, featSeen what they
 	// were last set from.
 	featSel  [2][3]string
@@ -126,8 +128,11 @@ func (a *app) loadKeyMasks(accounts []string) {
 	ks := a.keySource() // family_keys.go: a family key's hint, not the key
 	a.async(func() {
 		masks := map[string]string{}
+		reads := make([]keyRead, 0, len(accounts))
 		for _, acc := range accounts {
 			m, err := ks.Mask(acc)
+			_, family := ks.refs[acc]
+			reads = append(reads, keyRead{account: acc, family: family, mask: m, err: err})
 			if err != nil {
 				m = ""
 			}
@@ -137,6 +142,7 @@ func (a *app) loadKeyMasks(accounts []string) {
 			for k, v := range masks {
 				a.keyMasks[k] = v
 			}
+			a.logKeyReads(reads) // diagnostics_keys.go
 			a.keysKnown = true
 			a.checkServices() // shell_notices.go
 		})
