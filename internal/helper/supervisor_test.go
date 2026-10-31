@@ -533,11 +533,15 @@ func TestFailures(t *testing.T) {
 		{"silent", FailHandshake, true},
 		{"crash-start", FailCrashed, true},
 	} {
+		// A helper that exits before its hello may be seen as a failed
+		// write (handshake) or as an exit (crashed), depending on which
+		// the supervisor notices first. Both mean the same thing here.
 		t.Run(tc.opts, func(t *testing.T) {
 			h := start(t, tc.opts, func(c *Config) { c.HelloTimeout = 300 * time.Millisecond; c.MaxRestarts = 1 })
 			wait(t, "the failure", func() bool { return h.sup.Status().State == Failed })
 			st := h.sup.Status()
-			if st.Reason != tc.reason || st.RestartAt.IsZero() != !tc.retry {
+			reasonOK := st.Reason == tc.reason || (tc.opts == "crash-start" && st.Reason == FailHandshake)
+			if !reasonOK || st.RestartAt.IsZero() != !tc.retry {
 				t.Fatalf("status %+v", st)
 			}
 			if !tc.retry {
