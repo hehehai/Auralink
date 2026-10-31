@@ -99,6 +99,9 @@ type overlayState struct {
 		// its view (the new face's) makes it opaque, so that no frame of
 		// the last face shows.
 		reveal bool
+		// reveals counts the reveals of a shown window (tests check that a
+		// showing reveals once).
+		reveals int
 		// fade numbers the fades out: showing again, or another fade,
 		// makes the steps of an older one do nothing.
 		fade int
@@ -213,6 +216,9 @@ func (a *app) overlaySync() {
 	}
 	pass := mode == ovRecording || mode == ovWorking
 	defer a.syncLangMenu() // overlay_lang.go: the language menu follows the card
+	if !was {
+		a.awaitReveal()
+	}
 	if !a.overlayNative() {
 		a.ov.passThrough = pass
 		return // tests: the state is enough
@@ -229,13 +235,6 @@ func (a *app) overlaySync() {
 	}
 	if !was {
 		a.ov.win.SetOpacity(0)
-		a.ov.reveal = true
-		seq := a.ov.fade
-		a.later(ovRevealMax, func() { // whatever the view does
-			if a.ov.fade == seq && a.ov.shown {
-				a.revealOverlay()
-			}
-		})
 	}
 	if moved {
 		a.ov.win.SetContentBounds(frame)
@@ -251,11 +250,28 @@ func (a *app) overlaySync() {
 // to build before it turns opaque anyway.
 const ovRevealMax = 120 * time.Millisecond
 
+// awaitReveal marks a window that shows again as waiting for its view. The
+// view's build reveals it (overlay_face.go); the fallback timer reveals it
+// only if no build has by then, and does nothing once the window is
+// shown again or hidden.
+func (a *app) awaitReveal() {
+	a.ov.reveal = true
+	seq := a.ov.fade
+	a.later(ovRevealMax, func() { // whatever the view does
+		if a.ov.fade == seq && a.ov.shown && a.ov.reveal {
+			a.revealOverlay()
+		}
+	})
+}
+
 // revealOverlay makes the window opaque once it shows the new face.
 func (a *app) revealOverlay() {
 	a.ov.reveal = false
-	if a.ov.win != nil && a.ov.shown {
-		a.ov.win.SetOpacity(1)
+	if a.ov.shown {
+		a.ov.reveals++
+		if a.ov.win != nil {
+			a.ov.win.SetOpacity(1)
+		}
 	}
 }
 
