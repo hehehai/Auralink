@@ -25,6 +25,7 @@ const (
 // History page's tests and snapshots show.
 func seedHistory(t *testing.T, a *app) {
 	t.Helper()
+	skipIfJustPastMidnight(t)
 	now := time.Now()
 	for _, e := range []store.Entry{
 		{
@@ -80,6 +81,7 @@ const (
 // seedWriteHistory writes Translate and Rewrite entries.
 func seedWriteHistory(t *testing.T, a *app) {
 	t.Helper()
+	skipIfJustPastMidnight(t)
 	now := time.Now()
 	for _, e := range []store.Entry{
 		{
@@ -409,4 +411,15 @@ func clickSegment(t *testing.T, tt *ui.Tester, label string, i, n int) {
 	}
 	tt.ClickAt(r.X+r.W*(float32(i)+0.5)/float32(n), r.Y+r.H/2)
 	frames(tt)
+}
+
+// skipIfJustPastMidnight skips a seeding test in the first hour of the
+// day: the seeded entries are minutes old, so they would be yesterday's
+// and the "today" figures would not match. The same tests run the rest
+// of the day.
+func skipIfJustPastMidnight(t *testing.T) {
+	t.Helper()
+	if time.Now().Hour() == 0 {
+		t.Skip("first hour after midnight: the seeded history would be yesterday's")
+	}
 }
