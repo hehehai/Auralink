@@ -180,7 +180,7 @@ func (a *app) sharedNote(c *ui.Context, key string) {
 		case a.famReadOnly:
 			caption(c, i18n.T("%s updated the shared format. Update Auralink to change these settings.", a.sharedSource()))
 		case follows:
-			caption(c, i18n.T("Shared with %s", others))
+			caption(c, i18n.T("Shared with other ActNow apps"))
 			if ui.Link(c.Key("shared-own-"+key), i18n.T("Use a different setting for this app"), "").FontSize(px(t, fsCaption)).Clicked() {
 				a.ownShared(key)
 			}

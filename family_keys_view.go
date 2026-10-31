@@ -77,7 +77,7 @@ func (a *app) sharedKeyNotes(c *ui.Context, name, mask string) {
 	}
 	ui.Row(c.Key("prov-share")).Gap(px(t, 6)).AlignItems(ui.Center).Children(func() {
 		ui.Checkbox(c.Key("prov-share-box"), &f.share, i18n.T("Let other ActNow apps on this Mac use this key")).Shrink(1)
-		infoTip(c, i18n.T("Shared keys are stored in your login keychain. Like each app's own keys, other programs you run can read them with the security tool.")).Shrink(0)
+		infoTip(c, i18n.T("Shared with other ActNow apps.")).Shrink(0)
 	})
 	if typed && f.share && f.ref != "" && len(f.users) > 0 {
 		caption(c, i18n.T("Also updates it in %s.", strings.Join(f.users, ", ")))

@@ -658,7 +658,7 @@ MAC_DIR=code/Auralink-ov scripts/mac.sh --pull build/overlay-check     # 把结�
   5. 在 Auralink 点“与 AudioSmith 使用相同设置”。
   6. 设置 → 通用 → 界面语言重复第 1、2 步（改成另一种语言）。
 - **应看到**：
-  - 第 1 步：代理一行下面是“与 AudioSmith 共用 · 仅为此 app 单独设置”；`settings.json` 的 `network.proxy` 变成 `http://127.0.0.1:7890`，`updatedBy` 是 `dev.hehehai.auralink`。
+  - 第 1 步：代理一行下面是“与其它 ActNow app 共用 · 仅为此 app 单独设置”；`settings.json` 的 `network.proxy` 变成 `http://127.0.0.1:7890`，`updatedBy` 是 `dev.hehehai.auralink`。
   - 第 2 步：AudioSmith 的代理也是 `http://127.0.0.1:7890`（收到通知立即变，或者切过去时变）。
   - 第 3 步：Auralink 的代理变回“自动”，下面的说明（“请求直接连接 / 经过 …”）跟着变。
   - 第 4 步：下面变成“仅用于 Auralink · 与 AudioSmith 使用相同设置”；AudioSmith 不变。

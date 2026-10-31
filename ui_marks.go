@@ -11,6 +11,10 @@ import (
 
 // ---- Text, marks and chips ----
 
+// infoTipLift is how far (DIPs at 13 pt text) the ⓘ's circle rises to sit
+// on the centre of the capitals beside it.
+const infoTipLift = 0.5
+
 // infoTip is a ⓘ that tells text as a tooltip, in place of a line of
 // help under a control. It takes the keyboard focus, so the tip shows
 // from the keyboard too.
@@ -23,7 +27,9 @@ func infoTip(c *ui.Context, text string) ui.Element {
 		if b.Hovered() {
 			col = k.Text2
 		}
-		ui.Icon(c, icons.InfoCircle.Linear).Size(px(t, 14), px(t, 14)).TextColor(col)
+		// The line box of text sits a hair lower than its capitals, so the
+		// circle is lifted to the capitals' centre (measured on the snapshots).
+		ui.Icon(c, icons.InfoCircle.Linear).Size(px(t, 14), px(t, 14)).TextColor(col).Translate(0, -px(t, infoTipLift))
 	})
 	return b
 }

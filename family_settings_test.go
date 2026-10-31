@@ -110,7 +110,7 @@ func TestFamilySettingsFollow(t *testing.T) {
 	drain()
 	a.navigate("/settings/network")
 	frames(tt)
-	if !has(tt, "Shared with AudioSmith") {
+	if !has(tt, "Shared with other ActNow apps") {
 		t.Fatalf("no family note: %q", firstTexts(tt))
 	}
 	a.setShared(asettings.KeyProxy, "127.0.0.1:7890")
