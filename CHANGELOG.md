@@ -4,9 +4,10 @@ All notable changes to Auralink. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
-### Fixed
-- A key saved in a service's dialog is kept in Auralink's own Keychain item and is found again after a restart. The family's copy is made only when the sharing box is checked. A key that cannot be used yet (not confirmed, gone, or unreadable) says so and what to do, instead of "No key saved". A service that named a family key without its own copy gets the key copied in at the start.
-- The logs page starts with the newest lines of the log file from earlier runs (up to 2000 lines or 1 MB), marked as earlier runs.
+## [0.1.0-beta.5] - 2026-10-31
+
+### Changed
+- The floating card is shown once when it appears; a second, redundant show after it has already appeared is gone.
 
 ## [0.1.0-beta.4] - 2026-10-29
 
