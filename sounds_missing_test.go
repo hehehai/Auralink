@@ -45,7 +45,7 @@ func TestNoFamilySounds(t *testing.T) {
 	if !slices.Contains(r.systemSounds(), "Pop") {
 		t.Errorf("system sounds: %q", r.systemSounds())
 	}
-	click(t, r.tt, "Try the start sound")
+	r.clickIn(t, "Try the start sound")
 	frames(r.tt)
 	if p := r.takePlays(); len(p) == 0 || p[0] != "Pop" {
 		t.Errorf("Try played %q, want Pop", p)

@@ -364,12 +364,12 @@ func (a *app) settingsDialog(c *ui.Context) {
 
 // The settings dialog's size: settingsMaxW × settingsMaxH at most, and
 // at least a margin of 5% of the window (6% of its height), sp6 at the
-// least, around it: 720×458 in the 800×520 window, 612×387 in the
+// least, around it: 640×420 in the 800×520 window, 612×387 in the
 // smallest. Its column of sections is settingsColumnW wide, its content
 // settingsContentMaxW at most (it is narrower in the default window).
 const (
-	settingsMaxW        = 760
-	settingsMaxH        = 600
+	settingsMaxW        = 640
+	settingsMaxH        = 420
 	settingsColumnW     = 176
 	settingsContentMaxW = 600
 )

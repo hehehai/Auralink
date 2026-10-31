@@ -228,8 +228,8 @@ func onboardingShots(a *app, tt *ui.Tester, save func(string)) {
 	a.ob.open = false
 }
 
-// TestOnboardingDialogSize: 600×440 in the default window, smaller than
-// the settings dialog with a margin all round in the smallest, and
+// TestOnboardingDialogSize: 600×440 in the default window, not wider than
+// the settings dialog, a margin all round in the smallest, and
 // obMaxW × obMaxH in a large one.
 func TestOnboardingDialogSize(t *testing.T) {
 	th := ui.LightTheme()
@@ -242,9 +242,11 @@ func TestOnboardingDialogSize(t *testing.T) {
 		if math.Abs(float64(dw-c.dw)) > 0.5 || math.Abs(float64(dh-c.dh)) > 0.5 {
 			t.Errorf("%v×%v: %v×%v, want %v×%v", c.w, c.h, dw, dh, c.dw, c.dh)
 		}
-		sw, sh := settingsDialogSize(th, c.w, c.h)
-		if dw > sw || dh > sh {
-			t.Errorf("%v×%v: %v×%v, larger than the settings dialog's %v×%v", c.w, c.h, dw, dh, sw, sh)
+		// Not taller than the settings dialog: that one is 420 high now
+		// (the onboarding window keeps its 440, see docs/behavior.md 2.6).
+		sw, _ := settingsDialogSize(th, c.w, c.h)
+		if dw > sw {
+			t.Errorf("%v×%v: %v wide, wider than the settings dialog's %v", c.w, c.h, dw, sw)
 		}
 		if mx, my := (c.w-dw)/2, (c.h-dh)/2; mx < 24 || my < 24 {
 			t.Errorf("%v×%v: margins %v, %v", c.w, c.h, mx, my)

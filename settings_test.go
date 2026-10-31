@@ -75,6 +75,8 @@ func TestShortcutsSettings(t *testing.T) {
 	if !has(tt, "None") {
 		t.Error("a feature without shortcut")
 	}
+	// With the conflict notice the list is taller than the dialog: scroll first.
+	scrollToText(tt, "Paste the last result ⌃⌘V")
 	click(t, tt, "Paste the last result ⌃⌘V")
 	if a.settingsOpen || a.shownPath() != "/transcribe" {
 		t.Fatalf("row click: %v %s", a.settingsOpen, a.shownPath())
@@ -127,12 +129,12 @@ func TestOtherLanguages(t *testing.T) {
 	}
 }
 
-// TestSettingsDialogSize: about 720×460 in the default window, a margin
+// TestSettingsDialogSize: 640×420 in the default window, a margin
 // around it in the smallest, settingsMaxW × settingsMaxH in a large one.
 func TestSettingsDialogSize(t *testing.T) {
 	th := ui.LightTheme()
 	for _, c := range []struct{ w, h, dw, dh float32 }{
-		{windowWidth, windowHeight, 720, 457.6},
+		{windowWidth, windowHeight, 640, 420},
 		{windowMinWidth, windowMinHeight, 612, 387.2},
 		{1600, 1000, settingsMaxW, settingsMaxH},
 	} {
