@@ -15,14 +15,15 @@ import (
 
 // WSClient is the HTTP client WebSocket handshakes go through: the proxy
 // of mode (settings.Network.Proxy, see netx.ProxyFunc), HTTP/1.1 only (a
-// WebSocket upgrade needs it), dial and TLS timeouts.
+// WebSocket upgrade needs it), dial and TLS timeouts; plain ws:// only
+// to private addresses (netx.GuardPlain).
 func WSClient(mode string) *http.Client {
-	return &http.Client{Transport: &http.Transport{
+	return &http.Client{CheckRedirect: netx.CheckRedirect, Transport: netx.GuardPlain(&http.Transport{
 		Proxy:               netx.ProxyFunc(mode),
 		DialContext:         (&net.Dialer{Timeout: ConnectTimeout, KeepAlive: 30 * time.Second}).DialContext,
 		TLSHandshakeTimeout: ConnectTimeout,
 		TLSNextProto:        map[string]func(string, *tls.Conn) http.RoundTripper{}, // no HTTP/2
-	}}
+	})}
 }
 
 // WSOptions is how Dial connects.

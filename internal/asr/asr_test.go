@@ -21,6 +21,9 @@ func TestCheckEndpoint(t *testing.T) {
 		"ws://127.0.0.1:9000/x":                               {"wss"},
 		"ws://[::1]:9000/x":                                   {"wss"},
 		"http://localhost:8080/v1":                            {"https"},
+		"http://192.168.1.2/v1":                               {"https"},
+		"ws://100.88.1.2:3425/x":                              {"wss"},
+		"ws://gpubox:9000/x":                                  {"wss"},
 		"https://api.openai.com/v1?x=1":                       {"https"},
 	}
 	for raw, schemes := range ok {
@@ -30,9 +33,9 @@ func TestCheckEndpoint(t *testing.T) {
 	}
 	bad := map[string][]string{
 		"":                                    {"wss"},
-		"ws://example.com/x":                  {"wss"},
+		"ws://203.0.113.7/x":                  {"wss"},
+		"http://172.32.0.1/v1":                {"https"},
 		"https://example.com/x":               {"wss"},
-		"http://192.168.1.2/v1":               {"https"},
 		"https://user:pass@api.openai.com/v1": {"https"},
 		"/v1/audio":                           {"https"},
 		"localhost:8080":                      {"https"},

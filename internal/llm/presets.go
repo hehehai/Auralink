@@ -7,12 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"net"
 	"net/url"
 	"os"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/hehehai/Auralink/internal/netx"
 )
 
 // JSONMode is how a provider is asked for JSON.
@@ -169,24 +170,18 @@ func (cfg ProviderConfig) Resolve() (Preset, error) {
 	if p.BaseURL == "" {
 		return Preset{}, newErr(CodeConfig, "provider", p.ID, "field", "baseURL")
 	}
-	// Keys go over https only; plain http only to this Mac (a relay or a
-	// test server), and never with a user or password in the URL.
+	// Keys go over https only; plain http only to this Mac or a private
+	// network (netx.PlainAllowed, enforced again at dial time), and never
+	// with a user or password in the URL. Only this Mac is local: a
+	// private network's server is still remote.
 	u, err := url.Parse(p.BaseURL)
-	if err != nil || u.Host == "" || u.User != nil || (u.Scheme != "https" && !(u.Scheme == "http" && isLoopback(u.Hostname()))) {
+	if err != nil || u.Host == "" || u.User != nil || (u.Scheme != "https" && !(u.Scheme == "http" && netx.PlainAllowed(u.Hostname()))) {
 		return Preset{}, newErr(CodeConfig, "provider", p.ID, "field", "baseURL")
 	}
-	if isLoopback(u.Hostname()) {
+	if netx.IsLoopback(u.Hostname()) {
 		p.Local = true
 	}
 	return p, nil
-}
-
-func isLoopback(host string) bool {
-	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
 }
 
 // SecretPrefix starts every API-key name: "llm.openai" (the Keychain

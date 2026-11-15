@@ -17,7 +17,8 @@
     "minimumSystemVersion": "15.0",
     "infoPlist": {
       "LSApplicationCategoryType": "public.app-category.productivity",
-      "NSMicrophoneUsageDescription": "Auralink records your voice while you hold its shortcut and sends the audio to the speech service you set up. 录音只在你按下快捷键时进行，并发送给你配置的语音识别服务。"
+      "NSMicrophoneUsageDescription": "Auralink records your voice while you hold its shortcut and sends the audio to the speech service you set up. 录音只在你按下快捷键时进行，并发送给你配置的语音识别服务。",
+      "NSLocalNetworkUsageDescription": "Auralink connects to model servers you set up on your local network or Tailscale. 用于连接你在局域网或 Tailscale 上配置的模型服务器。"
     },
     "entitlements": "helper/Support/app.entitlements",
     "helperEntitlements": {

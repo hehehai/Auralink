@@ -267,6 +267,11 @@ func snapshotsProviders(t *testing.T, out string) {
 		a.provTab = 1
 		a.openProviderDialog(providers.LLM, "custom")
 		save("providers-dialog-custom")
+		// Plain http to a Tailscale peer: the "not encrypted" note, and a
+		// test that found no route (macOS's Local Network denial).
+		a.provDlg.endpoint = "http://100.88.1.2:3425/v1"
+		a.provDlg.test = providerTest{res: providers.TestResult{Err: &asr.Error{Kind: asr.KindNetwork, Provider: "custom", Detail: "dial tcp 100.88.1.2:3425: connect: no route to host"}, At: time.Now()}}
+		save("providers-dialog-private-http")
 		familyKeyShots(t, a, save) // family_keys_test.go
 	}
 }

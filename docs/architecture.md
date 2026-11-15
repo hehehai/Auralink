@@ -27,7 +27,7 @@ github.com/hehehai/Auralink
 │   ├── notify/           the notification centre (kept in the store's documents)
 │   ├── lang/             the language table, 652 languages                                     (leaf)
 │   ├── secrets/          API keys in the Keychain, service "Auralink"                          (leaf)
-│   ├── netx/             the proxy (settings.Network) and the HTTP client every provider uses  (leaf)
+│   ├── netx/             the proxy (settings.Network), the HTTP client every provider uses, plain http only to private addresses (checked at dial time)  (leaf)
 │   ├── permission/       Microphone and Accessibility (purego on darwin; Fake for tests)       (leaf)
 │   ├── macx/             activating an app again before a paste (purego on darwin); the       (leaf)
 │   │                     recording's sounds (afplay), Voxt's presets and how long each is heard

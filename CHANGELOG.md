@@ -4,6 +4,10 @@ All notable changes to Auralink. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+- Model services may use plain http:// (ws:// for streaming) to a server on your private network — a LAN address, Tailscale (100.64.0.0/10, MagicDNS names) or a .local name — not only on this Mac. A name is checked when Auralink connects: if it resolves to a public address, the connection is refused, so your key never crosses the internet unencrypted. Such servers go direct, not through the proxy, and still count as remote services. The setup dialog says when an endpoint is not encrypted.
+- If macOS blocks the connection (Local Network access), the error says where to allow Auralink: System Settings → Privacy & Security → Local Network.
+
 ## [0.1.0-beta.5] - 2026-10-31
 
 ### Changed

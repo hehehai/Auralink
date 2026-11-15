@@ -152,11 +152,14 @@ func TestCheckEndpoint(t *testing.T) {
 		{ASR, settings.Provider{ID: "doubao", Endpoint: "https://openspeech.bytedance.com/api/v3/sauc/bigmodel"}, false},
 		{ASR, settings.Provider{ID: "aliyun", Endpoint: "ws://127.0.0.1:9000/api-ws/v1/inference"}, true},
 		{ASR, settings.Provider{ID: "openai", Endpoint: "https://api.groq.com/openai/v1"}, true},
-		{ASR, settings.Provider{ID: "openai", Endpoint: "http://api.groq.com/openai/v1"}, false},
+		{ASR, settings.Provider{ID: "openai", Endpoint: "http://203.0.113.7/openai/v1"}, false},
+		{ASR, settings.Provider{ID: "openai", Endpoint: "http://192.168.1.20:8000/v1"}, true},
+		{ASR, settings.Provider{ID: "aliyun", Endpoint: "ws://100.88.1.2:9000/api-ws/v1/inference"}, true},
 		{LLM, settings.Provider{ID: "deepseek"}, true},
 		{LLM, settings.Provider{ID: "custom"}, false},
 		{LLM, settings.Provider{ID: "custom", Endpoint: "http://localhost:8080/v1"}, true},
-		{LLM, settings.Provider{ID: "custom", Endpoint: "http://10.0.0.2:8080/v1"}, false},
+		{LLM, settings.Provider{ID: "custom", Endpoint: "http://10.0.0.2:8080/v1"}, true},
+		{LLM, settings.Provider{ID: "custom", Endpoint: "http://8.8.8.8:8080/v1"}, false},
 		{LLM, settings.Provider{ID: "nope"}, false},
 	} {
 		if err := CheckEndpoint(tc.kind, tc.p); (err == nil) != tc.ok {

@@ -28,7 +28,7 @@ import (
 //	"direct"   no proxy
 //	a URL      that proxy: http://host:port, https://…, socks5://…
 //
-// Loopback hosts never go through a proxy.
+// Loopback and private hosts never go through a proxy (IsPrivateHost).
 const ProxyDirect = "direct"
 
 // systemProxy is the macOS proxy configuration (scutil --proxy).
@@ -171,14 +171,6 @@ func matchException(host, ex string) bool {
 	return strings.EqualFold(host, ex)
 }
 
-func isLoopback(host string) bool {
-	if host == "localhost" {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
-}
-
 // proxyFunc is the Transport's Proxy for a mode (see above).
 func proxyFunc(mode string) func(*http.Request) (*url.URL, error) {
 	mode = strings.TrimSpace(mode)
@@ -193,7 +185,7 @@ func proxyFunc(mode string) func(*http.Request) (*url.URL, error) {
 		}
 	}
 	return func(req *http.Request) (*url.URL, error) {
-		if isLoopback(req.URL.Hostname()) || mode == ProxyDirect {
+		if IsPrivateHost(req.URL.Hostname()) || mode == ProxyDirect {
 			return nil, nil
 		}
 		if fixed != nil {
@@ -208,7 +200,8 @@ func proxyFunc(mode string) func(*http.Request) (*url.URL, error) {
 
 // ProxyFunc is the proxy rule of mode ("" automatic: environment, then the
 // macOS system proxy; ProxyDirect; or a proxy URL) for an http.Transport.
-// Loopback hosts never go through a proxy. WebSocket dialers (streaming
+// Loopback and private hosts (IsPrivateHost) never go through a proxy;
+// nor does plain http (GuardPlain). WebSocket dialers (streaming
 // ASR, M2) use it as their Proxy.
 func ProxyFunc(mode string) func(*http.Request) (*url.URL, error) { return proxyFunc(mode) }
 
@@ -217,14 +210,14 @@ func ProxyFunc(mode string) func(*http.Request) (*url.URL, error) { return proxy
 // means no bound, for slow streaming answers such as an LLM's. Requests
 // are otherwise bounded by their context.
 func NewHTTPClient(mode string, responseHeader time.Duration) *http.Client {
-	return &http.Client{Transport: &http.Transport{
+	return &http.Client{CheckRedirect: CheckRedirect, Transport: GuardPlain(&http.Transport{
 		Proxy:                 proxyFunc(mode),
 		DialContext:           (&net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
 		TLSHandshakeTimeout:   15 * time.Second,
 		ResponseHeaderTimeout: responseHeader,
 		MaxIdleConnsPerHost:   16,
 		ForceAttemptHTTP2:     true,
-	}}
+	})}
 }
 
 // DescribeProxy says which proxy requests to a public HTTPS host use under

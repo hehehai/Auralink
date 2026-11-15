@@ -12,6 +12,7 @@ import (
 	"github.com/hehehai/Auralink/internal/asr"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/llm"
+	"github.com/hehehai/Auralink/internal/netx"
 	"github.com/hehehai/Auralink/internal/providers"
 	"github.com/hehehai/Auralink/internal/settings"
 )
@@ -95,6 +96,9 @@ func ProviderErrorText(err error) (msg, more string) {
 		return "", ""
 	}
 	more = err.Error()
+	if m := networkHint(err, false); m != "" {
+		return m, more
+	}
 	var ae *asr.Error
 	if errors.As(err, &ae) {
 		switch ae.Kind {
@@ -136,7 +140,7 @@ func ProviderErrorText(err error) (msg, more string) {
 		case llm.CodeServer:
 			return i18n.T("The service had a problem on its side. Try again in a moment."), more
 		case llm.CodeConfig:
-			return i18n.T("The setup is incomplete or wrong: check the endpoint (https:// only) and the model."), more
+			return i18n.T("The setup is incomplete or wrong: check the endpoint and the model."), more
 		case llm.CodeBadRequest, llm.CodeContextLength, llm.CodeFiltered:
 			return i18n.T("The service refused the request."), more
 		case llm.CodeCancelled:
@@ -150,6 +154,9 @@ func ProviderErrorText(err error) (msg, more string) {
 // ProviderErrorShort is a failed test's reason beside its button: a few
 // words, and what to change.
 func ProviderErrorShort(err error) string {
+	if m := networkHint(err, true); m != "" {
+		return m
+	}
 	var ae *asr.Error
 	if errors.As(err, &ae) {
 		switch ae.Kind {
@@ -191,7 +198,7 @@ func ProviderErrorShort(err error) string {
 		case llm.CodeServer:
 			return i18n.T("The service failed: try again later")
 		case llm.CodeConfig:
-			return i18n.T("Check the endpoint (https://) and model")
+			return i18n.T("Check the endpoint and model")
 		case llm.CodeBadRequest, llm.CodeContextLength, llm.CodeFiltered:
 			return i18n.T("Request refused: check the model")
 		case llm.CodeCancelled:
@@ -240,4 +247,24 @@ func ProviderErrorDetail(err error) string {
 		return strings.Join(parts, " · ")
 	}
 	return asr.Clip(err.Error(), 300)
+}
+
+// networkHint is what to do about two network failures of plain http to a
+// private network: a name that resolved to a public address (refused, see
+// netx.GuardPlain), and no route to the host, which is also how macOS
+// reports Local Network access denied. "" for any other error.
+func networkHint(err error, short bool) string {
+	switch {
+	case errors.Is(err, netx.ErrPlainPublic):
+		if short {
+			return i18n.T("Public address: use https://")
+		}
+		return i18n.T("http:// only reaches this Mac or a private network, and this server's address is public. Use https://.")
+	case netx.IsNoRoute(err):
+		if short {
+			return i18n.T("No route: allow Local Network")
+		}
+		return i18n.T("No route to the server. If it is on your network, allow Auralink in System Settings → Privacy & Security → Local Network.")
+	}
+	return ""
 }

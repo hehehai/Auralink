@@ -13,6 +13,7 @@ import (
 	"github.com/hehehai/Auralink/internal/actnow"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/icons"
+	"github.com/hehehai/Auralink/internal/netx"
 	"github.com/hehehai/Auralink/internal/providers"
 	"github.com/hehehai/Auralink/internal/settings"
 	"github.com/hehehai/Auralink/internal/uitext"
@@ -126,9 +127,9 @@ func (a *app) providerDialogView(c *ui.Context) {
 			a.keyField(c, acc, mask)
 			a.sharedKeyNotes(c, name, mask) // family_keys_view.go
 		}
-		epInfo := i18n.T("Leave empty for the service's own. Only https:// (wss:// for streaming) addresses, or http:// to this Mac.")
+		epInfo := i18n.T("Leave empty for the service's own. https:// (wss:// for streaming); http:// only to this Mac or a private network (LAN, Tailscale).")
 		if d.kind == providers.ASR && pr.Mode == providers.ModeFile && pr.ID != providers.StepFunASR {
-			epInfo = i18n.T("Any OpenAI-compatible transcription address (Groq, SiliconFlow…), or its API root ending in /v1. Only https://, or http:// to this Mac.")
+			epInfo = i18n.T("Any OpenAI-compatible transcription address (Groq, SiliconFlow…), or its API root ending in /v1. https://; http:// only to this Mac or a private network (LAN, Tailscale).")
 		}
 		fieldInfo(c, i18n.T("Endpoint"), epInfo, func() {
 			ph := pr.Endpoint
@@ -136,6 +137,9 @@ func (a *app) providerDialogView(c *ui.Context) {
 				ph = "https://…/v1"
 			}
 			ui.TextInput(c.Key("prov-endpoint"), &d.endpoint).Placeholder(ph).Label(i18n.T("Endpoint"))
+			if netx.PlainOverNetwork(d.endpoint) {
+				caption(c, i18n.T("Not encrypted: your key and text cross the network in plain text."))
+			}
 		})
 		fieldInfo(c, i18n.T("Model"), "", func() {
 			opts := append(slices.Clone(pr.Models), i18n.T("Other model…"))

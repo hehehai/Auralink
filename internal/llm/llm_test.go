@@ -579,7 +579,7 @@ func TestPresets(t *testing.T) {
 	if p.SecretName() != "llm.moonshot" {
 		t.Fatal(p.SecretName())
 	}
-	for _, base := range []string{"ftp://x", "http://api.example.com/v1", "https://u:p@api.example.com/v1", "http://192.168.1.9:8080/v1"} {
+	for _, base := range []string{"ftp://x", "http://8.8.8.8/v1", "http://[2001:4860::1]/v1", "https://u:p@api.example.com/v1"} {
 		if _, err := (ProviderConfig{ID: "x", Preset: "openai", BaseURL: base}).Resolve(); Code(err) != CodeConfig {
 			t.Errorf("%s: %v", base, err)
 		}
@@ -587,6 +587,13 @@ func TestPresets(t *testing.T) {
 	for _, base := range []string{"http://localhost:8080/v1", "http://127.0.0.1:1234/v1", "http://[::1]:9/v1"} {
 		if p, err := (ProviderConfig{ID: "x", Preset: "custom", BaseURL: base}).Resolve(); err != nil || !p.Local {
 			t.Errorf("%s: %v", base, err)
+		}
+	}
+	// A private network's server (or a name, checked when dialed) takes
+	// plain http but stays remote.
+	for _, base := range []string{"http://192.168.1.9:8080/v1", "http://100.88.1.2:3425/v1", "http://gpubox.tail1234.ts.net/v1", "http://[fd00::2]/v1"} {
+		if p, err := (ProviderConfig{ID: "x", Preset: "custom", BaseURL: base}).Resolve(); err != nil || p.Local {
+			t.Errorf("%s: %v, local %v", base, err, p.Local)
 		}
 	}
 	// ExtraBody: the preset's, merged with the setup's; nil removes a key.
