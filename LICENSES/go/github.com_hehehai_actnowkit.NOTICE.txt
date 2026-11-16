@@ -21,3 +21,20 @@ purego (github.com/ebitengine/purego)
   Copyright 2022 The Ebitengine Authors. Licensed under the Apache License 2.0.
   Used on macOS to call libSystem, Foundation, AppKit and the Security
   framework without cgo.
+
+golang.org/x/text (golang.org/x/text)
+  Copyright 2009 The Go Authors. Licensed under the BSD 3-Clause licence.
+  Used by lang: Unicode normalisation for search, BCP-47 tag parsing.
+
+Package lang embeds data derived from:
+
+OmniVoice language list (github.com/k2-fsa/OmniVoice, docs/lang_id_name_map.tsv)
+  Licensed under the Apache License 2.0.
+Whisper language table (github.com/openai/whisper, whisper/tokenizer.py)
+  Copyright (c) 2022 OpenAI. Licensed under the MIT licence.
+Unicode CLDR 48.2 (cldr.unicode.org)
+  Copyright © 2004-2026 Unicode, Inc. Licensed under the Unicode License v3.
+
+Package hanzi embeds tables derived from ICU's Hant-Hans and Hans-Hant
+transforms (as macOS ships them):
+  Copyright © 2016 and later Unicode, Inc. Licensed under the Unicode License v3.
