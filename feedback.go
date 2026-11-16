@@ -1,7 +1,8 @@
 package main
 
 // In-app feedback (wiring): actnowkit's feedback.Manager over actnow.dev
-// (AURALINK_FEEDBACK_SERVER for a development site), through Settings →
+// (AURALINK_FEEDBACK_SERVER for a development site, in development builds
+// only: not made by `mygo build`), through Settings →
 // Network's proxy, with diagnostics of Auralink's and the helper's logs,
 // the settings without the user's words and the lines of Settings →
 // About's diagnostics. Auralink has no licence: the site never knows who
@@ -22,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/hehehai/Auralink/internal/i18n"
 	"github.com/hehehai/Auralink/internal/logs"
 	"github.com/hehehai/Auralink/internal/logscrub"
@@ -31,15 +33,19 @@ import (
 )
 
 // feedbackSite is where feedback goes; feedbackSiteEnv overrides it (a
-// development copy of actnow.dev).
+// development copy of actnow.dev) in development builds.
 const (
 	feedbackSite    = "https://actnow.dev"
 	feedbackSiteEnv = "AURALINK_FEEDBACK_SERVER"
 )
 
+// feedbackDevBuild: a development build, which honours feedbackSiteEnv; a
+// published one sends only to actnow.dev, whatever its environment says.
+var feedbackDevBuild = mygo.IsDev
+
 // feedbackOptions are what differs between the app and tests.
 type feedbackOptions struct {
-	Base    string // the site ("": feedbackSiteEnv, else feedbackSite)
+	Base    string // the site ("": feedbackSiteEnv in a development build, else feedbackSite)
 	Dir     string // the outbox and the history ("": the data folder's feedback/)
 	LogDir  string // the logs ("": a.logDir)
 	Version string
@@ -49,7 +55,7 @@ type feedbackOptions struct {
 // newFeedback makes the Manager and hands it to Settings → Feedback.
 func (a *app) newFeedback(o feedbackOptions) (*feedback.Manager, error) {
 	base := o.Base
-	if base == "" {
+	if base == "" && feedbackDevBuild() {
 		base = os.Getenv(feedbackSiteEnv)
 	}
 	if base == "" {
