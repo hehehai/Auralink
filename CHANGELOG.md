@@ -4,6 +4,11 @@ All notable changes to Auralink. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [0.1.0-beta.6] - 2026-11-16
+
+### Fixed
+- Fixed a crash when logs contained malformed links: a link Auralink could not read (such as one with a broken `%` escape) in what it writes to its log could make it quit. Such links are now logged safely, with any password or key in them still hidden.
+
 ## [0.1.0-beta.5] - 2026-10-31
 
 ### Changed
