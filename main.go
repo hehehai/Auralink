@@ -103,6 +103,7 @@ func main() {
 
 	mygo.App.WhenReady(func() {
 		a.openWindow()        // shell.go
+		a.connectFeedback()   // feedback.go: Settings → Feedback, the outbox sent
 		a.applyBeta()         // updates.go: betas or not, before the first check
 		a.connectFamily()     // family.go: the ActNow family's directory, manifest, other apps
 		a.startHelper()       // helperlink.go

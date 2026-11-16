@@ -24,6 +24,7 @@ github.com/hehehai/Auralink
 │   ├── i18n/             T / N / X keyed by English source; locales/*.json; dates              (leaf)
 │   ├── icons/            Solar icons (names.txt → solar_gen.go)
 │   ├── logs/             log ring + rotated files
+│   ├── logscrub/         the user's words out of a log line before it leaves the Mac (feedback)  (leaf)
 │   ├── notify/           the notification centre (kept in the store's documents)
 │   ├── lang/             the language table, 652 languages                                     (leaf)
 │   ├── secrets/          API keys in the Keychain, service "Auralink"                          (leaf)
@@ -260,7 +261,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 |---|---|---|
 | `ui_kit.go` (split as AudioSmith's: `ui_buttons.go`, `ui_marks.go`, `ui_layout.go`, `ui_panels.go`, `ui_forms.go`), `ui_tokens.go` | same files | comments; `setAccent` (accent review shots) dropped |
 | `shell*.go` | same files | Auralink's sidebar groups and pages (a first group without a title); a smaller window (800×520, at least 680×440; AudioSmith 1100×720 and 820×520); no status bar: the version beside Settings, notifications as stacked cards over it (the rail: a dot, then a popover), the services and the helper as cards while something is wrong, instead of the bell, engine, jobs and downloads; no ⌘E quick switch; ? sheet lists the global shortcuts from the settings |
-| `shell_settings.go`, `settings_*.go`, `internal/datadir` (`storage_move.go`), `sysinfo.go` | same files | ten sections: General (app, main and other languages, menu bar, open at login), Permissions (permissions.go), Audio (the microphones' order, sounds), Overlay style (with a preview), Shortcuts (the table of every shortcut), Appearance (the sidebar: automatic, names and icons, icons only), Network (proxy only, provider hosts), Privacy (history, recordings, text in logs), Storage (Auralink's folders; erase removes provider keys), About, 诊断与关于 in Chinese (helper instead of engine) |
+| `shell_settings.go`, `settings_*.go`, `feedback*.go`, `internal/datadir` (`storage_move.go`), `sysinfo.go` | same files | eleven sections: General (app, main and other languages, menu bar, open at login), Permissions (permissions.go), Audio (the microphones' order, sounds), Overlay style (with a preview), Shortcuts (the table of every shortcut), Appearance (the sidebar: automatic, names and icons, icons only), Network (proxy only, provider hosts), Privacy (history, recordings, text in logs), Storage (Auralink's folders; erase removes provider keys), Feedback (feedback.go, feedback_page.go, feedback_view.go: actnowkit's `feedback.Manager` over actnow.dev, the email always asked for — no licence —, diagnostics through `internal/logscrub` and `feedbackSettings`; the GitHub issue stays in About), About, 诊断与关于 in Chinese (helper instead of engine) |
 | `permissions.go` | same file | a section of the settings dialog (after General): the Microphone and Accessibility only, through the helper; no browser Automation (addresses are read with AX) |
 | `tray.go` | `dictation_tray.go` | Auralink's menu (the last three results, a click copies one); a sound-wave icon, with a dot while recording |
 | `internal/core` | `core` | bus, ids, errors, notifications, log lines only; `Stream` dropped |
