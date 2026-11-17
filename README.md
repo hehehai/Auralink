@@ -122,7 +122,7 @@ Every preset has a default model and lets you type another. **Model services** s
 - **History** stays on this Mac, in `~/Library/Application Support/Auralink` (movable in **Settings → Storage**). **Settings → Privacy** turns the history off, turns keeping recordings on (off by default) and clears the history. Logs hold lengths and timings, not your text, unless you allow it.
 - **Browser addresses** are read through Accessibility only to choose an app enhancement group. They are never sent to a model; only the app's name is.
 - Besides your services, Auralink contacts actnow.dev to check for updates, and the hosts you test yourself in Settings (Network, the self-check).
-- Feedback goes to actnow.dev only when you send it from **Settings → Feedback** ([privacy policy](https://actnow.dev/legal/privacy)); you see what its diagnostics hold before sending, and they never include what you said or wrote. Bugs can also be reported as public issues on GitHub (**Settings → About → Report a bug**).
+- Feedback goes to actnow.dev only when you send it from the feedback window (**Help → Send Feedback…**, [privacy policy](https://actnow.dev/legal/privacy)); you see what its diagnostics and an error report hold before sending, and they never include what you said or wrote. Bugs can also be reported as public issues on GitHub (**Settings → About → Report a bug**).
 
 ## Install
 

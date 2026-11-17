@@ -165,13 +165,16 @@ Go modules compiled into Auralink
     authors, Apache License 2.0 (LICENSES/Apache-2.0.txt)
   - github.com/go-text/typesetting v0.3.5, Copyright 2021 The go-text
     authors, Unlicense OR BSD-3-Clause
-  - github.com/hehehai/actnowkit v0.21.0, Copyright 2026 ActNow
+  - github.com/hehehai/actnowkit v0.22.0, Copyright 2026 ActNow
     (https://actnow.dev), Apache License 2.0: the ActNow family protocol
     (finding the other ActNow apps, shared settings, shared API keys,
     shortcut conflicts), the logs' line selection (listsel) and the
-    cue sounds' catalogue and player (sounds; no audio) and the logs' secret redaction (redact). Its NOTICE, which names the origin of its hfhub
+    cue sounds' catalogue and player (sounds; no audio) and the logs' secret redaction (redact), the in-app feedback (feedback). Its NOTICE, which names the origin of its hfhub
     package (portions Copyright 2026 the AudioSmith authors), is copied
     unchanged into LICENSES/go/github.com_hehehai_actnowkit.NOTICE.txt.
+  - github.com/hehehai/actnowkit/feedbackui v0.22.0, a module of the
+    same repository (same copyright, Apache License 2.0, same licence
+    and NOTICE files): the feedback window.
   - golang.org/x/image v0.46.0, Copyright 2009 The Go Authors,
     BSD-3-Clause, with Google's patent grant (PATENTS)
   - golang.org/x/text v0.43.0, Copyright 2009 The Go Authors,

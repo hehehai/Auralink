@@ -156,6 +156,7 @@ func (a *app) trayItems() []*mygo.MenuItem {
 		&mygo.MenuItem{Label: i18n.T("Settings…"), Click: act(func() { a.showMainWindow(); a.navigate("/settings") })},
 	)
 	items = append(items, a.updateMenuItems(act)...) // updates.go
+	items = append(items, &mygo.MenuItem{Label: i18n.T("Send Feedback…"), Click: act(a.sendFeedback)})
 	return append(items,
 		mygo.Separator(),
 		&mygo.MenuItem{Label: i18n.T("Quit Auralink"), Click: act(func() { a.quitting = true; mygo.App.Quit() })},

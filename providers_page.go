@@ -89,6 +89,7 @@ type providerDialog struct {
 	prompt             string
 	enabled            bool
 	err, errMore       string // a save or check error
+	errKeychain        bool   // err is the Keychain's (a report link)
 	saving, removeKey  bool
 	test               providerTest
 	fam                dialogFamily // the ActNow family's key (family_keys.go)

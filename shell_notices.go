@@ -11,6 +11,7 @@ package main
 import (
 	"context"
 	"slices"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/hehehai/Auralink/internal/core"
@@ -261,6 +262,13 @@ func (a *app) noticeCard(c *ui.Context, n core.Notification) {
 				if b.Clicked() {
 					a.cardAction(n)
 				}
+			}
+			if n.ID == problemHelper {
+				st := a.helperStatus()
+				ui.Row(c).Children(func() { // at the start, as the action above
+					a.reportLink(c, failure{key: string(st.Reason) + "@" + st.Since.UTC().Format(time.RFC3339Nano), title: i18n.T("The helper stopped"),
+						code: codeHelper, kind: "helper_" + string(st.Reason), where: "Sidebar › Helper card", message: st.Err})
+				})
 			}
 		})
 	})

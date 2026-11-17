@@ -125,7 +125,17 @@ func (a *app) updatePanelBody(c *ui.Context) {
 		if st.Step == "check" {
 			msg = i18n.T("Cannot check for updates: %s", updateErrText(st.Err))
 		}
-		notice(c, "upd-failed", noticeError, msg, "", nil, nil)
+		kind, where := "update_install_failed", "Update panel"
+		if st.Step == "check" {
+			kind = "update_check_failed"
+		}
+		errMsg := ""
+		if st.Err != nil {
+			errMsg = st.Err.Error()
+		}
+		notice(c, "upd-failed", noticeError, msg, "", func() {
+			a.reportLink(c, failure{key: st.Step, title: i18n.T("The update failed"), code: codeUpdate, kind: kind, where: where, message: errMsg})
+		}, nil)
 		if st.Release == nil {
 			return
 		}

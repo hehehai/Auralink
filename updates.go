@@ -291,6 +291,7 @@ func (a *app) checkForUpdates() {
 		return
 	}
 	a.updUserCheck, a.updPanel = true, true
+	a.step("check_updates")
 	mgr := a.upd
 	a.async(func() { mgr.Check(context.Background()) })
 }
@@ -300,6 +301,7 @@ func (a *app) installUpdate() {
 	if a.upd == nil || a.updSt.Phase != akup.Available {
 		return
 	}
+	a.step("install_update")
 	mgr := a.upd
 	a.async(func() { mgr.Install(context.Background(), false) })
 }

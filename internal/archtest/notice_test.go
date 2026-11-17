@@ -12,10 +12,12 @@ import (
 // noticeElsewhere are the modules whose licence text is not a file of
 // LICENSES/go named after their version: the Apache-2.0 ones share
 // LICENSES/Apache-2.0.txt; MyGo is vendored, and its licence is a copy of
-// third_party/mygo/LICENSE (TestBundledNotices).
+// third_party/mygo/LICENSE (TestBundledNotices); actnowkit's feedbackui is
+// a module of actnowkit's repository, under its licence file.
 var noticeElsewhere = map[string]string{
-	"github.com/ebitengine/purego": "LICENSES/Apache-2.0.txt",
-	"github.com/egoist/mygo":       "LICENSES/go/github.com_egoist_mygo.LICENSE.txt",
+	"github.com/ebitengine/purego":            "LICENSES/Apache-2.0.txt",
+	"github.com/egoist/mygo":                  "LICENSES/go/github.com_egoist_mygo.LICENSE.txt",
+	"github.com/hehehai/actnowkit/feedbackui": "LICENSES/go/github.com_hehehai_actnowkit.LICENSE.txt",
 }
 
 // requires returns the modules go.mod requires, path → version.

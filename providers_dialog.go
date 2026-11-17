@@ -157,7 +157,14 @@ func (a *app) providerDialogView(c *ui.Context) {
 			})
 		}
 		if d.err != "" {
-			notice(c, "prov-dlg-err", noticeError, d.err, d.errMore, nil, func() { d.err, d.errMore = "", "" })
+			var report func()
+			if d.errKeychain {
+				report = func() {
+					a.reportLink(c, failure{key: string(d.kind) + "/" + d.id, title: i18n.T("Could not save the key in the Keychain."), code: codeKey,
+						kind: kindKeySave, where: "Model services › Service › Save", message: d.errMore})
+				}
+			}
+			notice(c, "prov-dlg-err", noticeError, d.err, d.errMore, report, func() { d.err, d.errMore, d.errKeychain = "", "", false })
 		}
 	}, func() {
 		if ui.Button(c.Key("prov-dlg-test"), i18n.T("Test connection")).Disabled(d.test.running || d.saving).Shrink(0).Clicked() {
@@ -238,6 +245,7 @@ func (a *app) testDialog() {
 		return
 	}
 	d.err, d.test = "", providerTest{running: true}
+	a.step("test_service")
 	key, proxy, id, logs := a.dialogKey(providers.Account(kind, p.ID)), a.prefs.Network.Proxy, d.id, a.logs
 	a.async(func() {
 		k, err := key()
@@ -272,7 +280,8 @@ func (a *app) saveProviderDialog(removeAll bool) {
 		return
 	}
 	label := "Auralink " + uitext.ProviderName(kind, p)
-	d.saving, d.err = true, ""
+	d.saving, d.err, d.errKeychain = true, "", false
+	a.step("save_service")
 	plan := a.dialogKeyPlan(p, key, remove, removeAll, label) // family_keys_save.go
 	op, family, service, ring := keyOp(key, remove), d.fam.vendor != "" && d.fam.share, providers.Name(kind, p), a.logs
 	a.async(func() {
@@ -285,6 +294,7 @@ func (a *app) saveProviderDialog(removeAll bool) {
 			a.provDlg.saving = false
 			if err != nil {
 				a.provDlg.err, a.provDlg.errMore = i18n.T("Could not save the key in the Keychain."), err.Error()
+				a.provDlg.errKeychain = true
 				a.loadKeyMasks([]string{acc}) // what the Keychain holds now
 				return
 			}
