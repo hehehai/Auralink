@@ -2,7 +2,7 @@
 
 Auralink 的重要变更。格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。本文件是 CHANGELOG.md 的简体中文版，版本段一一对应；更新面板和 actnow.dev 的更新日志按 app 或网页的语言显示其中一份（docs/release.md）。
 
-## [Unreleased]
+## [0.1.0-beta.7] - 2026-11-17
 
 ### 新增
 - **发送反馈**：独立的反馈窗口，在 App 里把问题、建议或提问发到 actnow.dev，可以附截图或录屏（窗口里直接预览）；也可以附上诊断信息（版本、设置和最近的日志，不含你说的话和写的文字、密钥、名字和地址），提交前能先查看。回复会显示在 App 里，也会发到邮箱；**设置 → 反馈** 列出你发过的反馈。离线时写的反馈会在联网后发出。**帮助 → 发送反馈…**、菜单栏和命令面板都能打开；GitHub issue 仍然可用。

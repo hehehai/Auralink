@@ -2,7 +2,7 @@
 
 All notable changes to Auralink. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). This file is English; CHANGELOG.zh-Hans.md has the same versions in Chinese. Each version's section is what the update panel and actnow.dev's changelog show, in the app's or the page's language (docs/release.md).
 
-## [Unreleased]
+## [0.1.0-beta.7] - 2026-11-17
 
 ### Added
 - **Send Feedback**: a window of its own to send a problem, a suggestion or a question to actnow.dev from the app, with screenshots or a screen recording (previewed in the window) and, if you want, diagnostics you can look at before sending (versions, settings and recent log lines, without what you said or wrote, keys, names or addresses). Replies show in the app and by email; **Settings → Feedback** lists what you sent. Feedback written offline is sent once you are online. **Help → Send Feedback…**, the menu bar and the command palette open it; GitHub issues still work.
