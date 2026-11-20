@@ -215,7 +215,7 @@ func TestFamilyKeyOffer(t *testing.T) {
 	drain()
 	a.provDlg.key = "sk-new-000000000c3d4"
 	frames(tt)
-	if !has(tt, "Also updates it in AudioSmith.") {
+	if !has(tt, "Shared across ActNow: the other apps get the new key too.") {
 		t.Errorf("no note: %q", tt.Texts())
 	}
 	click(t, tt, "Save")

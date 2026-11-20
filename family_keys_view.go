@@ -80,7 +80,7 @@ func (a *app) sharedKeyNotes(c *ui.Context, name, mask string) {
 		infoTip(c, i18n.T("Shared with other ActNow apps.")).Shrink(0)
 	})
 	if typed && f.share && f.ref != "" && len(f.users) > 0 {
-		caption(c, i18n.T("Also updates it in %s.", strings.Join(f.users, ", ")))
+		caption(c, i18n.T("Shared across ActNow: the other apps get the new key too."))
 	}
 }
 

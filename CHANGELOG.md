@@ -2,6 +2,11 @@
 
 All notable changes to Auralink. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). This file is English; CHANGELOG.zh-Hans.md has the same versions in Chinese. Each version's section is what the update panel and actnow.dev's changelog show, in the app's or the page's language (docs/release.md).
 
+## [Unreleased]
+
+### Changed
+- Shared settings and API keys say “Shared across ActNow” instead of naming the other ActNow apps.
+
 ## [0.1.0-beta.7] - 2026-11-17
 
 ### Added

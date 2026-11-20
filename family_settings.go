@@ -142,15 +142,19 @@ func (a *app) familyOtherNames() []string {
 }
 
 // sharedSource names the app the family's shared settings come from: the
-// one that wrote them last, when that is another app, else the other
-// apps installed.
+// one that wrote them last, when that is another app, else the other app
+// installed, or "Another ActNow app" for several (no list of names:
+// actnowkit v0.22.1).
 func (a *app) sharedSource() string {
 	if by := a.famShared.UpdatedBy; by != "" && (a.fam == nil || by != a.fam.self.BundleID) {
 		if _, _, err := family.ParseBundleID(by); err == nil {
 			return strings.Join(a.appNames([]string{by}), ", ")
 		}
 	}
-	return strings.Join(a.familyOtherNames(), ", ")
+	if others := a.familyOtherNames(); len(others) == 1 {
+		return others[0]
+	}
+	return i18n.T("Another ActNow app")
 }
 
 // sharedNote goes under a shared setting's row (spec §9.3, §9.4): whether
@@ -162,7 +166,6 @@ func (a *app) sharedNote(c *ui.Context, key string) {
 	}
 	t := c.Theme()
 	follows := actnow.Follows(a.prefs, key)
-	others := strings.Join(a.familyOtherNames(), ", ")
 	if actnow.Differs(a.prefs, key) && !follows {
 		text := i18n.T("%s uses a different proxy.", a.sharedSource())
 		if key == asettings.KeyLanguage {
@@ -180,13 +183,13 @@ func (a *app) sharedNote(c *ui.Context, key string) {
 		case a.famReadOnly:
 			caption(c, i18n.T("%s updated the shared format. Update Auralink to change these settings.", a.sharedSource()))
 		case follows:
-			caption(c, i18n.T("Shared with other ActNow apps"))
+			caption(c, i18n.T("Shared across ActNow"))
 			if ui.Link(c.Key("shared-own-"+key), i18n.T("Use a different setting for this app"), "").FontSize(px(t, fsCaption)).Clicked() {
 				a.ownShared(key)
 			}
 		default:
 			caption(c, i18n.T("Only for Auralink"))
-			if ui.Link(c.Key("shared-follow-"+key), i18n.T("Use the same setting as %s", others), "").FontSize(px(t, fsCaption)).Clicked() {
+			if ui.Link(c.Key("shared-follow-"+key), i18n.T("Use the same setting as the other ActNow apps"), "").FontSize(px(t, fsCaption)).Clicked() {
 				a.followShared(key)
 			}
 		}

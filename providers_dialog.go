@@ -320,7 +320,7 @@ func (a *app) keyField(c *ui.Context, acc, mask string) {
 			ph := i18n.T("Paste the key")
 			switch {
 			case mask != "" && !d.removeKey && d.fam.ref != "" && len(d.fam.users) > 0:
-				ph = i18n.T("Shared with %s: %s · paste a new one to replace it", strings.Join(d.fam.users, ", "), mask)
+				ph = i18n.T("Shared across ActNow: %s · paste a new one to replace it", mask)
 			case mask != "" && !d.removeKey:
 				ph = i18n.T("Saved: %s · paste a new one to replace it", mask)
 			}

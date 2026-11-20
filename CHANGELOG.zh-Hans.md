@@ -2,6 +2,11 @@
 
 Auralink 的重要变更。格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。本文件是 CHANGELOG.md 的简体中文版，版本段一一对应；更新面板和 actnow.dev 的更新日志按 app 或网页的语言显示其中一份（docs/release.md）。
 
+## [Unreleased]
+
+### 变更
+- 共享的设置和 API 密钥改为显示“ActNow 共用”，不再列出其他 ActNow App 的名字。
+
 ## [0.1.0-beta.7] - 2026-11-17
 
 ### 新增

@@ -110,7 +110,7 @@ func TestFamilySettingsFollow(t *testing.T) {
 	drain()
 	a.navigate("/settings/network")
 	frames(tt)
-	if !has(tt, "Shared with other ActNow apps") {
+	if !has(tt, "Shared across ActNow") {
 		t.Fatalf("no family note: %q", firstTexts(tt))
 	}
 	a.setShared(asettings.KeyProxy, "127.0.0.1:7890")
@@ -143,7 +143,7 @@ func TestFamilySettingsFollow(t *testing.T) {
 		t.Errorf("Auralink's own proxy went to the family: %q", v)
 	}
 	// Following again takes the family's.
-	click(t, tt, "Use the same setting as AudioSmith")
+	click(t, tt, "Use the same setting as the other ActNow apps")
 	drain()
 	if p := a.settings.Get().Network.Proxy; p != "socks5://127.0.0.1:1080" || !actnow.Follows(a.prefs, asettings.KeyProxy) {
 		t.Errorf("follows again: %q %+v", p, a.prefs.Family)
@@ -201,7 +201,7 @@ func TestFamilySettingsAlone(t *testing.T) {
 	for _, page := range []string{"/settings/general", "/settings/network"} {
 		a.navigate(page)
 		frames(tt)
-		for _, text := range []string{"Only for Auralink", "AudioSmith", "uses a different", "Use the same setting", "Use theirs", "ActNow"} {
+		for _, text := range []string{"Only for Auralink", "AudioSmith", "uses a different", "Use the same setting as the other ActNow apps", "Use theirs", "ActNow"} {
 			if has(tt, text) {
 				t.Errorf("%s: %q without another ActNow app", page, text)
 			}
@@ -211,7 +211,7 @@ func TestFamilySettingsAlone(t *testing.T) {
 	a.familyRefresh()
 	drain()
 	frames(tt)
-	if !has(tt, "Only for Auralink") || !has(tt, "Use the same setting as AudioSmith") {
+	if !has(tt, "Only for Auralink") || !has(tt, "Use the same setting as the other ActNow apps") {
 		t.Errorf("AudioSmith installed: %q", firstTexts(tt))
 	}
 	a.navigate("/settings/general")
