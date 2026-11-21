@@ -59,8 +59,8 @@ check "the helper is dev.hehehai.auralink.helper" has "$helper" '^Identifier=dev
 check "the app may use the microphone (audio-input)" entitled "$app" com.apple.security.device.audio-input
 check "the helper may use the microphone (audio-input)" entitled "$helper" com.apple.security.device.audio-input
 check "the helper is arm64" test "$(lipo -archs "$helper")" = arm64
-sqlite="$app/Contents/Frameworks/libSqlitecore.dylib"
-check "the store's SQLite library (Frameworks/libSqlitecore.dylib)" test -f "$sqlite"
+sqlite="$app/Contents/Resources/libSqlitecore.dylib"
+check "the store's SQLite library (Resources/libSqlitecore.dylib)" test -f "$sqlite"
 check "the SQLite library's signature (strict)" codesign --verify --strict "$sqlite"
 dmg="$(compgen -G "$dir/*.dmg" | head -1 || true)"
 ((want_dmg)) && check "a disk image" test -n "$dmg"

@@ -38,10 +38,10 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 echo "== build"
 nice -n 10 go build -tags logscheck -o "$app/Contents/MacOS/AuralinkLogsCheck" .
 swiftc -O scripts/logs-shots/drive.swift -o "$out/drive"
-# The store's SQLite, which mygo build puts in an app's Frameworks: from a
-# built one, into Resources, where MyGo looks first.
-for lib in "$HOME"/code/Auralink*/build/darwin-arm64/Auralink.app/Contents/Frameworks/libSqlitecore.dylib \
-  /Applications/Auralink.app/Contents/Frameworks/libSqlitecore.dylib; do
+# The store's SQLite, which mygo build puts among an app's resources: from
+# a built one.
+for lib in "$HOME"/code/Auralink*/build/darwin-arm64/Auralink.app/Contents/Resources/libSqlitecore.dylib \
+  /Applications/Auralink.app/Contents/Resources/libSqlitecore.dylib; do
   [[ -f "$lib" ]] && { cp "$lib" "$app/Contents/Resources/"; break; }
 done
 cat >"$app/Contents/Info.plist" <<'PLIST'
