@@ -4,6 +4,11 @@
 
 **Speak anywhere on your Mac; the text lands where your cursor is.**
 
+[![Website: actnow.dev/auralink](https://img.shields.io/badge/website-actnow.dev%2Fauralink-0d9384)](https://actnow.dev/auralink)
+[![Release](https://img.shields.io/github/v/release/hehehai/Auralink?include_prereleases&label=release&color=0d9384)](https://github.com/hehehai/Auralink/releases)
+![macOS 15+, Apple silicon](https://img.shields.io/badge/macOS-15%2B%20%C2%B7%20Apple%20silicon-0d9384)
+[![AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-0d9384)](LICENSE)
+
 ![Auralink: the main window, and a translation card over TextEdit](docs/images/hero.png)
 
 Auralink is a small voice input app for macOS. Press a shortcut in any app, speak, and the text is typed at the cursor: recognised by a speech service, cleaned up by a language model, adjusted to the app you are in. It also translates and rewrites, by voice or on the text you select.
@@ -12,7 +17,7 @@ It runs no models on your Mac. You choose the speech and language services (Step
 
 Auralink is a pared-down rewrite of [Voxt](https://github.com/hehehai/voxt), by the same author: Voxt's dictation, translation and rewriting, with remote models only, and without meetings, file transcription, notes or local models. Its interface and engineering come from [AudioSmith](https://github.com/hehehai/AudioSmith).
 
-> **Status: 0.1.0-beta.6, a beta.** Everything below is built and tested. Download it from [actnow.dev](https://actnow.dev/download/auralink) (sign in first); the product page is [actnow.dev/auralink](https://actnow.dev/auralink), with the [changelog](https://actnow.dev/auralink/changelog). Auralink is free and open source (GNU AGPL-3.0).
+> **Status: beta.** Everything below is built and tested. Download it from [GitHub Releases](https://github.com/hehehai/Auralink/releases) (no account needed) or [actnow.dev](https://actnow.dev/download/auralink) (sign in first); the product page is [actnow.dev/auralink](https://actnow.dev/auralink), with the [changelog](https://actnow.dev/auralink/changelog). Auralink is free and open source (GNU AGPL-3.0).
 
 <sub>Screenshots and recordings: Auralink 0.1.0-beta.1 on macOS 26, with sample data, StepFun for speech and DeepSeek for the language model.</sub>
 
@@ -128,7 +133,7 @@ Every preset has a default model and lets you type another. **Model services** s
 
 Auralink needs **macOS 15 or later on Apple silicon**. Intel Macs are not supported yet.
 
-1. Sign in at [actnow.dev/download/auralink](https://actnow.dev/download/auralink), download the disk image and drag Auralink to Applications. Releases are signed with a Developer ID and notarised by Apple, so they open without warnings.
+1. Download the disk image from [GitHub Releases](https://github.com/hehehai/Auralink/releases) (no account needed) or, signed in, from [actnow.dev/download/auralink](https://actnow.dev/download/auralink), and drag Auralink to Applications. Releases are signed with a Developer ID and notarised by Apple, so they open without warnings.
 2. Open it from Applications (an app run from the disk image cannot update itself). To update itself it must be able to write where it is: in `/Applications` that takes an administrator account; otherwise use `~/Applications`.
 3. The setup guide asks for two permissions:
    - **Microphone**: to record while a shortcut is active, and only then.

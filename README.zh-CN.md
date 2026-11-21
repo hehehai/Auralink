@@ -4,6 +4,11 @@
 
 **在 Mac 上任何地方说话，文字落在光标处。**
 
+[![官网：actnow.dev/auralink](https://img.shields.io/badge/%E5%AE%98%E7%BD%91-actnow.dev%2Fauralink-0d9384)](https://actnow.dev/zh/auralink)
+[![Release](https://img.shields.io/github/v/release/hehehai/Auralink?include_prereleases&label=release&color=0d9384)](https://github.com/hehehai/Auralink/releases)
+![macOS 15+, Apple silicon](https://img.shields.io/badge/macOS-15%2B%20%C2%B7%20Apple%20silicon-0d9384)
+[![AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-0d9384)](LICENSE)
+
 ![Auralink：主窗口，以及文本编辑上方的翻译卡片](docs/images/zh/hero.png)
 
 Auralink 是一个精简的 macOS 语音输入 app。在任意 App 里按下快捷键说话，文字就输入到光标处：语音识别服务转成文字，语言模型整理，并按你所在的 App 调整。它还能翻译和改写，对象可以是你说的话，也可以是选中的文字。
@@ -12,7 +17,7 @@ Auralink 是一个精简的 macOS 语音输入 app。在任意 App 里按下快�
 
 Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重写：保留 Voxt 的听写、翻译和改写，只用远程模型，去掉了会议、文件转录、笔记和本地模型。界面和工程沿用 [AudioSmith](https://github.com/hehehai/AudioSmith)。
 
-> **状态：0.1.0-beta.6，beta 版。** 下面的功能都已完成并通过测试。在 [actnow.dev](https://actnow.dev/download/auralink) 下载（需要先登录）；产品页是 [actnow.dev/auralink](https://actnow.dev/auralink)，[更新日志](https://actnow.dev/auralink/changelog)也在官网。Auralink 免费开源（GNU AGPL-3.0）。
+> **状态：beta 版。** 下面的功能都已完成并通过测试。在 [GitHub Releases](https://github.com/hehehai/Auralink/releases) 下载（不用注册），或在 [actnow.dev](https://actnow.dev/download/auralink) 下载（需要先登录）；产品页是 [actnow.dev/auralink](https://actnow.dev/auralink)，[更新日志](https://actnow.dev/auralink/changelog)也在官网。Auralink 免费开源（GNU AGPL-3.0）。
 
 <sub>截图和录屏：Auralink 0.1.0-beta.1，macOS 26，演示数据；语音识别用阶跃星辰，语言模型用 DeepSeek。</sub>
 
@@ -128,7 +133,7 @@ Auralink 是同一作者的 [Voxt](https://github.com/hehehai/voxt) 的精简重
 
 Auralink 需要 **macOS 15 及以上、Apple 芯片的 Mac**。暂不支持 Intel Mac。
 
-1. 登录 [actnow.dev/download/auralink](https://actnow.dev/download/auralink) 下载磁盘映像，把 Auralink 拖进“应用程序”。发布版本用 Developer ID 签名并经过 Apple 公证，打开时不会有安全警告。
+1. 从 [GitHub Releases](https://github.com/hehehai/Auralink/releases) 下载磁盘映像（不用注册），或登录 [actnow.dev/download/auralink](https://actnow.dev/download/auralink) 下载，把 Auralink 拖进“应用程序”。发布版本用 Developer ID 签名并经过 Apple 公证，打开时不会有安全警告。
 2. 从“应用程序”里打开（直接在磁盘映像里运行无法自动更新）。自动更新要求 Auralink 能写入它所在的位置：放在 `/Applications` 需要管理员账户，否则请放到 `~/Applications`。
 3. 设置引导会请求两项权限：
    - **麦克风**：只在快捷键触发录音时使用。
