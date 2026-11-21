@@ -1,6 +1,6 @@
 # 发布与更新
 
-Auralink 是开源软件（GNU AGPL-3.0，[LICENSE](../LICENSE)），仓库 [hehehai/Auralink](https://github.com/hehehai/Auralink) 是公开的；下载、更新和更新日志都在官网 [actnow.dev](https://actnow.dev/auralink)，**没有 GitHub Release**。公开仓库的 GitHub Actions 标准 runner（包括 macOS）不计额度。
+Auralink 是开源软件（GNU AGPL-3.0，[LICENSE](../LICENSE)），仓库 [hehehai/Auralink](https://github.com/hehehai/Auralink) 是公开的；下载、更新和更新日志都在官网 [actnow.dev](https://actnow.dev/auralink)；从 0.1.0-beta.7 起，每个版本在官网发布之后，还会建一个 GitHub Release，附已签名、公证的安装包 `Auralink-<版本>-arm64.dmg`（beta 版是 prerelease），给从 GitHub、awesome 列表或 Homebrew 来、不想注册账号的人下载（[scripts/release-github.sh](../scripts/release-github.sh)，工作流的 “GitHub release” 一步；用户 11-21 定）。已安装的 app 照旧从官网更新。公开仓库的 GitHub Actions 标准 runner（包括 macOS）不计额度。
 
 发布版本在 GitHub Actions 上构建：打一个 `v0.x.y` tag（正式版）或 `v0.x.y-beta.n` tag（beta 版），[release 工作流](../.github/workflows/release.yml)就在 macOS runner 上编译辅助进程和 app，用 Developer ID 签名，用 Apple ID 和 App 专用密码公证，用更新密钥签名更新包，然后用官网的发布脚本 [scripts/actnow-publish.sh](../scripts/actnow-publish.sh)（`https://actnow.dev/actnow-publish.sh` 的副本，见 §2.3）把文件交给官网后台。后台校验（大小、sha256、清单、Ed25519 签名、CHANGELOG）、存进 R2、写更新日志、发布，**清单最后写**。CI 只需要 `ACTNOW_INGEST_TOKEN`，没有 R2 的密钥。官网的说明在 actnow-www 仓库的 `docs/release-pipeline.md`。
 
@@ -325,7 +325,7 @@ MAC_DIR=code/Auralink-site scripts/mac.sh scripts/mac-beta-e2e.sh     # 两个�
 
 ## 8. 为什么这样做
 
-- **走官网，不用 GitHub Release**（用户 10-16 定）：仓库改为私有后，Release 的文件匿名读不到；官网统一管下载（要登录）、更新源和更新日志，家族的几个 app 都一样。文件经官网后台进 R2（官网 10-16 晚的新契约）：CI 不持有 R2 密钥，校验、发布顺序、beta 取较新的、版本号只升不降都由后台统一保证。
+- **走官网；GitHub Release 只放安装包**（用户 10-16 定走官网；仓库公开后，11-21 定 GitHub Release 也附 dmg，见开头）：仓库改为私有后，Release 的文件匿名读不到；官网统一管下载（要登录）、更新源和更新日志，家族的几个 app 都一样。文件经官网后台进 R2（官网 10-16 晚的新契约）：CI 不持有 R2 密钥，校验、发布顺序、beta 取较新的、版本号只升不降都由后台统一保证。
 - **`updates` 不写进仓库的 mygo.json**，只在发布时由 [scripts/release-config.sh](../scripts/release-config.sh) 合并 [release/mygo.release.json](../release/mygo.release.json)。核实过：`mygo.Updater.Enabled()` 只在 `mygo dev` 的开发构建里为 false；任何带 `updates` 的 `go tool mygo build`（包括 mac-air 上各线程的 ad-hoc 测试构建）都会链接更新源，放在可写目录里就会每天去检查，发布后会提示、甚至在开了自动安装时用正式版替换掉测试构建（替换只看路径，独立 bundle ID 的也一样）。公钥本身不是秘密，放在仓库里便于审阅。签名身份和公证配置同样只在 CI 里注入，所以 notarize 不会让本地 ad-hoc 构建报错。
 - **两个更新源，beta 取较新的**：和 Voxt（Sparkle 的两个 appcast）一样，也是官网的约定。开着 Beta 更新的 app 只读一个清单；“较新”由官网后台在发布时算好。读 beta 清单失败时退回正式版，所以 beta 通道出问题时 beta 用户仍能收到正式版。
 - **发布配置里 url 始终是正式版的，加 `prereleases`**，而不是像官网文档那样 beta 构建把 url 改成 `…/beta`：app 要能在两个通道之间切换（Beta 更新开关），就得同时知道两个更新源，增量也要读两个通道的清单；补丁 0006 让 beta 构建的文件地址落在 `…/beta/` 下，结果和官网要求的一样（后台检查的是清单里的地址）。

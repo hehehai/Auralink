@@ -46,6 +46,7 @@ on:
       - scripts/release-verify.sh
       - scripts/release-identity.sh
       - scripts/actnow-publish.sh
+      - scripts/release-github.sh
       - release/**
       - helper/Support/**
       - mygo.json
@@ -90,15 +91,15 @@ jobs:
           fi
 
       - name: shellcheck the release scripts
-        run: shellcheck scripts/release-config.sh scripts/release-verify.sh scripts/release-identity.sh scripts/build-helper.sh scripts/mac-update-e2e.sh scripts/mac-beta-e2e.sh
+        run: shellcheck scripts/release-config.sh scripts/release-verify.sh scripts/release-identity.sh scripts/release-github.sh scripts/build-helper.sh scripts/mac-update-e2e.sh scripts/mac-beta-e2e.sh
 
   release:
     needs: lint
     runs-on: macos-26
-    # Publishing goes to actnow.dev with its own token: the job only reads
-    # the repository.
+    # Publishing goes to actnow.dev with its own token; the job writes to
+    # the repository only for the GitHub release (scripts/release-github.sh).
     permissions:
-      contents: read
+      contents: write
     timeout-minutes: 60
     env:
       # Publish: a tag push, or a run by hand from a tag with dry_run off.
@@ -333,6 +334,17 @@ jobs:
             args+=(--dry-run)
           fi
           bash scripts/actnow-publish.sh "${args[@]}"
+
+      # After the site took the version: the GitHub release with the signed
+      # and notarized disk image, for people who come from GitHub, awesome
+      # lists or Homebrew (no account needed). A beta is a prerelease. If
+      # this step fails, run scripts/release-github.sh with the run's
+      # artifact in build/darwin-arm64 (docs/release.md).
+      - name: GitHub release
+        if: env.UPLOAD == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/release-github.sh "v$VERSION"
 
       # Every run keeps what it built, published or not: a publication
       # that failed can be sent again from it (docs/release.md).
