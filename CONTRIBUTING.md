@@ -28,16 +28,15 @@ Auralink is a Go app on [MyGo](https://github.com/egoist/mygo) (native UI, no cg
 ```sh
 CGO_ENABLED=0 go test ./...                                  # all tests (Linux and Mac)
 go tool mygo vet .                                           # go vet and MyGo's UI checks
-git ls-files '*.go' ':!:third_party/**' | xargs gofmt -l    # must print nothing
+git ls-files '*.go' | xargs gofmt -l                         # must print nothing
 go test -run TestKeyParity ./internal/i18n                   # strings and zh-Hans
 AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .   # every page as PNG
 scripts/snapshots.sh check                                   # which snapshots your branch changes
-scripts/vendor-mygo.sh --check                               # the vendored MyGo is intact
 cd helper && swift test                                      # the Swift helper (on a Mac)
 scripts/build-helper.sh && go tool mygo build                # build the app (on a Mac)
 ```
 
-The store's tests use MyGo's SQLite plugin, which downloads its library once (checked against its SHA-256) or uses `MYGO_SQLITE_LIBRARY`. On Linux the overlay's pixel checks of Chinese text need a CJK font (Ubuntu: `fonts-noto-cjk`). What needs permissions, a screen or real services is checked by hand: [docs/manual-test.md](docs/manual-test.md).
+The store's tests use MyGo's SQLite plugin, which downloads its library once (checked against its SHA-256) or uses the file `MYGO_NATIVE_SQLITECORE` names. On Linux the overlay's pixel checks of Chinese text need a CJK font (Ubuntu: `fonts-noto-cjk`). What needs permissions, a screen or real services is checked by hand: [docs/manual-test.md](docs/manual-test.md).
 
 A build from this repository plays macOS's system sounds for the start and the end of a recording: the official builds' sounds come from the ActNow family's private library and are not in the repository ([NOTICE](NOTICE)).
 

@@ -27,10 +27,10 @@ jobs:
     # The release the CJK fonts' package below is from.
     runs-on: ubuntu-24.04
     env:
-      # The MyGo SQLite plugin loads a prebuilt library. Tests would download
-      # it on first use; CI fetches it once, checks its sha256 against the
-      # plugin's manifest and points the plugin at it.
-      SQLITE_ASSET: mygo-sqlite3-linux-amd64.so
+      # The MyGo SQLite plugin loads a prebuilt library (its native module
+      # Sqlitecore). Tests would download it on first use; CI fetches it
+      # once, checks its sha256 against the module's manifest and points
+      # the plugin at it (MYGO_NATIVE_SQLITECORE).
       # Pango draws Chinese with what fontconfig finds, and the runner has
       # no CJK font: the overlay's ink checks of Chinese text saw nothing.
       # It gets the CJK fonts a dev machine (Ubuntu 24.04) has, so that the
@@ -51,8 +51,8 @@ jobs:
       - name: SQLite library for the MyGo plugin
         id: sqlite
         run: |
-          dir="$(go list -m -f '{{.Dir}}' github.com/egoist/mygo)/plugins/sqlite"
-          read -r url sum < <(jq -r '.libraries[0].files["linux-amd64"] | "\(.url) \(.sha256)"' "$dir/mygo-plugin.json")
+          dir="$(go list -m -f '{{.Dir}}' github.com/egoist/mygo)/plugins/sqlite/internal/sqlitecore"
+          read -r url sum < <(jq -r '.libraries[] | select(.name == "Sqlitecore") | .files["linux-amd64"] | "\(.url) \(.sha256)"' "$dir/mygo-plugin.json")
           echo "sha=$sum" >> "$GITHUB_OUTPUT"
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
@@ -65,12 +65,12 @@ jobs:
       - name: Fetch and verify the SQLite library
         run: |
           mkdir -p ~/.cache/mygo-ci/sqlite
-          lib=~/.cache/mygo-ci/sqlite/libmygo-sqlite3.so
+          lib=~/.cache/mygo-ci/sqlite/libSqlitecore.so
           if [ ! -f "$lib" ]; then
             curl -fsSL --retry 3 -o "$lib" "${{ steps.sqlite.outputs.url }}"
           fi
           echo "${{ steps.sqlite.outputs.sha }}  $lib" | sha256sum -c -
-          echo "MYGO_SQLITE_LIBRARY=$lib" >> "$GITHUB_ENV"
+          echo "MYGO_NATIVE_SQLITECORE=$lib" >> "$GITHUB_ENV"
 
       - name: Font packages' cache key
         id: fonts
@@ -101,7 +101,7 @@ jobs:
 
       - name: gofmt
         run: |
-          bad="$(git ls-files -z '*.go' ':!:third_party/**' | xargs -0 gofmt -l)"
+          bad="$(git ls-files -z '*.go' | xargs -0 gofmt -l)"
           if [ -n "$bad" ]; then
             echo "::error::not gofmt-ed (run gofmt -w): $bad"
             exit 1

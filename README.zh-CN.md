@@ -190,7 +190,7 @@ AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .   # 每个页面的�
 cd helper && swift test              # Swift 辅助进程的测试（在 Mac 上），和 Go 用同一份协议 fixtures
 ```
 
-存储层的测试用 MyGo 的 SQLite 插件，第一次会下载它的库（校验 SHA-256），也可以用 `MYGO_SQLITE_LIBRARY` 指定。在 Linux 上，浮窗中文文字的像素检查需要 CJK 字体（Ubuntu 装 `fonts-noto-cjk`）。本 README 的截图和录屏来自 Mac 上的演示构建：[scripts/readme-media](scripts/readme-media/README.md)。
+存储层的测试用 MyGo 的 SQLite 插件，第一次会下载它的库（校验 SHA-256），也可以用 `MYGO_NATIVE_SQLITECORE` 指定。在 Linux 上，浮窗中文文字的像素检查需要 CJK 字体（Ubuntu 装 `fonts-noto-cjk`）。本 README 的截图和录屏来自 Mac 上的演示构建：[scripts/readme-media](scripts/readme-media/README.md)。
 
 CI 在 Linux 上跑 gofmt、Go 测试（含 race 检测）和 MyGo vet，在 macOS 上跑辅助进程的测试。需要权限、屏幕和真实服务的部分，按 [docs/manual-test.md](docs/manual-test.md) 手动验证。发布版本由 GitHub Actions 在打 tag 时构建、签名、公证，发布到 actnow.dev，见 [docs/release.md](docs/release.md)。
 
@@ -204,7 +204,7 @@ CI 在 Linux 上跑 gofmt、Go 测试（含 race 检测）和 MyGo vet，在 mac
 
 - [Voxt](https://github.com/hehehai/voxt)：Auralink 按功能逐项重写了它的行为，只用远程模型。浮窗的图标、菜单栏的麦克风图标和浮窗预览的背景图来自 Voxt。
 - [AudioSmith](https://github.com/hehehai/AudioSmith)：窗口外壳、UI 组件、设置、存储，以及辅助进程监管程序的原型都来自它。
-- [MyGo](https://github.com/egoist/mygo)：用 Go 写原生 macOS 界面，不用 cgo（MIT 许可）。
+- [MyGo](https://github.com/egoist/mygo)：用 Go 写原生 macOS 界面，不用 cgo（MIT 许可），经由 ActNow 维护的分支 [hehehai/mygo](https://github.com/hehehai/mygo)。
 - 480 Design 的 [Solar](https://www.figma.com/community/file/1166831539721848736) 图标，以 CC BY 4.0 授权。
 
 ## 参与贡献

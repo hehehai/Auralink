@@ -89,9 +89,10 @@ github.com/hehehai/Auralink
 │   ├── archtest/         tests of the code's structure only: file sizes, import layering ("Code structure rules")
 │   └── tools/            developer commands (standard library only): snapcmp (snapshot comparison),
 │                         declhash (pure-move check)
-├── helper/               the Swift helper (helper/README.md): Sources/, Tests/, Fixtures/, Support/
-└── third_party/mygo/     MyGo 0.4.8 with three patches (scripts/vendor-mygo.sh)
+└── helper/               the Swift helper (helper/README.md): Sources/, Tests/, Fixtures/, Support/
 ```
+
+MyGo is ActNow's fork, github.com/hehehai/mygo (go.mod's replace; its ACTNOW.md lists the changes): a change to MyGo goes there.
 
 The plan's `textio` is the helper's `textio.*` (session.HelperText adapts it).
 
@@ -228,8 +229,8 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `a.tryCard(c, tryOpts)` (a Try area), `a.tryIntro(feature)`, `a.startTry(kind)`, `a.startSessionID(req)` (the id, to tell a try from another session) | try_card.go, session_control.go | the feature pages, Home, the setup guide |
 | `a.tryPlace(kind, target)` (where a shortcut pressed while Auralink is in front runs as a try), `a.tryStarted`, `a.homeChanged()`, `readHome` (today's numbers and the recent results, off the main thread), `a.readinessList()`, `a.openHistoryEntry(e)` | home_page.go, home_ready.go (readiness), home_try.go (try places) | session_hotkeys.go (`hotkeyFired`), history_page.go (`historyChanged`) |
 | `a.openOnboarding()`, `a.maybeOnboard()` (first start), `a.obSessionChanged(s)` (a step passes on its own session's result), `a.obOwns(id)`, `a.onboardingRow(c)` | onboarding.go (onboarding_view.go: the dialog; onboarding_steps.go: the steps) | shell.go (`openWindow`), session_link.go, Settings → General, Home, ⌘K |
-| `floatingWindowOptions(…)`, `showFloating(w, x, y)` (non-activating windows, mygo patch 0003), `hudContent(view)` (their text unsmoothed, patch 0005), `activateTarget(pid)` (`macx.Activate`) | floating.go | the recording pill and the answer card (M3, M4) |
-| `a.upd` (`updateService`: MyGo's updater plugin; `fakeUpdates` in tests), `a.checkForUpdates()`, `a.updateMenuItems(act)`, `a.bundleStale` (`appbundle.Updated`), `a.appUpdated()` (the restart card), `a.relaunch()` (`appRelaunch`) | updates.go | the app menu, the menu bar, ⌘K, Settings → About, the helper's card (FailUpdated), Home |
+| `floatingWindowOptions(…)`, `showFloating(w, x, y)` (panels that never take the keyboard, `mygo.PanelKeyboardNever`), `hudContent(view)` (their text unsmoothed, `ui.Content.FontSmoothing`), `activateTarget(pid)` (`macx.Activate`) | floating.go | the recording pill and the answer card (M3, M4) |
+| `a.upd` (`updateService`: MyGo's updater plugin; `fakeUpdates` in tests), `a.checkForUpdates()`, `a.updateMenuItems(act)`, `a.bundleStale` (`appStale`: an update staged, `updateStaged`, or `appbundle.Updated`), `a.appUpdated()` (the restart card), `a.relaunch()` (`appRelaunch`) | updates.go | the app menu, the menu bar, ⌘K, Settings → About, the helper's card (FailUpdated), Home |
 | `a.fam` (`*familyLink`: the family directory and Auralink in it; nil outside the family), `a.famFound` (the family apps), `a.famShared`, `a.connectFamily()`, `a.familyRefresh()`, `a.syncManifest()`, `a.stampShortcuts(old)` | family.go | main.go, `settingsChanged`, the window's activation (tray.go) |
 | `a.keySource()` (`keysFor(s, own, shared)`: a service's key, its own or the family's; `Mask` without reading a family key), `a.famCreds` (the family's keys for goroutines), `a.provDlg.fam` (the dialog's offer, the share box, `dialogKeyJob`), `eraseSharedKeys` | family_keys.go, family_keys_view.go | the session resolver (session_link.go), Model services (cards, tests, the dialog), Settings → Storage (erase) |
 | `a.famConflicts`, `a.checkConflicts()`, `a.familyHits(keys)` ("Also used by …"), `a.conflictLinks(c)`; `a.textIO()` (`pasteGuard`) | family_shortcuts.go, family_paste.go | Settings → Shortcuts, the feature pages' shortcuts; the session manager, Paste the last result, the card's Insert |
@@ -273,7 +274,7 @@ While a session is live (or the answer card shows) the bindings go to the helper
 | `internal/permission` | `dictation/system_darwin.go` | Microphone and Accessibility only; the page asks the helper first |
 | `helper/` (Swift) | `engine/Sources` (`Server.swift`, `Capture.swift`, the protocol target's `Wire.swift`) and the M0 spikes | no MLX; the M0 spike's capture, event tap, text I/O and browser code, made protocol 1 (docs/helper-protocol.md §6) |
 | `internal/i18n`, `icons`, `logs`, `notify`, `lang` | same | zh-Hans rebuilt from what Auralink uses (304 strings at M1); the icons of `names.txt` (53 at M6); log file `auralink.log` |
-| `third_party/mygo`, `scripts/vendor-mygo.sh`, `scripts/mac.sh`, CI | same | renamed; patch 0003 (non-activating windows) is Auralink's |
+| `scripts/mac.sh`, CI | same | renamed (AudioSmith's vendored MyGo and its patches gave way to ActNow's fork of MyGo) |
 
 | `internal/llm` | `llm` | no engine backend, no dubbing skills, no Ollama/LM Studio presets; skills `transcribe_enhance`, `translate_text`, `rewrite`; Volcengine Ark, MiniMax, StepFun, MiMo presets; `extraBody` (thinking off); https-only base URLs; `Probe` (its README) |
 
@@ -283,7 +284,7 @@ Not taken: jobs, hub (downloads), catalog, licence, engine's MLX side, services,
 
 | What | Command | Notes |
 |---|---|---|
-| All Go tests | `CGO_ENABLED=0 go test ./...` | Views in `ui.Tester` with a fake supervisor in process; the real supervisor against the fake helper process; protocol fixtures; the store over real SQLite (the plugin's library is downloaded and checked once, or `MYGO_SQLITE_LIBRARY`); i18n key parity |
+| All Go tests | `CGO_ENABLED=0 go test ./...` | Views in `ui.Tester` with a fake supervisor in process; the real supervisor against the fake helper process; protocol fixtures; the store over real SQLite (the plugin's library is downloaded and checked once, or `MYGO_NATIVE_SQLITECORE`); i18n key parity |
 | MyGo vet | `go tool mygo vet .` | `go vet ./...` and the UI-lifetime checks |
 | Race | `CGO_ENABLED=1 go test -race ./...` | needs cgo |
 | Snapshots, compared | `scripts/snapshots.sh check [BASE]` (`twice`: is it reproducible?; `render DIR`) | every set below (main, min, home, overlay, ink) of BASE (default: the merge base with origin/main) and of the working tree, compared pixel for pixel by `internal/tools/snapcmp`; about a minute; the pictures of what differs in `$SNAP_TMP/diff`. New snapshot tests call `runSnapshots` and make their directories with `testDir` (snapshot_env_test.go). The overlay's flows (`AURALINK_FLOW_SHOTS`) are left out: they run real goroutines, and their tests check the steps |

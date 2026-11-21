@@ -59,6 +59,9 @@ check "the helper is dev.hehehai.auralink.helper" has "$helper" '^Identifier=dev
 check "the app may use the microphone (audio-input)" entitled "$app" com.apple.security.device.audio-input
 check "the helper may use the microphone (audio-input)" entitled "$helper" com.apple.security.device.audio-input
 check "the helper is arm64" test "$(lipo -archs "$helper")" = arm64
+sqlite="$app/Contents/Frameworks/libSqlitecore.dylib"
+check "the store's SQLite library (Frameworks/libSqlitecore.dylib)" test -f "$sqlite"
+check "the SQLite library's signature (strict)" codesign --verify --strict "$sqlite"
 dmg="$(compgen -G "$dir/*.dmg" | head -1 || true)"
 ((want_dmg)) && check "a disk image" test -n "$dmg"
 
@@ -87,7 +90,7 @@ if [[ "$mode" == developer-id || "$mode" == unnotarized ]]; then
 elif [[ "$mode" == ad-hoc ]]; then
   check "signed ad hoc" has "$app" '^Signature=adhoc$'
 fi
-# CFBundleVersion is the version's numbers (MyGo patch 0007), as Apple wants.
+# CFBundleVersion is the version's numbers (mygo build writes them), as Apple wants.
 build_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist")"
 numbers() { [[ "$1" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; }
 check "CFBundleVersion $build_version is numbers" numbers "$build_version"

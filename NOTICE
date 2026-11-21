@@ -60,10 +60,9 @@ AudioSmith
   (https://github.com/hehehai/AudioSmith) at commit f171c86, Copyright 2026
   the AudioSmith authors, licensed under the Apache License 2.0
   (LICENSES/Apache-2.0.txt): the window shell and UI kit, the settings,
-  store, i18n, logs, notification and Keychain code, the MyGo patches 0001
-  and 0002, and the helper supervisor (adapted from its engine
-  supervisor). They have been modified; docs/architecture.md lists what
-  was taken and how it changed.
+  store, i18n, logs, notification and Keychain code, and the helper
+  supervisor (adapted from its engine supervisor). They have been
+  modified; docs/architecture.md lists what was taken and how it changed.
 
 VoxtNew log selection
   The logs' line selection and order (shell_logs_select.go,
@@ -149,14 +148,14 @@ Speech sample
 
 MyGo
   Copyright (c) 2026 MyGo contributors — https://github.com/egoist/mygo
-  Licensed under the MIT License (third_party/mygo/LICENSE, copied to
+  Licensed under the MIT License (its LICENSE, copied to
   LICENSES/go/github.com_egoist_mygo.LICENSE.txt). Auralink builds
-  against a copy with its own patches (third_party/mygo-patches), made by
-  scripts/vendor-mygo.sh, until upstream releases the fixes. The patches
-  are licensed under MyGo's MIT License, so that they can go upstream
-  (third_party/mygo-patches/README.md).
-  Auralink.app also carries MyGo's prebuilt SQLite library (SQLite 3.53.4,
-  https://sqlite.org, in the public domain).
+  against ActNow's fork of it, https://github.com/hehehai/mygo, at the
+  version go.mod's replace names: upstream MyGo with ActNow's changes,
+  under the same MIT License (the fork's ACTNOW.md lists them).
+  Auralink.app also carries MyGo's prebuilt SQLite library
+  (libSqlitecore.dylib: SQLite 3.53.4, https://sqlite.org, in the public
+  domain).
 
 Go modules compiled into Auralink
   Their licence files are copied unchanged into LICENSES/go/.

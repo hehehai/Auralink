@@ -24,16 +24,20 @@ package main
 // workflow (docs/release.md), so other builds cannot update themselves
 // (the Manager is Disabled).
 //
-// The updater replaces Auralink.app while the old version runs. Until it
-// restarts, the helper on disk is the new version's: the supervisor does
-// not start it (helper.FailUpdated), and a card asks to restart Auralink
-// (appUpdated), which a timer, a check and the helper's failure look for
-// (checkBundle, appbundle.Updated).
+// Update.Install leaves the new version staged: on macOS MyGo replaces
+// Auralink.app once the running version has exited (Relaunch, a quit, a
+// crash), so that the Dock keeps its tile. From the install on, the app
+// behaves as an updated one, as when the updater replaced the bundle at
+// once (MyGo 0.5): the supervisor starts no helper (helper.FailUpdated)
+// and a card asks to restart Auralink (appUpdated). Besides the staged
+// update (updateStaged), a timer, a check and the helper's failure look
+// for a bundle replaced on disk by other means, such as a new copy
+// dragged over the running one (checkBundle, appbundle.Updated).
 //
 // Beta updates (Settings → About): betas are in the feed's beta channel
 // (https://actnow.dev/updates/auralink/beta, whose manifest is the newer
 // of the newest beta and release), which MyGo reads only while
-// mygo.Updater.SetPrereleases is on (patch 0006); the switch is
+// mygo.Updater.SetPrereleases is on (updates.prereleases); the switch is
 // Updates.Beta in Auralink's settings, on by default while the running
 // version is itself a beta (settings.Updates.BetaOn), and applied when the
 // app starts and when it changes (applyBeta). The changelog then lists
@@ -69,6 +73,23 @@ func argAfter(flag string) string {
 		}
 	}
 	return ""
+}
+
+// updateStaged is set once Update.Install staged a new version, which
+// replaces the app on disk when Auralink exits: from then on the app is
+// stale (appStale) as one whose bundle was replaced. Any goroutine.
+var updateStaged atomic.Bool
+
+// installStaged is up.Install, which marks the update staged when it
+// succeeds.
+func installStaged(install func(ctx context.Context, progress func(downloaded, total int64)) error) func(ctx context.Context, progress func(downloaded, total int64)) error {
+	return func(ctx context.Context, progress func(downloaded, total int64)) error {
+		err := install(ctx, progress)
+		if err == nil {
+			updateStaged.Store(true)
+		}
+		return err
+	}
 }
 
 // updateSlug is Auralink on actnow.dev (feed, changelog API).
@@ -156,7 +177,7 @@ func (a *app) connectUpdates() {
 					if err != nil || up == nil {
 						return nil, err
 					}
-					return &akup.Release{Version: up.Version, Notes: up.Notes, Date: up.Date, Install: up.Install}, nil
+					return &akup.Release{Version: up.Version, Notes: up.Notes, Date: up.Date, Install: installStaged(up.Install)}, nil
 				},
 			},
 			Current:  version,

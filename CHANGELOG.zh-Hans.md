@@ -6,6 +6,7 @@ Auralink 的重要变更。格式参照 [Keep a Changelog](https://keepachangelo
 
 ### 变更
 - 共享的设置和 API 密钥改为显示“ActNow 共用”，不再列出其他 ActNow App 的名字。
+- 应用框架换成 ActNow 维护的 v0.10.0-actnow.3（基于上游 0.10.0）。
 
 ## [0.1.0-beta.7] - 2026-11-17
 

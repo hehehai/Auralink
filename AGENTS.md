@@ -1,6 +1,6 @@
 # Working on Auralink
 
-Auralink is a macOS voice input app on remote models: Go + MyGo (native UI, no cgo) and a small Swift helper. Read [docs/architecture.md](docs/architecture.md) first; [docs/behavior.md](docs/behavior.md) compares its behaviour with Voxt's.
+Auralink is a macOS voice input app on remote models: Go + MyGo (native UI, no cgo; ActNow's fork github.com/hehehai/mygo, go.mod's replace: changes to MyGo go there, never into this repository) and a small Swift helper. Read [docs/architecture.md](docs/architecture.md) first; [docs/behavior.md](docs/behavior.md) compares its behaviour with Voxt's.
 
 ## Rules
 
@@ -29,7 +29,6 @@ scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'   # the Swift hel
 scripts/mac.sh 'cd helper && swift test'                     # the helper's tests (same fixtures as Go)
 MAC_DIR=code/Auralink-mt scripts/mac.sh scripts/mac-e2e.sh   # headless Mac tests: real helper, no window or key (--offline: no services)
 MAC_DIR=code/Auralink-logsel scripts/mac.sh scripts/mac-logs-shots.sh   # the logs' selection worked with the real pointer and captured (only while nobody uses the Mac; AURALINK_SHOTS_DRY=1: the window only)
-scripts/vendor-mygo.sh --check                               # third_party/mygo is MyGo + our patches
 scripts/snapshots.sh check                                   # every snapshot, pixel for pixel, against the merge base
 go run ./internal/tools/declhash . ./internal/...            # a hash per declaration: equal before and after a pure move
 go vet -tags demo ./... && go vet -tags updatecheck . && go vet -tags logscheck .   # the demo, update-check and logs-check builds (CI does too)

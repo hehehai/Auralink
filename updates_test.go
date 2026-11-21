@@ -606,3 +606,20 @@ func TestBundleWatch(t *testing.T) {
 		t.Errorf("the card outlived the restart: %+v", b.notices)
 	}
 }
+
+// TestInstallStaged: an update Install staged (MyGo replaces the bundle
+// once the app exits) makes the app stale at once, as a bundle replaced
+// on disk did: the supervisor starts no helper and the card shows. A
+// failed install leaves it as it was.
+func TestInstallStaged(t *testing.T) {
+	t.Cleanup(func() { updateStaged.Store(false) })
+	resources := t.TempDir() // no Info.plist: appbundle.Updated is false
+	failed := installStaged(func(context.Context, func(int64, int64)) error { return errors.New("offline") })
+	if err := failed(context.Background(), nil); err == nil || appStale(resources, "0.1.0") {
+		t.Fatalf("a failed install: %v, stale %v", err, appStale(resources, "0.1.0"))
+	}
+	ok := installStaged(func(context.Context, func(int64, int64)) error { return nil })
+	if err := ok(context.Background(), nil); err != nil || !appStale(resources, "0.1.0") {
+		t.Fatalf("a staged install: %v, stale %v", err, appStale(resources, "0.1.0"))
+	}
+}

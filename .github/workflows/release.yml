@@ -9,7 +9,7 @@
 # publishes the version (the update feed https://actnow.dev/updates/auralink,
 # betas …/beta, the changelog and the login-gated download). Installed apps
 # see the update at their next check; betas only those with Beta updates
-# on (MyGo patch 0006, updates.prereleases).
+# on (mygo.json updates.prereleases).
 #
 # - Run by hand (workflow_dispatch) it builds the same, signed and
 #   notarized when the secrets are there (notarize off skips the
@@ -296,7 +296,7 @@ jobs:
           jq '{version, identifier, macos: (.macos | {signingIdentity, notarize, entitlements, helperEntitlements}), updates}' mygo.json
 
       # Deltas come from the newest version of both channels on
-      # actnow.dev (MyGo patch 0006).
+      # actnow.dev (updates.prereleases).
       - name: Build${{ steps.secrets.outputs.signed == 'true' && env.NOTARIZE == 'true' && ' and notarize' || '' }}
         env:
           MYGO_UPDATER_PRIVATE_KEY: ${{ steps.secrets.outputs.signed == 'true' && secrets.MYGO_UPDATER_PRIVATE_KEY || '' }}
@@ -307,6 +307,13 @@ jobs:
             args+=(-skip-notarize)
           fi
           go tool mygo build "${args[@]}"
+          # mygo build names the disk image after the slug
+          # (auralink-<version>-arm64.dmg); it is published as before,
+          # Auralink-<version>-arm64.dmg (the download's file name).
+          for f in build/darwin-arm64/auralink-*.dmg; do
+            [[ -e "$f" ]] && mv "$f" "build/darwin-arm64/Auralink-${f#build/darwin-arm64/auralink-}"
+          done
+          ls build/darwin-arm64
 
       - name: Verify the app
         env:

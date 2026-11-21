@@ -190,7 +190,7 @@ AURALINK_SNAPSHOTS=/tmp/shots go test -run TestSnapshots .   # every page as PNG
 cd helper && swift test              # the Swift helper (on a Mac), against the same protocol fixtures
 ```
 
-The store's tests use MyGo's SQLite plugin, which downloads its library once (checked against its SHA-256) or uses `MYGO_SQLITE_LIBRARY`. On Linux the overlay's pixel checks of Chinese text need a CJK font (Ubuntu: `fonts-noto-cjk`). This README's screenshots and recordings come from a demo build on a Mac: [scripts/readme-media](scripts/readme-media/README.md).
+The store's tests use MyGo's SQLite plugin, which downloads its library once (checked against its SHA-256) or uses the file `MYGO_NATIVE_SQLITECORE` names. On Linux the overlay's pixel checks of Chinese text need a CJK font (Ubuntu: `fonts-noto-cjk`). This README's screenshots and recordings come from a demo build on a Mac: [scripts/readme-media](scripts/readme-media/README.md).
 
 CI runs gofmt, the Go tests (also under the race detector) and MyGo vet on Linux, and the helper's tests on macOS. What needs permissions, a screen and real services is checked by hand with [docs/manual-test.md](docs/manual-test.md) (in Chinese). Releases are built, signed and notarised by GitHub Actions from a tag, and published on actnow.dev: [docs/release.md](docs/release.md).
 
@@ -204,7 +204,7 @@ CI runs gofmt, the Go tests (also under the race detector) and MyGo vet on Linux
 
 - [Voxt](https://github.com/hehehai/voxt): Auralink rewrites its behaviour feature by feature, with remote models only. The overlay's icons, the menu bar microphone and the overlay preview's background are Voxt's.
 - [AudioSmith](https://github.com/hehehai/AudioSmith): the window shell, the UI kit, the settings, the store and the supervisor Auralink's helper grew from.
-- [MyGo](https://github.com/egoist/mygo): native macOS UI from Go, without cgo (MIT).
+- [MyGo](https://github.com/egoist/mygo): native macOS UI from Go, without cgo (MIT), through ActNow's fork [hehehai/mygo](https://github.com/hehehai/mygo).
 - [Solar](https://www.figma.com/community/file/1166831539721848736) icons by 480 Design, under CC BY 4.0.
 
 ## Contributing

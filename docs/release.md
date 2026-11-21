@@ -25,11 +25,11 @@ tag v0.1.0-beta.2 ─▶ release.yml（macos-26，contents: read）
 | `auralink/beta/update-darwin-arm64.json` | `…/updates/auralink/beta/update-darwin-arm64.json` | beta 通道的清单：**后台保证始终是 beta 和正式版中较新的那个** |
 | `auralink[/beta]/auralink-0.x.y-darwin-arm64.tar.gz` | 同目录 | 完整更新包（里面的 app 已 staple） |
 | `auralink[/beta]/auralink-<旧版本>-to-0.x.y-darwin-arm64.delta` | 同目录 | 增量更新，最多 3 个旧版本各一个（§4.2） |
-| `auralink[/beta]/Auralink-0.x.y-arm64.dmg` | 不公开：`https://actnow.dev/download/auralink` 登录后下载 | 新用户安装（已公证、已 staple）；脚本把 MyGo 文件名里的空格换成横线 |
+| `auralink[/beta]/Auralink-0.x.y-arm64.dmg` | 不公开：`https://actnow.dev/download/auralink` 登录后下载 | 新用户安装（已公证、已 staple）；`mygo build` 按 slug 命名（`auralink-0.x.y-arm64.dmg`），发布工作流改回这个名字 |
 
 官网只公开 `update-*.json`（no-cache）和 `*.tar.gz`、`*.delta` 等（缓存一年、immutable），DMG 只能经登录后的下载页拿到。MyGo 的签名在清单里，没有单独的 `.sig` 文件。
 
-更新用 MyGo 的更新 API（`mygo.Updater.Check`、`Update.Install`、`App.Relaunch`，说明见 MyGo 的 `docs/updates.md`），界面是 Auralink 自己的（actnowkit 的 `updates` 状态机，`updates.go`、`updates_view.go`，不再用 updater 插件的窗口）；beta 通道是我们的补丁 0006（`third_party/mygo-patches/`）。
+更新用 MyGo 的更新 API（`mygo.Updater.Check`、`Update.Install`、`App.Relaunch`，说明见 MyGo 的 `docs/updates.md`），界面是 Auralink 自己的（actnowkit 的 `updates` 状态机，`updates.go`、`updates_view.go`，不再用 updater 插件的窗口）；beta 通道是 `mygo.json` 的 `updates.prereleases`（ActNow 维护的 MyGo 分支 github.com/hehehai/mygo，`go.mod` 的 replace）。
 
 只发 Apple 芯片（darwin/arm64）：辅助进程只编 arm64，Intel Mac 暂不支持。
 
@@ -56,7 +56,7 @@ tag v0.1.0-beta.2 ─▶ release.yml（macos-26，contents: read）
 - **版本号只能往上走**（后台的规则）：新版本必须高于这个通道发布过的所有版本（beta 还要高于正式版），已发布或下架过的版本号不能再用。
 - **默认值**：用户没动过开关时，当前运行的是 beta 就默认打开（beta 用户能收到下一个 beta），是正式版就默认关闭。用户拨过一次就以用户为准。
 - **不降级**：只会更新到比当前**更新**的版本。beta 用户关掉开关后，要等到比当前 beta 新的正式版发布才会更新（例如在 `0.2.0-beta.1` 上关掉，`0.1.1` 不会装，`0.2.0` 会装）。设置里的说明文字会这样写。
-- **还没有正式版时**（现在：前几个版本都是 beta），正式版通道的清单是 404，关着开关检查更新显示“已是最新”，不报错（`mygo.ErrNotPublished`）。
+- **还没有正式版时**（现在：前几个版本都是 beta），正式版通道的清单是 404，关着开关检查更新显示“已是最新”，不报错（MyGo 把 404 当作没有更新，`Check` 返回 nil）。
 
 ## 1. 一次性准备
 
@@ -175,7 +175,7 @@ bash scripts/actnow-publish.sh --app auralink --dir build/darwin-arm64 --changel
    jq --arg v "$v" '.version = $v' mygo.json > mygo.json.tmp && mv mygo.json.tmp mygo.json
    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $v" helper/Support/Info.plist   # macOS
    ```
-   app 的 `CFBundleShortVersionString` 是完整版本号（`0.1.0-beta.2`，更新比较用它）；`CFBundleVersion` 由 MyGo 写成数字部分（`0.1.0`，补丁 0007，Apple 要求只含数字和点）。
+   app 的 `CFBundleShortVersionString` 是完整版本号（`0.1.0-beta.2`，更新比较用它）；`CFBundleVersion` 由 `mygo build` 写成数字部分（`0.1.0`，Apple 要求只含数字和点）。
 2. **写两份 CHANGELOG**：把 `CHANGELOG.md`（英文）和 `CHANGELOG.zh-Hans.md`（简体中文）最上面的 `## [Unreleased]` 都改成 `## [0.1.0-beta.2] - 2026-11-02`（标题里的版本号必须和 mygo.json 完全一样，包括 `-beta.2`），两份的版本段一一对应：
    ```markdown
    ## [0.1.0-beta.2] - 2026-11-02          ## [0.1.0-beta.2] - 2026-11-02
@@ -256,15 +256,16 @@ macOS 按 bundle ID + 代码签名的要求（designated requirement）记住麦
 - 手动入口：应用菜单（关于之后）、菜单栏图标的菜单、⌘K、设置 → 诊断与关于 → 更新（还有“Beta 更新”“自动检查”“自动安装更新”三个开关、上次检查时间和“查看更新日志…”：所有版本，按当前语言）。都按 Beta 更新开关的状态检查，结果在更新面板里。旧版本更新窗口里的“自动检查”“自动安装”选择（`updater.json`）第一次启动时搬进设置。
 - 安装时先下载增量，校验签名，用已安装的 app 拼出新版本、逐个文件核对 SHA-256；任何一步不对就改下载完整包。结果和发布的 app 逐字节一致（代码签名、公证票据都在）。
 - 装好后面板提示重启（`App.Relaunch`：先走 Auralink 的退出流程，停掉辅助进程，再启动新版本）；侧栏底部是“重新启动以更新”。
-- **“自动安装更新”默认关**。开着时后台发现的更新会直接装好，但不会自动重启：MyGo 是在 app 运行时直接替换 bundle 的，旧进程继续跑，磁盘上的辅助进程已经是新版本。为此：
-  - supervisor 每次启动辅助进程前比较磁盘上 `Info.plist` 的版本和正在运行的版本（`internal/appbundle`）；不一样就不再启动磁盘上的新辅助进程（`helper.FailUpdated`，也不自动重试）；新辅助进程如果说另一个协议版本，同样归为“已更新”，而不是“请重新编译辅助进程”。
-  - app 每分钟、每次检查之后看一次磁盘上的版本；变了就在侧边栏底部出一张卡片“已安装更新 / 重启 Auralink 以完成更新”，首页和设置 → 诊断与关于也显示“重启 Auralink”。重启后卡片消失。
+- **新版本在 Auralink 退出后才换进去**（MyGo 0.7.4 起）：`Update.Install` 把新 bundle 解在 app 旁边（`.Auralink.app.update-*`），由一个等 Auralink 进程退出的小进程替换 `Auralink.app`（重启、退出、崩溃都算），重启时再由它打开新版本；这样 Dock 保留原来的图标位置。在这之前磁盘上仍是旧版本。
+- **“自动安装更新”默认关**。开着时后台发现的更新会直接装好，但不会自动重启。装好之后到重启之前，app 的表现和 MyGo 0.5 时（运行中直接替换 bundle）一样：
+  - supervisor 每次启动辅助进程前问一次“app 是否已过期”（`appStale`）：已经装好待换的更新（`updateStaged`），或者磁盘上 `Info.plist` 的版本和正在运行的版本不一样（`internal/appbundle`，例如用户把新的 Auralink.app 拖进来覆盖）；是的话就不再启动辅助进程（`helper.FailUpdated`，也不自动重试）；辅助进程如果说另一个协议版本，同样归为“已更新”，而不是“请重新编译辅助进程”。
+  - 安装完成（更新状态变为 ready）时，以及每分钟、每次检查之后发现过期时，侧边栏底部出一张卡片“已安装更新 / 重启 Auralink 以完成更新”，首页和设置 → 诊断与关于也显示“重启 Auralink”。重启后卡片消失。
 
 ### 4.2 增量（delta）在两个通道之间
 
 MyGo 原来的做法：构建时读更新源上已发布的清单（`updates.url` 的 `update-darwin-arm64.json`），从它和它清单里列的前几个版本（最多 3 个）生成增量。只有一个通道时这够了；有了 beta 通道，正式版的清单里没有 beta，beta 用户就拿不到下一个正式版的增量。
 
-补丁 0006 的 `updates.prereleases`（[release/mygo.release.json](../release/mygo.release.json) 里打开）让构建同时读**两个通道的清单**（`updates.url/update-darwin-arm64.json` 和 `updates.url/beta/update-darwin-arm64.json`）：先放两个通道各自的版本，再按版本号从高到低放它们清单里列的旧版本，去重、只取比当前低的，最多 3 个。增量文件和这个版本的更新包放在同一个目录（正式版在 `auralink/`，beta 在 `auralink/beta/`），清单里是完整的 URL，所以正式版的清单复制到 beta 通道以后照样指向 `auralink/` 下的文件。
+`updates.prereleases`（[release/mygo.release.json](../release/mygo.release.json) 里打开）让构建同时读**两个通道的清单**（`updates.url/update-darwin-arm64.json` 和 `updates.url/beta/update-darwin-arm64.json`）：先放两个通道各自的版本，再按版本号从高到低放它们清单里列的旧版本，去重、只取比当前低的，最多 3 个。增量文件和这个版本的更新包放在同一个目录（正式版在 `auralink/`，beta 在 `auralink/beta/`），清单里是完整的 URL，所以正式版的清单复制到 beta 通道以后照样指向 `auralink/` 下的文件。
 
 | 构建（已发布的） | 增量来自 |
 |---|---|
@@ -294,7 +295,7 @@ MAC_DIR=code/Auralink-site scripts/mac.sh scripts/mac-update-e2e.sh   # 安装�
 MAC_DIR=code/Auralink-site scripts/mac.sh scripts/mac-beta-e2e.sh     # 两个通道
 ```
 
-[scripts/mac-update-e2e.sh](../scripts/mac-update-e2e.sh)：造 0.1.0 和 0.1.1 两个正式版（bundle ID `dev.hehehai.auralink.updtest`），把装好的 0.1.0 用 `-tags updatecheck` 编进去的 `--update-check`（[update_check.go](../update_check.go)，发布版没有）驱动真实的 `mygo.Updater.Check/Install`，检查三种安装方式、装完的 bundle 和发布的逐文件一致、旧进程不启动新辅助进程、新版本“已是最新”；还检查 app 的 Resources 里有 LICENSE、NOTICE、LICENSES/，发布脚本的 `--dry-run` 接受这两个构建，正式版的清单也进了 beta 通道。
+[scripts/mac-update-e2e.sh](../scripts/mac-update-e2e.sh)：造 0.1.0 和 0.1.1 两个正式版（bundle ID `dev.hehehai.auralink.updtest`），把装好的 0.1.0 用 `-tags updatecheck` 编进去的 `--update-check`（[update_check.go](../update_check.go)，发布版没有）驱动真实的 `mygo.Updater.Check/Install`，检查三种安装方式、旧进程运行时磁盘上仍是旧版本且不再启动辅助进程、进程退出后 bundle 换成新版本并和发布的逐文件一致、新版本“已是最新”；还检查 app 的 Resources 里有 LICENSE、NOTICE、LICENSES/，发布脚本的 `--dry-run` 接受这两个构建，正式版的清单也进了 beta 通道。
 
 [scripts/mac-beta-e2e.sh](../scripts/mac-beta-e2e.sh)（bundle ID `dev.hehehai.auralink.betatest`）：依次构建并发布 `0.1.0-beta.1`、`0.1.0-beta.2`、`0.1.0`、`0.2.0-beta.1`、`0.1.1`，每次发布后检查两个通道的清单是哪个版本，并让已安装的各版本在 Beta 更新开 / 关 / 默认下检查并安装：
 
@@ -308,7 +309,7 @@ MAC_DIR=code/Auralink-site scripts/mac.sh scripts/mac-beta-e2e.sh     # 两个�
 | h / i | beta.2（有 0.2.0-beta.1 后） | 默认 / 关 | 0.2.0-beta.1 / 0.1.0，增量 |
 | j / k | 0.2.0-beta.1（有 0.1.1 后） | 关 / 默认 | 无（不降级到 0.1.1；beta 通道仍是 0.2.0-beta.1） |
 | l / m | 0.1.0（有 0.1.1 后） | 默认 / 开 | 0.1.1 / 0.2.0-beta.1（beta 通道取较新的），增量 |
-| o / p | 0.1.0 / 0.2.0-beta.1，beta 通道的清单坏了 | 开 | 退回正式版：0.1.1 / 报错（正式版没有更新的） |
+| o / p | 0.1.0 / 0.2.0-beta.1，beta 通道的清单坏了 | 开 | 退回正式版：0.1.1 / 无（已是最新，不报错：正式版没有更新的） |
 
 还检查每个版本的增量来自哪些版本（§4.2 的表）、发布脚本的 `--dry-run` 接受每个构建（beta 走 beta 通道、中英文说明都有）、`CFBundleVersion` 是数字、更新源只被请求过 `/updates/auralink/` 下的文件、没有请求 DMG。
 
@@ -328,7 +329,7 @@ MAC_DIR=code/Auralink-site scripts/mac.sh scripts/mac-beta-e2e.sh     # 两个�
 - **走官网；GitHub Release 只放安装包**（用户 10-16 定走官网；仓库公开后，11-21 定 GitHub Release 也附 dmg，见开头）：仓库改为私有后，Release 的文件匿名读不到；官网统一管下载（要登录）、更新源和更新日志，家族的几个 app 都一样。文件经官网后台进 R2（官网 10-16 晚的新契约）：CI 不持有 R2 密钥，校验、发布顺序、beta 取较新的、版本号只升不降都由后台统一保证。
 - **`updates` 不写进仓库的 mygo.json**，只在发布时由 [scripts/release-config.sh](../scripts/release-config.sh) 合并 [release/mygo.release.json](../release/mygo.release.json)。核实过：`mygo.Updater.Enabled()` 只在 `mygo dev` 的开发构建里为 false；任何带 `updates` 的 `go tool mygo build`（包括 mac-air 上各线程的 ad-hoc 测试构建）都会链接更新源，放在可写目录里就会每天去检查，发布后会提示、甚至在开了自动安装时用正式版替换掉测试构建（替换只看路径，独立 bundle ID 的也一样）。公钥本身不是秘密，放在仓库里便于审阅。签名身份和公证配置同样只在 CI 里注入，所以 notarize 不会让本地 ad-hoc 构建报错。
 - **两个更新源，beta 取较新的**：和 Voxt（Sparkle 的两个 appcast）一样，也是官网的约定。开着 Beta 更新的 app 只读一个清单；“较新”由官网后台在发布时算好。读 beta 清单失败时退回正式版，所以 beta 通道出问题时 beta 用户仍能收到正式版。
-- **发布配置里 url 始终是正式版的，加 `prereleases`**，而不是像官网文档那样 beta 构建把 url 改成 `…/beta`：app 要能在两个通道之间切换（Beta 更新开关），就得同时知道两个更新源，增量也要读两个通道的清单；补丁 0006 让 beta 构建的文件地址落在 `…/beta/` 下，结果和官网要求的一样（后台检查的是清单里的地址）。
+- **发布配置里 url 始终是正式版的，加 `prereleases`**，而不是像官网文档那样 beta 构建把 url 改成 `…/beta`：app 要能在两个通道之间切换（Beta 更新开关），就得同时知道两个更新源，增量也要读两个通道的清单；`updates.prereleases` 让 beta 构建的文件地址落在 `…/beta/` 下，结果和官网要求的一样（后台检查的是清单里的地址）。
 - **按 SHA-1 选签名身份**：codesign 遇到两张同名证书会报 “ambiguous”（mac-air 上 RY2TQTYSKQ 就有两张同名的），按哈希签不会。CI 的临时钥匙串里只有导入的那一张，脚本仍按 `APPLE_TEAM_ID` 核对。
 - **主程序也有 `audio-input` entitlement**（[helper/Support/app.entitlements](../helper/Support/app.entitlements)）：hardened runtime 下主进程自己请求麦克风时需要；辅助进程录音时 macOS 也把主程序当作负责进程。成本为零。
 - **只在 tag 上发布**；手动运行默认试跑（可以跳过公证）；PR 只做不带 Secret 的 ad-hoc 构建、检查和发布脚本的 `--dry-run`。action 固定到 commit，job 只有 `contents: read`（发布用官网的 token，不写仓库），同一个 ref 不并发、不中途取消，缺 Secret 时第一步就报出缺哪几个。
