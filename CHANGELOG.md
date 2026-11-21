@@ -6,7 +6,7 @@ All notable changes to Auralink. The format follows [Keep a Changelog](https://k
 
 ### Changed
 - Shared settings and API keys say “Shared across ActNow” instead of naming the other ActNow apps.
-- App framework updated to ActNow's v0.10.0-actnow.3 (based on upstream 0.10.0).
+- App framework updated to ActNow's v0.10.0-actnow.4 (based on upstream 0.10.0).
 
 ## [0.1.0-beta.7] - 2026-11-17
 
