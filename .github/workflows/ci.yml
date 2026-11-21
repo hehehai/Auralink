@@ -51,7 +51,9 @@ jobs:
       - name: SQLite library for the MyGo plugin
         id: sqlite
         run: |
-          dir="$(go list -m -f '{{.Dir}}' github.com/egoist/mygo)/plugins/sqlite/internal/sqlitecore"
+          # go.mod replaces MyGo with ActNow's fork, a module to download
+          # (go list -m names no directory before that).
+          dir="$(go mod download -json github.com/egoist/mygo | jq -r .Dir)/plugins/sqlite/internal/sqlitecore"
           read -r url sum < <(jq -r '.libraries[] | select(.name == "Sqlitecore") | .files["linux-amd64"] | "\(.url) \(.sha256)"' "$dir/mygo-plugin.json")
           echo "sha=$sum" >> "$GITHUB_OUTPUT"
           echo "url=$url" >> "$GITHUB_OUTPUT"
