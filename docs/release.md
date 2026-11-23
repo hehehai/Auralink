@@ -1,5 +1,7 @@
 # 发布与更新
 
+> **2026-11-23 起，发版/测试 Mac 为 mac-mini**（脚本的 `MAC_HOST` 默认 `mac-mini`；签名钥匙串、公证 profile、更新密钥已就绪），mac-air 备用：`MAC_HOST=mac-air`。下文写 mac-air 处同样适用于 mac-mini。
+
 Auralink 是开源软件（GNU AGPL-3.0，[LICENSE](../LICENSE)），仓库 [hehehai/Auralink](https://github.com/hehehai/Auralink) 是公开的；下载、更新和更新日志都在官网 [actnow.dev](https://actnow.dev/auralink)；从 0.1.0-beta.7 起，每个版本在官网发布之后，还会建一个 GitHub Release，附已签名、公证的安装包 `Auralink-<版本>-arm64.dmg`（beta 版是 prerelease），给从 GitHub、awesome 列表或 Homebrew 来、不想注册账号的人下载（[scripts/release-github.sh](../scripts/release-github.sh)，工作流的 “GitHub release” 一步；用户 11-21 定）。已安装的 app 照旧从官网更新。公开仓库的 GitHub Actions 标准 runner（包括 macOS）不计额度。
 
 发布版本在 GitHub Actions 上构建：打一个 `v0.x.y` tag（正式版）或 `v0.x.y-beta.n` tag（beta 版），[release 工作流](../.github/workflows/release.yml)就在 macOS runner 上编译辅助进程和 app，用 Developer ID 签名，用 Apple ID 和 App 专用密码公证，用更新密钥签名更新包，然后用官网的发布脚本 [scripts/actnow-publish.sh](../scripts/actnow-publish.sh)（`https://actnow.dev/actnow-publish.sh` 的副本，见 §2.3）把文件交给官网后台。后台校验（大小、sha256、清单、Ed25519 签名、CHANGELOG）、存进 R2、写更新日志、发布，**清单最后写**。CI 只需要 `ACTNOW_INGEST_TOKEN`，没有 R2 的密钥。官网的说明在 actnow-www 仓库的 `docs/release-pipeline.md`。

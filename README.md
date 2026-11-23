@@ -162,7 +162,7 @@ go tool mygo build                   # build/darwin-arm64/Auralink.app and "Aura
 
 A build from this repository plays macOS's system sounds when a recording starts and stops. The builds from actnow.dev carry the ActNow family's sounds instead, which come from a private library and may not be redistributed ([NOTICE](NOTICE)); with access to it, `scripts/sync-sounds.sh` copies them into `resources/sounds` before a build.
 
-From Linux, `scripts/mac.sh <command>` mirrors the project to a Mac (`MAC_HOST`, default `mac-air`; `MAC_DIR`, default `code/Auralink`) and runs the command there: `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'`.
+From Linux, `scripts/mac.sh <command>` mirrors the project to a Mac (`MAC_HOST`, default `mac-mini`, `mac-air` the spare; `MAC_DIR`, default `code/Auralink`) and runs the command there: `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'`.
 
 <details>
 <summary>Signing during development (keeping the permissions across rebuilds)</summary>

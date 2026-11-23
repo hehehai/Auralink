@@ -162,7 +162,7 @@ go tool mygo build                   # 生成 build/darwin-arm64/Auralink.app �
 
 从本仓库构建的版本，录音开始和结束时播放 macOS 系统声音。actnow.dev 发布的版本带有 ActNow 家族的提示音，它们来自私有的声音库，不允许再分发（见 [NOTICE](NOTICE)）；有权限访问声音库时，`scripts/sync-sounds.sh` 会在构建前把它们复制到 `resources/sounds`。
 
-在 Linux 上开发时，`scripts/mac.sh <命令>` 会把项目同步到 Mac（`MAC_HOST` 默认 `mac-air`，`MAC_DIR` 默认 `code/Auralink`）并在那边执行，例如 `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'`。
+在 Linux 上开发时，`scripts/mac.sh <命令>` 会把项目同步到 Mac（`MAC_HOST` 默认 `mac-mini`，`mac-air` 备用；`MAC_DIR` 默认 `code/Auralink`）并在那边执行，例如 `scripts/mac.sh 'scripts/build-helper.sh && go tool mygo build'`。
 
 <details>
 <summary>开发时的签名（重新编译后保留权限）</summary>
