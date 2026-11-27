@@ -98,7 +98,7 @@ func TestFeedbackSettingsPanelOpensWindow(t *testing.T) {
 	if !f.a.fbWin.IsOpen() || !has(f.wt, "Send Feedback") || !has(f.wt, "to the Auralink team · actnow.dev") {
 		t.Fatalf("window: open %v, %q", f.a.fbWin.IsOpen(), f.wt.Texts())
 	}
-	click(t, f.wt, "Close")
+	click(t, f.wt, "Cancel")
 	if f.a.fbWin.IsOpen() {
 		t.Fatal("still open")
 	}

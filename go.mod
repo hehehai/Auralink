@@ -9,7 +9,7 @@ require (
 	github.com/ebitengine/purego v0.11.1
 	github.com/egoist/mygo v0.10.0
 	github.com/hehehai/actnowkit v0.22.2
-	github.com/hehehai/actnowkit/feedbackui v0.22.0
+	github.com/hehehai/actnowkit/feedbackui v0.22.1
 	golang.org/x/text v0.43.0
 )
 
